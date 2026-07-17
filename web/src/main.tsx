@@ -9,6 +9,7 @@ import App from './App';
 import { StoreProvider } from './store/StoreContext';
 import { ThemeProvider } from './theme';
 import './styles.css';
+import './lib/desktop'; // sets up window.desktop when running in Tauri
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

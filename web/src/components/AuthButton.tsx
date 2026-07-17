@@ -1,10 +1,8 @@
 // Sign-in/sign-out button in the top bar.
-import { useState } from 'react';
 import { useStore } from '../store/StoreContext';
 
 export function AuthButton() {
   const { user, api } = useStore();
-  const [busy, setBusy] = useState(false);
 
   if (user) {
     return (
@@ -17,20 +15,7 @@ export function AuthButton() {
   }
 
   return (
-    <button
-      className="btn primary"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await api.signIn();
-        } catch (e) {
-          alert((e as Error).message);
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
+    <button className="btn primary" onClick={() => api.signIn()}>
       Sign in with Google
     </button>
   );

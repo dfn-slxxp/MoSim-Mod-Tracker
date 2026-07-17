@@ -19,8 +19,7 @@ tracker spreadsheet is intentionally removed — if you haven't started a robot,
 it's Planned; once you open Unity, it's In Unity.
 
 The project is meant to be forked / cloned by other MoSim modders who can run
-their own instance with their own Firebase project (or just use local mode, no
-account needed).
+their own instance with their own server.
 
 
 ------------------------------------------------------------------------------
@@ -53,36 +52,41 @@ Web frontend:
     3 themes: dark, light, cloud (soft blue MSI-Center style)
   - No state management library — custom backend abstraction + React Context
 
-Storage backends (same TypeScript interface, swapped at runtime):
-  - LocalBackend: localStorage JSON blob, no account needed, syncs between
-    tabs via the 'storage' event
-  - CloudBackend: Firebase Firestore (real-time onSnapshot subscriptions) +
-    Firebase Auth (Google sign-in popup)
-  - Which one is used: if firebaseConfig in firebase-config.ts is non-null,
-    CloudBackend is used; otherwise LocalBackend
+Storage backend:
+  - HTTPBackend: Express REST API + SQLite (server-side). All data lives on
+    your own server. No Firebase, no third-party database.
+  - Auth: Google OAuth 2.0 via the server. Web mode uses session cookies;
+    Desktop (Tauri) mode uses JWT Bearer tokens stored in localStorage.
+  - The Backend interface is still in web/src/store/backend.ts — components
+    call useStore() and never import HTTPBackend directly.
 
 Desktop app:
-  - Python (3.8+) + pywebview (pip install pywebview)
-  - Serves web/dist/ on a random localhost port via Python's built-in HTTPServer
-  - Opens a native OS window (WebView2 on Windows, WKWebView on macOS, GTK on Linux)
-  - Exposes a JS API (window.desktop.*) via a shim over window.pywebview.api.*
-  - No Electron, no Node.js required to run the desktop app
+  - Tauri 2.x (Rust + system WebView: WebView2/WKWebView/WebKitGTK)
+  - ~50 ms startup, ~5-10 MB installer bundle
+  - UI renders from bundled local build (no loading from remote server for UI)
+  - Only data fetches go to the server
+  - Exposes window.desktop API via web/src/lib/desktop.ts (Tauri invoke bridge)
+  - Custom URL scheme mosim:// used for OAuth deep-link callback
+  - Cross-platform packaging built into Tauri; GitHub Actions CI builds all
+    platforms on version tag push
+
+Server:
+  - Node.js + Express (server/server.js, server/api.js)
+  - better-sqlite3 for SQLite (server/db.js)
+  - google-auth-library for OAuth; jsonwebtoken for session JWTs
+  - Deployed on DigitalOcean Ubuntu droplet with nginx + certbot HTTPS
+  - Managed by server/manage.sh (setup, deploy, restart, logs, status)
 
 AI features:
   - Two providers: Anthropic Claude API (direct browser fetch with the
     anthropic-dangerous-direct-browser-access header) OR local Ollama
-  - Provider, API key, model name all stored in localStorage only — never
-    written to Firestore or any server
+  - Provider, API key, model name all stored in localStorage ONLY — never
+    written to the server or any third-party service
   - System prompt in web/src/ai/reference.ts explains MoSim APIs to Claude
   - Script library (Scripts page): drag-drop .cs files in, all fed to AI as
     examples by default, with checkboxes to EXCLUDE (not include)
   - JSONL export for fine-tuning your own model (one training pair per script:
     system + user description + assistant script content)
-
-Server/hosting:
-  - server/: Express static server + DEPLOY.md for a DigitalOcean droplet
-  - Firebase Hosting also works (firebase deploy --only hosting)
-  - Firebase stores all data; the static server is just a file host
 
 
 ------------------------------------------------------------------------------
@@ -91,85 +95,121 @@ Server/hosting:
 
 MoSim Mod Tracker/
 ├── steps.json                    # THE canonical split template — 10 steps,
-│                                 # 53 sub-steps. Both web AND Python desktop
-│                                 # read this file. Edit here to change workflow.
+│                                 # 53 sub-steps. Both web AND desktop read this.
+│                                 # Edit here to change workflow.
 │                                 # Keep step/sub-step IDs stable or saved
 │                                 # progress will detach from the new IDs.
-│
-├── app/
-│   ├── main.py                   # Python desktop app entry point
-│   ├── requirements.txt          # Just: pywebview>=4.4
-│   ├── run.bat                   # Windows double-click launcher
-│   └── run.sh                    # Mac/Linux launcher
 │
 ├── web/
 │   ├── index.html
 │   ├── package.json              # deps: react, react-dom, react-router-dom,
-│   │                             #   firebase, vite, @vitejs/plugin-react
+│   │                             #   @tauri-apps/api, vite, @vitejs/plugin-react
 │   ├── tsconfig.json
-│   ├── vite.config.ts            # base: './', fs.allow: ['..'] (for steps.json)
+│   ├── vite.config.ts            # base: './', dev proxy to localhost:8787,
+│   │                             # fs.allow: ['..'] (for steps.json)
 │   └── src/
-│       ├── main.tsx              # React root, wraps in StoreProvider + ThemeProvider
-│       │                         # + HashRouter
+│       ├── main.tsx              # React root, imports ./lib/desktop (Tauri setup),
+│       │                         # wraps in StoreProvider + ThemeProvider + HashRouter
 │       ├── App.tsx               # Routes + Shell (topbar/nav); /compact is
 │       │                         # frameless (no Shell wrapper)
 │       ├── types.ts              # All shared TypeScript types + normalizeRobot()
 │       ├── steps.ts              # Imports steps.json, exposes STEPS array +
 │       │                         # stepProgress() + robotProgress() helpers
 │       ├── styles.css            # All CSS. Theme via [data-theme] on <html>.
-│       │                         # ~1500 lines, NO external CSS framework.
+│       │                         # ~1500+ lines, NO external CSS framework.
 │       ├── theme.tsx             # useTheme() hook + ThemeProvider, persists to
 │       │                         # localStorage
-│       ├── firebase-config.ts    # Paste Firebase config here; null = local mode
-│       ├── desktop.d.ts          # TypeScript types for window.desktop API
+│       │
+│       ├── lib/
+│       │   └── desktop.ts        # Tauri bridge. Detects isTauri() via
+│       │                         # __TAURI_INTERNALS__ global. Sets up
+│       │                         # window.desktop = { togglePin, isPinned,
+│       │                         # setExpanded, close, scanRepo, readScript,
+│       │                         # openPath } using Tauri invoke(). Exports
+│       │                         # getServerUrl() and openInBrowser().
 │       │
 │       ├── ai/
 │       │   ├── client.ts         # callAnthropic() + callOllama() + generateScript()
-│       │   │                     # settings helpers (localStorage getters/setters)
-│       │   └── reference.ts      # MOSIM_SYSTEM_PROMPT constant (the system prompt
-│       │                         # sent to Claude explaining MoSim C# APIs)
+│       │   │                     # + settings helpers (localStorage getters/setters)
+│       │   └── reference.ts      # MOSIM_SYSTEM_PROMPT constant (explains MoSim
+│       │                         # C# APIs to the AI model)
 │       │
 │       ├── store/
 │       │   ├── backend.ts        # Backend interface + StoreState interface +
 │       │   │                     # sortByOrder() + nextOrder() helpers
-│       │   ├── local.ts          # LocalBackend (localStorage)
-│       │   ├── cloud.ts          # CloudBackend (Firebase)
+│       │   ├── http.ts           # HTTPBackend: REST API client. Dual-mode:
+│       │   │                     #   Web → relative /api/... + session cookie
+│       │   │                     #   Tauri → absolute ${serverUrl}/api/... + Bearer
 │       │   └── StoreContext.tsx  # React context + StoreProvider + useStore() hook
+│       │                         # Always uses HTTPBackend (no local/cloud split)
 │       │
-│       ├── components/
-│       │   ├── AuthButton.tsx    # Google sign-in/out button with avatar
-│       │   ├── AiScriptPanel.tsx # AI generator panel (on robot detail page)
-│       │   ├── PillSelect.tsx    # Status/mod-type colored dropdown pill
-│       │   ├── ProgressBar.tsx   # Thin progress bar component
-│       │   ├── RobotForm.tsx     # Add-new-robot inline form
-│       │   └── Splits.tsx        # The checkable split steps component
-│       │
-│       └── pages/
-│           ├── RobotsPage.tsx    # Community-tracker table of tracked robots
-│           ├── RobotDetailPage.tsx # Splits view + notes + AI panel for one robot
-│           ├── PlannedPage.tsx   # Robots with status='planned'
-│           ├── ModpacksPage.tsx  # Modpack management
-│           ├── ReposPage.tsx     # Git repo management + scan button
-│           ├── ScriptsPage.tsx   # .cs library drag-drop + JSONL export
-│           └── CompactPage.tsx   # LiveSplit-style compact overlay
+│       └── components/ + pages/  # (same as before — see section 10)
+│
+├── src-tauri/                    # Tauri 2.x Rust backend
+│   ├── Cargo.toml                # deps: tauri 2, tauri-plugin-shell 2,
+│   │                             #   tauri-plugin-deep-link 2, serde, url
+│   ├── build.rs                  # tauri_build::build()
+│   ├── tauri.conf.json           # frontendDist: ../web/dist
+│   │                             # window: 360x640, alwaysOnTop, center
+│   │                             # bundle: all targets, deep-link scheme: mosim
+│   ├── capabilities/
+│   │   └── default.json          # Tauri permission set
+│   └── src/
+│       ├── main.rs               # Entry point (calls lib::run())
+│       ├── lib.rs                # tauri::Builder setup, deep-link handler for
+│       │                         # mosim://auth?token=... -> emits mosim:auth-token
+│       ├── commands.rs           # All Tauri commands (#[tauri::command]):
+│       │                         #   get_server_url, toggle_pin, is_pinned,
+│       │                         #   set_expanded, close_window, open_path,
+│       │                         #   scan_repo, read_script
+│       └── config.rs             # get_server_url(): checks MOSIM_URL env var,
+│                                 # then mosim.conf next to exe, defaults to
+│                                 # http://localhost:8787
 │
 ├── server/
-│   ├── server.js                 # Express static server (serves web/dist/)
+│   ├── server.js                 # Express entry point; serves web/dist/ as static
+│   ├── api.js                    # All routes: /api/auth/*, /api/robots, /api/modpacks,
+│   │                             # /api/repos, /api/scripts. CORS for Tauri origins.
+│   │                             # requireAuth accepts session cookie OR Bearer JWT.
+│   ├── db.js                     # better-sqlite3 helpers, schema creation
+│   ├── manage.sh                 # Automated droplet setup/deploy script
 │   ├── package.json
-│   └── DEPLOY.md                 # DigitalOcean droplet setup guide
+│   ├── .env                      # GITIGNORED — contains JWT_SECRET,
+│   │                             # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+│   │                             # OAUTH_REDIRECT_URI, NODE_ENV, PORT
+│   └── .env.example              # Template — copy to .env and fill in
 │
-├── firestore.rules               # Firestore security rules
-├── firestore.indexes.json        # Firestore composite index definitions
-├── firebase.json                 # Firebase project config (hosting + firestore)
-├── TRAINING.md                   # Guide: fine-tune your own model on your scripts
-├── README.md                     # Setup + feature overview
-├── .gitignore                    # Excludes: node_modules/, dist/, desktop/,
-│                                 # __pycache__/, .gguf, training artifacts
-└── .gitattributes
+├── installer/
+│   ├── generate-assets.py        # Python/Pillow script; generates icon + installer
+│   │                             # graphics from a source PNG
+│   └── assets/                   # Generated: icon.png, banner bmps, etc.
+│
+├── docs/
+│   ├── server-setup.md           # Full guide: DigitalOcean droplet, DNS, Google
+│   │                             # OAuth, manage.sh, nginx, certbot, maintenance
+│   ├── app-install.md            # Windows/macOS/Linux install + mosim.conf setup
+│   └── development.md            # Local dev: first-time setup, server creds,
+│                                 # running web vs Tauri, build, project structure,
+│                                 # releasing a new version
+│
+├── .github/
+│   └── workflows/
+│       └── release.yml           # CI: builds Tauri app on all 4 platforms
+│                                 # (Windows, macOS ARM, macOS Intel, Linux)
+│                                 # on version tag push; uploads to GitHub Release
+│
+├── desktop/                      # LEGACY Electron app — superseded by Tauri.
+│                                 # Still in repo for reference; gitignored from
+│                                 # release artifacts.
+├── TRAINING.md                   # Guide: fine-tune your own Ollama model on scripts
+│                                 # AMD RX 9070 XT path (WSL2 + ROCm) + Colab path
+├── README.md                     # Setup + feature overview + docs table
+└── .gitignore                    # Excludes: node_modules/, dist/, __pycache__/,
+                                  # .gguf, training artifacts, server/.env
 
 
 ------------------------------------------------------------------------------
-5. DATA MODEL (types.ts)
+5. DATA MODEL (types.ts + server DB)
 ------------------------------------------------------------------------------
 
 RobotStatus = 'planned' | 'in-unity' | 'semi-functional' | 'released'
@@ -189,13 +229,9 @@ Robot {
   modpackId: string | null
   repoId: string | null    // links to a Repo
   private: boolean
-  modpackPrivate: boolean  // DENORMALIZED copy of parent modpack's private flag
-                           // (Firestore can't join in security rules, so this
-                           // flag is copied to each robot doc)
-  ownerUid: string | null
   notes: string
   order: number            // manual sort order
-  createdAt: number        // Date.now() Unix ms
+  createdAt: number        // Unix ms timestamp
   progress: Record<string, StepProgress>  // step id -> StepProgress
 }
 
@@ -205,7 +241,7 @@ StepProgress {
 }
 
 Modpack {
-  id, name, game, description, private, ownerUid, order, createdAt
+  id, name, game, description, private, order, createdAt
 }
 
 Repo {
@@ -213,7 +249,7 @@ Repo {
   localPath: string        // absolute path on this machine (for desktop scanning)
   remoteUrl: string        // GitHub URL (shown as a link)
   private: boolean
-  ownerUid, order, createdAt
+  order, createdAt
   scan: RepoScan | null    // cached result of last desktop scan
 }
 
@@ -234,18 +270,20 @@ ScriptDoc {
   description: string      // what the robot does; becomes the prompt in JSONL export
   content: string          // raw C# file content
   robotId: string | null   // optionally linked to a tracked robot
-  ownerUid, order, createdAt
+  order, createdAt
 }
 
-New* types = Omit<Full, 'id' | 'ownerUid' | 'order' | 'createdAt' | ...>
-  These are what callers provide; the backend fills in the rest.
+Server-side SQLite schema (db.js):
+  All tables store data as SQLite columns with JSON blobs for complex fields
+  (progress, scan). The ownerUid column is the Google sub (user ID) from the
+  OAuth token. All API routes filter by the authenticated user's UID.
 
 
 ------------------------------------------------------------------------------
 6. SPLIT TEMPLATE (steps.json)
 ------------------------------------------------------------------------------
 
-10 steps at repo root (shared between web and Python desktop):
+10 steps at repo root (shared between web and Tauri desktop):
 
 Step 1: Model Prep (5 sub-steps)
   - Export CAD to GLTF (Team(Year), coarse quality)
@@ -327,7 +365,7 @@ Step 10: Build & Ship (6 sub-steps)
 
 The app talks ONLY to the Backend interface (web/src/store/backend.ts).
 Components call `const { robots, api, canEdit } = useStore()` — they never
-import LocalBackend or CloudBackend directly.
+import HTTPBackend directly.
 
 Backend interface methods:
   init(onChange)         // start subscriptions; calls onChange with Partial<StoreState>
@@ -339,67 +377,151 @@ Backend interface methods:
   signIn / signOut
 
 StoreState:
-  mode: 'local' | 'cloud'
   ready: boolean         // false until first load completes
-  user: UserInfo | null  // null if not signed in or in local mode
+  user: UserInfo | null  // null if not signed in
   robots / modpacks / repos / scripts: arrays, already sorted
-  canEdit: boolean       // true in local mode or if signed in
+  canEdit: boolean       // true if signed in
   error: string | null
 
-Selection logic in StoreContext.tsx:
-  firebaseConfig !== null  =>  CloudBackend
-  firebaseConfig === null  =>  LocalBackend (DEFAULT — works with zero setup)
+HTTPBackend (web/src/store/http.ts):
+  - _serverUrl: determined at runtime. In Tauri mode, calls get_server_url Rust
+    command (reads mosim.conf). In web mode, empty string (uses relative URLs).
+  - _token: JWT Bearer token (Tauri only). Stored in localStorage as 'mosim_token'.
+    In web mode, session cookie is used instead (sent automatically by the browser).
+  - _req(): builds fetch with appropriate URL + auth header + credentials:include.
+    On 401, clears token if in Bearer mode.
+  - init(): calls _initAsync(). In Tauri mode, loads serverUrl + token, sets up
+    tauriListen for 'mosim:auth-token' events (deep-link OAuth callback).
+  - dispose(): clears _disposed flag, calls unlisten to clean up Tauri event listener.
+  - signIn(): In Tauri mode, opens ${serverUrl}/api/auth/login?desktop=1 in system
+    browser. In web mode, redirects window.location.href to /api/auth/login.
+  - signOut(): In Tauri mode, clears localStorage token. In web mode, POST logout.
+  - _load(): fetches /api/me to get user + all data arrays.
 
-LocalBackend details:
-  - localStorage key: 'mosim-mod-tracker'
-  - Syncs between tabs via the 'storage' window event
-  - normalizeRobot() applied on every read (handles old status values)
-
-CloudBackend details:
-  - Two Firestore queries per collection: public (private==false) + owner (ownerUid==uid)
-  - Results merged by document ID into sorted arrays
-  - onSnapshot subscriptions = live updates across devices
-  - ready=true only after every active query has responded at least once
-  - Scripts are NEVER queried publicly (only owner query)
-  - Firestore security rules in firestore.rules enforce read/write access server-side
-
-
-------------------------------------------------------------------------------
-8. FIRESTORE RULES SUMMARY
-------------------------------------------------------------------------------
-
-Collections: robots, modpacks, repos, scripts
-
-robots:
-  read: if (private==false && modpackPrivate==false) OR owner
-  create: if signedIn && ownerUid == me
-  update/delete: if owner
-
-modpacks:
-  read: if private==false OR owner
-  create: if signedIn && ownerUid == me
-  update/delete: if owner
-
-repos:
-  read: if private==false OR owner
-  create: if signedIn && ownerUid == me
-  update/delete: if owner
-
-scripts:
-  read/write: if owner (NEVER public)
-  create: if signedIn && ownerUid == me
-
-The rules include a comment explaining how to lock to a single Google UID
-(replace signedIn() with request.auth.uid == 'YOUR_UID_HERE' in create rules).
-
-NOTE: modpackPrivate is a denormalized copy of the parent modpack's private flag,
-copied to each robot document because Firestore rules can't do cross-collection
-lookups. When a modpack's privacy changes, setModpackPrivacy() updates the flag
-on all member robots in a batch write.
+_disposed flag pattern:
+  If dispose() is called before _initAsync() completes (React StrictMode double-
+  invoke, hot reload), the unlisten is called immediately and _initAsync returns
+  early. This prevents memory leaks from dangling Tauri event listeners.
 
 
 ------------------------------------------------------------------------------
-9. REACT ROUTING (App.tsx)
+8. SERVER API (server/api.js)
+------------------------------------------------------------------------------
+
+Auth endpoints:
+  GET /api/auth/login        Redirects to Google OAuth. ?desktop=1 passes flag
+                             through state JWT so callback knows to use deep link.
+  GET /api/auth/callback     OAuth callback. If desktop=1 in state: redirects to
+                             mosim://auth?token=<jwt>. Else: sets session cookie,
+                             redirects to /#/.
+  POST /api/auth/logout      Clears session cookie.
+  GET /api/me                Returns current user info (null if not authenticated).
+
+Data endpoints (all require authentication):
+  /api/robots                CRUD for robots
+  /api/modpacks              CRUD for modpacks
+  /api/repos                 CRUD for repos + POST /api/repos/:id/scan (save scan)
+  /api/scripts               CRUD for scripts
+
+Authentication middleware (requireAuth):
+  1. Checks req.cookies.session (web mode — httpOnly cookie set at login)
+  2. Falls back to Authorization: Bearer <token> header (Tauri mode)
+  3. Verifies JWT with JWT_SECRET; attaches user info to req.user
+
+CORS for Tauri origins:
+  Tauri webview origins are 'tauri://localhost' (macOS) and 'http://tauri.localhost'
+  (Windows/Linux). The server adds CORS headers for these origins only.
+
+Desktop OAuth flow:
+  1. User clicks Sign In in Tauri app
+  2. openInBrowser() opens system browser to /api/auth/login?desktop=1
+  3. Server embeds desktop:1 in state JWT
+  4. After Google auth, server issues JWT and redirects to mosim://auth?token=...
+  5. Tauri deep-link plugin catches mosim://auth URL
+  6. lib.rs emits 'mosim:auth-token' event with the token string
+  7. HTTPBackend listener stores token in localStorage + triggers _load()
+
+Environment variables (server/.env — gitignored, never committed):
+  GOOGLE_CLIENT_ID           OAuth 2.0 Client ID from Google Cloud Console
+  GOOGLE_CLIENT_SECRET       OAuth 2.0 Client Secret
+  OAUTH_REDIRECT_URI         Must match URI registered in Google Console exactly
+  JWT_SECRET                 Random 32-byte hex; signs all session tokens.
+                             Changing this invalidates all existing sessions.
+  NODE_ENV                   'production' (enables secure cookies)
+  PORT                       Port for Node server (default 8787)
+
+
+------------------------------------------------------------------------------
+9. TAURI DESKTOP APP
+------------------------------------------------------------------------------
+
+Architecture:
+  - src-tauri/src/main.rs: entry point, calls mosim_mod_tracker_lib::run()
+  - src-tauri/src/lib.rs: Tauri Builder with plugins + deep-link event handler
+  - src-tauri/src/commands.rs: all native Rust commands exposed to JS
+  - src-tauri/src/config.rs: get_server_url() reads MOSIM_URL env or mosim.conf
+
+Commands (callable from JS via invoke()):
+  get_server_url()           -> String: checks MOSIM_URL env, then mosim.conf
+                               next to exe, falls back to http://localhost:8787
+  toggle_pin(window)         -> bool: toggles always-on-top, returns new state
+  is_pinned(window)          -> bool
+  set_expanded(window, bool) -> (): 360x640 compact or 1000x800 expanded
+  close_window(window)       -> ()
+  open_path(pathOrUrl, app)  -> (): opens URL in system browser or path in explorer
+  scan_repo(localPath)       -> ScanResult: walks repo for robot prefab folders
+  read_script(repoPath, relPath) -> ScriptResult: reads .cs file content
+
+scan_repo security:
+  - Stack-based BFS from localPath
+  - Skips dirs: Library, Temp, obj, Logs, node_modules, .git, .idea, UserSettings
+  - Finds dirs that contain a .prefab file and have 'Robots' as an ancestor dir
+  - Does not descend into robot folders themselves (they're leaf nodes)
+  - Last-modified via git -C <repo> log -1 --format=%ct -- <rel_path>
+  - Falls back to recursive mtime scan (depth=3) for non-git repos
+
+read_script security:
+  - Rejects anything not ending in .cs
+  - Rejects paths containing ..
+  - Canonicalizes both repo root and full path; checks full path starts_with
+    repo root using Rust's Path::starts_with (no path traversal possible)
+
+Deep-link handler (lib.rs):
+  Listens for 'deep-link://new-url' event from tauri-plugin-deep-link.
+  Parses the URL as mosim://auth?token=<jwt> and re-emits as
+  'mosim:auth-token' event (picked up by HTTPBackend in JS).
+
+mosim.conf format (text file next to exe):
+  MOSIM_URL=https://mods.yoursite.com
+
+Tauri webview origins:
+  macOS:         tauri://localhost
+  Windows/Linux: http://tauri.localhost
+  (Server CORS whitelist includes both)
+
+JS bridge (web/src/lib/desktop.ts):
+  isTauri() checks '__TAURI_INTERNALS__' in window.
+  When Tauri is detected, sets up window.desktop = { ... } with camelCase
+  wrappers that call Rust commands via invoke().
+  Note: Tauri 2 auto-maps snake_case Rust params to camelCase in JS.
+  (E.g. Rust read_script(repo_path, rel_path) -> JS invoke('read_script',
+  { repoPath, relPath }))
+
+Installer/config:
+  Windows:  Inno Setup NSIS .exe. Installer wizard asks for server URL on
+            first install; writes mosim.conf next to the exe.
+  macOS:    .dmg created by create-dmg with background image and .icns icon.
+            mosim.conf lives at /Applications/mosim.conf or beside the .app.
+  Linux:    .AppImage (self-contained). mosim.conf next to AppImage.
+            AppRun script writes default mosim.conf on first launch.
+
+Building:
+  npm run dev    -> starts Tauri dev window + Vite HMR together
+  npm run build  -> production Tauri installer for current platform
+
+
+------------------------------------------------------------------------------
+10. REACT ROUTING (App.tsx)
 ------------------------------------------------------------------------------
 
 Router: HashRouter (in main.tsx)
@@ -416,28 +538,26 @@ Routes:
   /* (catch-all)   -> Navigate to /
 
 Shell component:
-  - Renders desktop-titlebar if window.desktop is defined (Python app mode)
-  - Top bar: brand M logo + nav links + theme button + auth button
+  - Renders desktop-titlebar if window.desktop is defined (Tauri app mode)
+  - Top bar: brand M logo + nav links + theme button + auth button (Sign in/out)
   - Shows error banner if StoreState.error is set
-  - Shows info banner in local mode ("data lives on this device only")
   - Renders <main> with content, or a Loading spinner if !ready
 
 Nav links: Robots | Planned | Modpacks | Repos | Scripts | Compact
 
 
 ------------------------------------------------------------------------------
-10. PAGE DESCRIPTIONS
+11. PAGE DESCRIPTIONS
 ------------------------------------------------------------------------------
 
 RobotsPage (/):
-  - Spreadsheet-style table (community tracker style) of robots with
-    status 'in-unity', 'semi-functional', or 'released' (not 'planned')
+  - Spreadsheet-style table of robots with status 'in-unity', 'semi-functional',
+    or 'released' (not 'planned')
   - Columns: Team | Robot | Status | Mod Type | Pack | Repo | Progress | Notes
   - Filter chips: All / In Unity / Semi-Functional / Released
   - "In Unity" rows show the current step name in a sub-row
   - Click row -> navigate to /robot/:id
   - RobotForm at top to add a new robot (default status: 'in-unity')
-  - STATUS_OPTIONS in RobotsPage excludes 'planned' from the filter chips
 
 PlannedPage (/planned):
   - List of robots with status='planned'
@@ -458,7 +578,7 @@ RobotDetailPage (/robot/:id):
 ModpacksPage (/modpacks):
   - List of modpacks with their member robots shown as chips
   - Inline name/game/description editing
-  - Private toggle (toggling updates all member robots' modpackPrivate flag)
+  - Private toggle
   - Add/delete modpack
   - Robot membership managed via setRobotModpack on the robot detail page
 
@@ -466,7 +586,7 @@ ReposPage (/repos):
   - List of repos with name, local path, remote URL
   - "Scan" button triggers window.desktop.scanRepo() (desktop only)
   - Shows a table of robots found in the scan (name, last modified, script count)
-  - Scan results are cached on the Repo record (scan field) so web UI shows them
+  - Scan results are cached on the Repo record (scan field)
 
 ScriptsPage (/scripts):
   - Drag-and-drop zone for .cs files (also click-to-browse)
@@ -495,7 +615,7 @@ Splits component (reused in RobotDetailPage and CompactPage):
 
 
 ------------------------------------------------------------------------------
-11. AI SCRIPT GENERATOR
+12. AI SCRIPT GENERATOR
 ------------------------------------------------------------------------------
 
 Located: web/src/components/AiScriptPanel.tsx
@@ -543,66 +663,10 @@ Output:
   - "Copy" button: copies raw output
   - "Download .cs" button: strips ```csharp fences and saves file
 
-
-------------------------------------------------------------------------------
-12. PYTHON DESKTOP APP (app/main.py)
-------------------------------------------------------------------------------
-
-Architecture:
-  1. Scans for web/dist/ (error if missing — build web/ first)
-  2. Starts Python's built-in HTTPServer on a random port, serving web/dist/
-  3. Creates a pywebview window (360×640, on_top=True) pointing to
-     http://127.0.0.1:{port}/#/compact
-  4. DesktopAPI class is passed as js_api to create_window
-     -> exposed as window.pywebview.api.method_name() in the page
-  5. Injects DESKTOP_SHIM JS every time the page loads, which creates
-     window.desktop = { camelCase wrappers around pywebview.api.snake_case }
-     This lets the existing React code call window.desktop.scanRepo() etc.
-     without knowing it's talking to Python instead of Electron
-
-DesktopAPI methods (Python snake_case -> JS camelCase via shim):
-  toggle_pin()     -> togglePin()    Returns bool (new pinned state)
-  is_pinned()      -> isPinned()     Returns bool
-  set_expanded(b)  -> setExpanded()  360×640 (compact) or 1000×800 (expanded)
-  close()          -> close()        Destroys the window
-  scan_repo(path)  -> scanRepo()     Returns {ok, error?, robots: ScannedRobot[]}
-  read_script(r,p) -> readScript()   Returns {ok, error?, content}
-  open_path(s)     -> openPath()     Opens URL in browser or folder in explorer
-
-Always-on-top toggling:
-  Windows: ctypes.windll.user32.SetWindowPos() with HWND_TOPMOST/-1 or
-           HWND_NOTOPMOST/-2, SWP_NOMOVE|SWP_NOSIZE flags
-  macOS:   objc runtime call to NSWindow.setLevel_ (3=floating, 0=normal)
-  Linux:   Not supported (pywebview doesn't expose a reliable post-creation
-           hook; window starts on_top=True and can't be toggled)
-
-Repo scanning (_scan_robots):
-  - Walks Assets/**/Robots/** for folders containing a .prefab file directly
-  - Skips folders named 'Robots' or 'Mods' (they're containers, not robot folders)
-  - Must have a 'Robots' ancestor in the path
-  - Gets last git commit timestamp via: git -C {repo} log -1 --format=%ct -- {rel}
-  - Falls back to max file mtime if git is unavailable
-  - Returns list sorted by folder name (case-insensitive)
-  - Results are stored on the Repo record via api.saveRepoScan()
-
-Security in read_script:
-  - Rejects anything not ending in .cs
-  - Resolves to absolute path and calls relative_to(repo_root) — raises ValueError
-    if the resolved path is outside the repo (path traversal protection)
-
-Pywebview JS API notes:
-  - Methods must be on a class passed as js_api=
-  - They are called async from JS (return a Promise)
-  - Return values must be JSON-serializable (dict, list, str, int, bool)
-  - The page must wait for window.pywebview.api to be populated before calling;
-    the DESKTOP_SHIM is injected in the window.events.loaded handler which fires
-    after pywebview has set up the api object
-
-Dependencies:
-  pip install pywebview
-  That's it. No other third-party packages.
-  Python stdlib used: os, sys, subprocess, threading, webbrowser, http.server,
-                      pathlib, ctypes (Windows/macOS only)
+API key security:
+  - API key is the user's own key, stored ONLY in device localStorage
+  - Never written to server, never sent anywhere except api.anthropic.com
+  - Ollama URL is also localStorage-only
 
 
 ------------------------------------------------------------------------------
@@ -639,40 +703,44 @@ Theme 'cloud' (MSI Center-style soft blue):
   --shadow: 0 4px 16px rgba(79, 143, 247, 0.1)
 
 Status pill colors:
-  planned:        purple tint (#6e40c926 bg / #c297ff text in dark)
-  in-unity:       gold tint
-  semi-functional: green tint
-  released:       blue tint
+  planned:          purple tint (#6e40c926 bg / #c297ff text in dark)
+  in-unity:         gold tint
+  semi-functional:  green tint
+  released:         blue tint
 
 ThemeButton in App.tsx cycles: dark -> light -> cloud (wraps around).
 Icons: 🌙 / ☀️ / ☁️
 
 
 ------------------------------------------------------------------------------
-14. KNOWN ISSUES / BUGS FIXED THIS SESSION
+14. CI / RELEASE PIPELINE
 ------------------------------------------------------------------------------
 
-1. TS error: 'claimed' used as RobotStatus in PlannedPage.tsx (line 68) and
-   RobotsPage.tsx (line 108) — FIXED: changed to 'in-unity'
+.github/workflows/release.yml triggers on version tags: git tag v1.2.3 && git push --tags
 
-2. JS comment syntax error in the old desktop/main.js: path string
-   "Assets/**/Robots/" inside a /** */ block comment closed the comment early —
-   FIXED: switched to // single-line comments (this was in the old Electron app,
-   now replaced by app/main.py)
+Matrix jobs (run in parallel):
+  - windows-latest         -> NSIS .exe
+  - macos-latest (aarch64) -> .dmg (Apple Silicon)
+  - macos-latest (x86_64)  -> .dmg (Intel)
+  - ubuntu-22.04           -> .AppImage
 
-3. Firestore rules were missing the 'scripts' collection — FIXED: added rule
-   that makes scripts owner-only (never public):
-   match /scripts/{scriptId} {
-     allow read, write: if isOwner();
-     allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-   }
+Steps in each job:
+  1. actions/checkout
+  2. Python 3.11 + pip install pillow + python installer/generate-assets.py
+  3. Node.js 20 + npm cache
+  4. dtolnay/rust-toolchain@stable (macOS jobs add both aarch64 + x86_64 targets)
+  5. Swatinem/rust-cache (workspaces: src-tauri)
+  6. Linux only: apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+  7. npm ci (root) + npm --prefix web ci
+  8. npm run tauri -- icon installer/assets/icon.png
+  9. tauri-apps/tauri-action@v0 with GITHUB_TOKEN
+     Creates GitHub Release, attaches all platform installers
 
-4. Electron binary not downloading: old Electron desktop issue; the old
-   desktop/ folder is now excluded from git (in .gitignore) since it's been
-   replaced by the Python app.
-
-5. Vite can't import ../../steps.json by default (outside package root) — FIXED:
-   added `fs: { allow: ['..'] }` to vite.config.ts server block
+To release a new version:
+  1. Update version in src-tauri/tauri.conf.json and src-tauri/Cargo.toml
+  2. Commit and push
+  3. git tag v1.2.3 && git push --tags
+  GitHub Actions builds all four platform artifacts (~15 min).
 
 
 ------------------------------------------------------------------------------
@@ -682,9 +750,11 @@ Icons: 🌙 / ☀️ / ☁️
 [x] React/Vite/TypeScript web app
 [x] 4-status robot lifecycle (Planned / In Unity / Semi-Functional / Released)
 [x] 10 steps / 53 sub-step split template in steps.json (shared single source of truth)
-[x] LocalBackend (localStorage, works with zero config)
-[x] CloudBackend (Firebase Firestore + Google Auth)
-[x] Firestore security rules for all 5 collections
+[x] HTTPBackend: REST API client, dual web/Tauri mode, Bearer token + cookie auth
+[x] Express server + SQLite database (better-sqlite3, no Firebase)
+[x] Google OAuth 2.0 via server (no Firebase Auth)
+[x] JWT sessions: cookie for web, Bearer token + deep-link for desktop
+[x] CORS middleware for Tauri webview origins
 [x] 3 themes (dark / light / cloud)
 [x] Community tracker table (RobotsPage)
 [x] Planned page
@@ -696,33 +766,41 @@ Icons: 🌙 / ☀️ / ☁️
 [x] AI script generator (Anthropic API + Ollama)
 [x] AI system prompt (MoSim C# scripting knowledge)
 [x] Mobile-responsive CSS (tracker table collapses to cards at 720px)
-[x] Python desktop app (pywebview, always-on-top, no Electron)
-[x] TRAINING.md (AMD RX 9070 XT, WSL2+ROCm, Unsloth QLoRA, Ollama import)
-[x] README.md
-[x] .gitignore (excludes desktop/, __pycache__, .gguf, training artifacts)
-[x] Initial git commit (46 files, 8698 lines)
-[x] Build verified: 74 modules, 0 TypeScript errors
+[x] Tauri 2.x desktop app (Rust, system WebView, replaces Python/pywebview)
+[x] Tauri commands: pin, expand, scan_repo (ported from Python), read_script
+[x] Deep-link handler for mosim://auth?token=... OAuth callback
+[x] web/src/lib/desktop.ts: Tauri bridge, isTauri() detection, window.desktop API
+[x] mosim.conf server URL config (env var -> file -> default)
+[x] GitHub Actions CI: cross-platform Tauri builds on version tag
+[x] Inno Setup Windows installer (asks for server URL, writes mosim.conf)
+[x] macOS DMG build script
+[x] Linux AppImage build script
+[x] docs/server-setup.md (full DigitalOcean + OAuth + manage.sh guide)
+[x] docs/app-install.md (Windows/macOS/Linux install guide)
+[x] docs/development.md (local dev, build, project structure, release workflow)
+[x] TRAINING.md (AMD RX 9070 XT, WSL2+ROCm, Unsloth QLoRA, GGUF, Ollama import)
+[x] README.md (updated for Tauri, documentation table)
+[x] server/manage.sh (automated droplet setup + deploy script)
 
 
 ------------------------------------------------------------------------------
 16. WHAT'S NOT DONE / POSSIBLE NEXT STEPS
 ------------------------------------------------------------------------------
 
-These were discussed but not implemented. Listed with priority notes:
-
 HIGH PRIORITY — user mentioned these:
 
-[ ] Training the model (TRAINING.md written, but the user hasn't done it yet)
-    - User has AMD RX 9070 XT (16 GB GDDR6, RDNA 4)
-    - Best path: WSL2 + ROCm or Colab + Unsloth
-    - User's Python version: 3.14.6
+[ ] Deploy the server (docs/server-setup.md written; not yet deployed)
+    - Need a DigitalOcean droplet + domain
+    - Need Google Cloud Console OAuth app
 
-[ ] Firebase setup (user hasn't configured it yet)
-    - Currently in local mode (firebaseConfig = null)
-    - All data lives in browser localStorage only
-    - To enable: fill in web/src/firebase-config.ts with console.firebase.google.com config
+[ ] Train the AI model (TRAINING.md written; not yet done)
+    - User has AMD RX 9070 XT (16 GB GDDR6, RDNA 4) — use WSL2+ROCm path
+    - Need to build a script library with descriptions first (Scripts page)
+    - Then export JSONL, fine-tune with Unsloth, import into Ollama
 
-[ ] Deploy to DigitalOcean (server/DEPLOY.md exists but hasn't been deployed)
+[ ] First-time setup: install Tauri toolchain and build the desktop app
+    - Requires Rust (rustup.rs) + Node.js 20
+    - Windows also needs WebView2 (usually pre-installed on Win 10/11)
 
 LOWER PRIORITY — considered but not requested:
 
@@ -754,50 +832,33 @@ LOWER PRIORITY — considered but not requested:
     watch them. A future improvement could auto-fetch TBA match data (match
     results, robot descriptions) from The Blue Alliance API using the team number.
 
-[ ] Python app packaging (currently requires pip install pywebview and running
-    from command line). Could use PyInstaller to make a standalone .exe:
-    pyinstaller --onefile --windowed --add-data "web/dist;web/dist" app/main.py
-    NOTE: web/dist must be bundled or downloaded separately
+[ ] Linux always-on-top toggle after window creation (currently the window
+    starts alwaysOnTop and can't be toggled — Tauri exposes this differently
+    on GTK vs other platforms)
 
-[ ] Linux always-on-top toggle (currently silently skipped)
-    Could use GTK via PyGObject: Gtk.Window.set_keep_above()
+[ ] Code-signing for macOS/Windows installers (removes SmartScreen/GateKeeper
+    warnings). Requires Apple Developer Program ($99/yr) + Windows EV cert (~$300/yr).
 
-
-------------------------------------------------------------------------------
-17. USER CONTEXT
-------------------------------------------------------------------------------
-
-- Username: Seb (GitHub: dfn-slxxp)
-- Repos they have (relevant to MoSim):
-    Private-Mods:           14 robots found by scanner (IronPulse, CC, 1706,
-                            CitrusCircuits, 9496/Lynk, 422, etc.)
-    Mosim-Reefscape-Private: 4 robots (5460/StrikeZone, 2910, 118, ClimbExamples)
-    MoSim-Reefscape-Public:  12 robots
-- Hardware: AMD RX 9070 XT (16 GB GDDR6, RDNA 4 architecture)
-- Python: 3.14.6 installed
-- OS: Windows 11 Home 10.0.26200
-- The user builds MoSim mods and wants to track their progress
-- The user codes in Python, Java, and C# — React/TypeScript is newer to them
-  (comments in the codebase explain JS-specific patterns in terms of Python/Java)
-- The user does NOT do MoSim Builder (only robot mods)
-- Docs source used to derive the split template:
-  https://docs.mosimulator.com (modding intro + 9496 Lynk walkthrough, all 9 pages)
-
-Secondary project (different codebase, same user):
-  MerchSite (C:\Users\Seb\Desktop\Merch\MerchSite)
-  - This is the user's merchandise website project
-  - Has its own Claude Code session — DO NOT mix up the two codebases
+[ ] Auto-updater (Tauri has tauri-plugin-updater for this; needs a server endpoint
+    that serves update manifests)
 
 
 ------------------------------------------------------------------------------
-18. KEY CODE PATTERNS TO FOLLOW
+17. KEY CODE PATTERNS TO FOLLOW
 ------------------------------------------------------------------------------
 
-Comments:
-  - The codebase has detailed comments explaining JS/React patterns to someone
-    coming from Python/Java/C#. Continue this style.
-  - Explain the WHY, not just the WHAT.
-  - Explain async/Promise in terms of C# Task, 'interface' in terms of C# interface, etc.
+Tauri command naming:
+  - Rust functions: snake_case (e.g. scan_repo, read_script)
+  - Tauri 2 serde default auto-maps to camelCase in JS
+  - JS invoke calls: invoke('scan_repo', { localPath }) (camelCase args)
+  - Struct fields with #[serde(rename_all = "camelCase")] map correctly
+
+isTauri() gating:
+  - Always check isTauri() before using any Tauri-specific API
+  - window.desktop is undefined in a browser
+  - Dynamic imports: await import('@tauri-apps/api/core') to avoid bundling
+    in web mode (tree-shaking doesn't work on static top-level imports of
+    Tauri APIs since the module fails to load outside of Tauri)
 
 State mutations:
   - ALWAYS go through the Backend interface (api.updateRobot etc.)
@@ -814,58 +875,92 @@ Adding a new data type:
   1. Add interface + New* type to types.ts
   2. Add to StoreState in backend.ts
   3. Add add*/update*/delete* methods to Backend interface
-  4. Implement in local.ts (localStorage) AND cloud.ts (Firestore)
-  5. Add to StoreContext.tsx initialState
-  6. Add Firestore rules to firestore.rules
-  7. Add Firestore index if querying by multiple fields
+  4. Add server routes in server/api.js
+  5. Add SQLite table + helpers in server/db.js
+  6. Implement backend methods in http.ts
 
-The window.desktop API:
-  - Always check `if (window.desktop)` before calling any desktop method
-  - window.desktop is undefined in a normal browser
-  - In the Python app it's populated by the DESKTOP_SHIM injected at page load
-  - In the old Electron app it was populated by preload.js contextBridge
-
-AI API key handling:
+Security — API key handling:
   - The API key is the user's own key, stored ONLY in this device's localStorage
-  - It is NEVER written to Firestore, localStorage-synced to cloud, or sent to
-    any server other than api.anthropic.com
-  - The Ollama URL is also localStorage-only
+  - NEVER write to the server DB, NEVER send to any server except api.anthropic.com
+  - JWT_SECRET is server-side only and never exposed to the frontend
+  - read_script validates .cs extension + canonicalize path traversal check
+
+Comments:
+  - The codebase has detailed comments explaining JS/React patterns to someone
+    coming from Python/Java/C#.
+  - Explain the WHY, not just the WHAT.
+  - Explain async/Promise in terms of C# Task, 'interface' in terms of C# interface.
 
 
 ------------------------------------------------------------------------------
-19. HOW TO RUN
+18. HOW TO RUN
 ------------------------------------------------------------------------------
 
-Web (browser):
+Web (browser only — no desktop features):
+  # Terminal 1 — server
+  cd server
+  npm install          (first time)
+  cp .env.example .env # fill in Google OAuth credentials + JWT_SECRET
+  node server.js
+
+  # Terminal 2 — frontend
   cd web
-  npm install        (first time only)
-  npm run dev        -> http://localhost:5173
-  -- or --
-  npm run build      -> web/dist/ (static files for production)
+  npm install          (first time)
+  npm run dev          -> http://localhost:5173
+                         (proxies /api/* to localhost:8787)
 
-Desktop (Python):
-  cd {repo root}
-  pip install pywebview    (first time only — requires Python 3.8+)
-  npm run build            (in web/ — Python app serves web/dist/)
-  python app/main.py
-  -- or double-click app/run.bat (Windows) / app/run.sh (Mac/Linux)
+Tauri desktop app (development):
+  # Prerequisites: Rust (rustup.rs), Node.js 20, WebView2 (Windows)
+  npm install               (root — installs @tauri-apps/cli)
+  npm --prefix web install  (web — installs React + @tauri-apps/api)
 
-Firebase setup (to enable cloud sync):
-  1. Create project at console.firebase.google.com
-  2. Enable Authentication -> Google
-  3. Create Firestore database (production mode)
-  4. Register a Web app, copy the config object
-  5. Paste config into web/src/firebase-config.ts (replace the null)
-  6. npm install -g firebase-tools
-     firebase login
-     firebase use <project-id>
-     firebase deploy --only firestore    (deploys rules + indexes)
-  7. npm run build (in web/)
+  # In a separate terminal, start the server first:
+  node server/server.js
 
-DigitalOcean deploy:
-  See server/DEPLOY.md for full instructions.
-  Summary: scp web/dist/ + server/ to droplet, npm install in server/,
-  systemd service, nginx reverse proxy, certbot HTTPS
+  # Then start Tauri dev (opens desktop window + Vite HMR):
+  npm run dev
+
+  # On first launch without mosim.conf, defaults to http://localhost:8787.
+  # To point at a remote server, create src-tauri/mosim.conf:
+  #   MOSIM_URL=https://mods.yoursite.com
+
+Tauri desktop app (production build):
+  npm run build
+  # Windows → src-tauri/target/release/bundle/nsis/*.exe
+  # macOS   → src-tauri/target/release/bundle/dmg/*.dmg
+  # Linux   → src-tauri/target/release/bundle/appimage/*.AppImage
+
+Server deployment:
+  See docs/server-setup.md for the full guide.
+  Quick summary: DigitalOcean Ubuntu droplet, fill in server/manage.sh variables,
+  run `sudo bash manage.sh setup` on the droplet. Subsequent deploys:
+  `sudo bash manage.sh deploy`
+
+
+------------------------------------------------------------------------------
+19. USER CONTEXT
+------------------------------------------------------------------------------
+
+- Username: Seb (GitHub: dfn-slxxp)
+- Repos they have (relevant to MoSim):
+    Private-Mods:            14 robots found by scanner (IronPulse, CC, 1706,
+                             CitrusCircuits, 9496/Lynk, 422, etc.)
+    Mosim-Reefscape-Private: 4 robots (5460/StrikeZone, 2910, 118, ClimbExamples)
+    MoSim-Reefscape-Public:  12 robots
+- Hardware: AMD RX 9070 XT (16 GB GDDR6, RDNA 4 architecture)
+- Python: 3.14.6 installed
+- OS: Windows 11 Home 10.0.26200
+- The user builds MoSim mods and wants to track their progress
+- The user codes in Python, Java, and C# — React/TypeScript is newer to them
+  (comments in the codebase explain JS-specific patterns in terms of Python/Java)
+- The user does NOT do MoSim Builder (only robot mods)
+- Docs source used to derive the split template:
+  https://docs.mosimulator.com (modding intro + 9496 Lynk walkthrough, all 9 pages)
+
+Secondary project (different codebase, same user):
+  MerchSite (C:\Users\Seb\Desktop\Merch\MerchSite)
+  - This is the user's merchandise website project
+  - Has its own Claude Code session — DO NOT mix up the two codebases
 
 ==============================================================================
  END OF CONTEXT FILE

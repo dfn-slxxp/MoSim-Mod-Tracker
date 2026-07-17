@@ -2,13 +2,18 @@
   "name": "mosim-mod-tracker-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Static host for the MoSim Mod Tracker web UI (DigitalOcean droplet)",
+  "description": "API + static host for the MoSim Mod Tracker (DigitalOcean droplet)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "better-sqlite3": "^11.0.0",
     "compression": "^1.7.5",
-    "express": "^4.21.2"
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "google-auth-library": "^9.15.1",
+    "jsonwebtoken": "^9.0.2"
   }
 }

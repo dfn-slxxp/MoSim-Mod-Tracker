@@ -1,71 +1,32 @@
 """
 MoSim Mod Tracker — Python desktop app
-Serves web/dist/ on a local HTTP server, then opens a pywebview window.
+Opens a pywebview window pointed at the configured server URL.
 No Electron needed — works on Windows, macOS, Linux.
 
 Install deps once:
     pip install pywebview
 
-Then run:
-    python app/main.py           (from the repo root)
+Run (set MOSIM_URL to your deployed server, or leave unset for local dev):
+    python app/main.py
     -- or --
     double-click run.bat / run.sh
+
+For local dev: run `node server/server.js` first, then this script.
+For production: set MOSIM_URL=https://mods.yoursite.com in your environment.
 """
 
 import os
 import sys
 import subprocess
-import threading
 import webbrowser
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
 import webview  # pip install pywebview
 
 # ---------------------------------------------------------------------------
-# Locate web/dist (works whether you run from repo root or from app/)
-# ---------------------------------------------------------------------------
-HERE     = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent
-WEB_DIST  = REPO_ROOT / "web" / "dist"
-
-if not WEB_DIST.exists():
-    print(
-        f"ERROR: {WEB_DIST} not found.\n"
-        "Build the web app first:\n"
-        "    cd web\n"
-        "    npm install\n"
-        "    npm run build"
-    )
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Local HTTP server — the built React SPA needs a real server (file:// breaks
-# HashRouter redirects and relative asset paths).
-# ---------------------------------------------------------------------------
-
-class _SilentHandler(SimpleHTTPRequestHandler):
-    """Serves web/dist/ and swallows request logs."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(WEB_DIST), **kwargs)
-
-    def log_message(self, *_):
-        pass
-
-
-def _start_server() -> int:
-    """Bind to an OS-assigned port, start serving in a daemon thread, return the port."""
-    server = HTTPServer(("127.0.0.1", 0), _SilentHandler)
-    port   = server.server_address[1]
-    t = threading.Thread(target=server.serve_forever, daemon=True)
-    t.start()
-    return port
-
-# ---------------------------------------------------------------------------
 # Desktop API — each method here becomes window.pywebview.api.method_name()
 # inside the web page. A small JS shim (DESKTOP_SHIM below) re-exposes them
-# as window.desktop.* so the existing React code doesn't need to change.
+# as window.desktop.* so the existing React code needs zero changes.
 # ---------------------------------------------------------------------------
 
 class DesktopAPI:
@@ -91,8 +52,6 @@ class DesktopAPI:
             return
 
         if sys.platform == "win32":
-            # Use Win32 SetWindowPos to toggle always-on-top without recreating
-            # the window. HWND_TOPMOST/-1 = on top, HWND_NOTOPMOST/-2 = normal.
             import ctypes
             HWND_TOPMOST   = -1
             HWND_NOTOPMOST = -2
@@ -106,8 +65,6 @@ class DesktopAPI:
             )
 
         elif sys.platform == "darwin":
-            # NSFloatingWindowLevel = 3 puts the window above everything.
-            # NSNormalWindowLevel   = 0 returns it to normal stacking.
             import ctypes, ctypes.util
             objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
             objc.objc_msgSend.restype = ctypes.c_void_p
@@ -117,10 +74,6 @@ class DesktopAPI:
                 objc.sel_registerName(b"setLevel:"),
                 ctypes.c_long(level),
             )
-
-        # Linux/GTK: pywebview doesn't expose a reliable post-creation hook for
-        # always-on-top. The window already starts with on_top=True; toggling off
-        # and back on requires recreating — skip silently for now.
 
     # --- window size -----------------------------------------------------------
 
@@ -180,8 +133,7 @@ class DesktopAPI:
                     subprocess.Popen(["xdg-open", str(p)])
 
 # ---------------------------------------------------------------------------
-# Repo scanner — ports the logic from the old desktop/main.js to Python.
-# Walks Assets/**/Robots/** for folders that contain a .prefab directly.
+# Repo scanner — walks Assets/**/Robots/** for folders containing a .prefab.
 # ---------------------------------------------------------------------------
 
 def _git_mtime(repo_root: Path, rel: str) -> int:
@@ -204,15 +156,8 @@ def _git_mtime(repo_root: Path, rel: str) -> int:
 
 
 def _scan_robots(repo_root: Path) -> list:
-    """
-    Returns a list of ScannedRobot-shaped dicts, one per robot mod folder.
-
-    Rule: the folder must be a descendant of a 'Robots' directory AND must
-    contain at least one .prefab file directly inside it. We skip 'Robots'
-    and 'Mods' folders themselves (they're containers, not robot folders).
-    """
     robots = []
-    seen   = set()   # rel paths already added (multiple prefabs same dir)
+    seen   = set()
     assets = repo_root / "Assets"
     if not assets.is_dir():
         return robots
@@ -224,7 +169,6 @@ def _scan_robots(repo_root: Path) -> list:
         if name in ("Robots", "Mods"):
             continue
 
-        # Must have a 'Robots' ancestor somewhere in the path.
         ancestors = {p.name for p in folder.parents}
         if "Robots" not in ancestors:
             continue
@@ -249,13 +193,12 @@ def _scan_robots(repo_root: Path) -> list:
 
 # ---------------------------------------------------------------------------
 # JS shim injected on every page load.
-# Maps window.desktop.camelCase → window.pywebview.api.snake_case so the
-# existing React components need zero changes.
+# Maps window.desktop.camelCase → window.pywebview.api.snake_case
 # ---------------------------------------------------------------------------
 
 DESKTOP_SHIM = """
 (function () {
-  if (window.desktop) return;   // already injected (hot-reload guard)
+  if (window.desktop) return;
   function call(name) {
     return function () {
       return window.pywebview.api[name].apply(null, arguments);
@@ -277,12 +220,24 @@ DESKTOP_SHIM = """
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main():
-    port = _start_server()
-    # Open in the compact splits view; click ⛶ or navigate to expand.
-    url = f"http://127.0.0.1:{port}/#/compact"
+def _get_server_url() -> str:
+    """Read MOSIM_URL from env var, then a mosim.conf next to the exe, then default."""
+    if 'MOSIM_URL' in os.environ:
+        return os.environ['MOSIM_URL']
+    # When frozen by PyInstaller, sys.executable is the bundled exe path.
+    base = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+    conf = base / 'mosim.conf'
+    if conf.exists():
+        for line in conf.read_text(encoding='utf-8').splitlines():
+            if line.startswith('MOSIM_URL='):
+                return line[10:].strip()
+    return 'http://localhost:8787'
 
-    # win_ref lets the API object reference the window after creation.
+
+def main():
+    server_url = _get_server_url()
+    url = server_url.rstrip('/') + '/#/compact'
+
     win_ref = [None]
     api     = DesktopAPI(win_ref)
 
@@ -293,13 +248,11 @@ def main():
         width            = 360,
         height           = 640,
         on_top           = True,
-        frameless        = False,   # keep the native OS frame
+        frameless        = False,
         background_color = "#0b0e14",
     )
     win_ref[0] = window
 
-    # Inject the shim every time a page finishes loading (covers hash-router
-    # navigations as well as the initial load).
     window.events.loaded += lambda: window.evaluate_js(DESKTOP_SHIM)
 
     webview.start(debug=False)
