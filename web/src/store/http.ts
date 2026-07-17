@@ -1,7 +1,10 @@
 // ---------------------------------------------------------------------------
 // HTTPBackend — talks to the Express REST API on the server.
-// Replaces CloudBackend (Firebase). Auth is a server-side OAuth2 redirect
-// flow; data lives in SQLite on the droplet.
+// Works in two modes:
+//   Web:     relative /api/... URLs, session cookie auth
+//   Tauri:   absolute ${serverUrl}/api/... URLs, Bearer token auth
+//            Auth token arrives via deep link (mosim://auth?token=...) and
+//            is cached in localStorage between sessions.
 // ---------------------------------------------------------------------------
 import type {
   Modpack,
@@ -18,34 +21,49 @@ import type {
 import { normalizeRobot } from '../types';
 import type { Backend, StoreState } from './backend';
 import { sortByOrder } from './backend';
+import { isTauri, getServerUrl, tauriListen, openInBrowser } from '../lib/desktop';
 
 export class HTTPBackend implements Backend {
   private _onChange: ((patch: Partial<StoreState>) => void) | null = null;
+  private _serverUrl = '';        // '' = use relative paths (web mode)
+  private _token: string | null = null;
+  private _unlistenAuth: (() => void) | null = null;
+  private _disposed = false;
 
-  // ── Low-level fetch helpers ───────────────────────────────────────────────
+  // ── Low-level fetch ───────────────────────────────────────────────────────
 
   private async _req(method: string, url: string, body?: unknown): Promise<unknown> {
-    const res = await fetch(url, {
+    const fullUrl = this._serverUrl ? `${this._serverUrl}${url}` : url;
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (this._token)        headers['Authorization'] = `Bearer ${this._token}`;
+
+    const res = await fetch(fullUrl, {
       method,
-      credentials: 'include',
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
-      body: body !== undefined ? JSON.stringify(body) : undefined
+      credentials: 'include',   // keeps cookie auth working in web mode
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-    if (res.status === 401) return null; // session missing / expired
+
+    if (res.status === 401) {
+      if (this._token) {
+        this._token = null;
+        localStorage.removeItem('mosim_token');
+      }
+      return null;
+    }
     if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
     return res.json();
   }
 
-  private _get(url: string) { return this._req('GET', url); }
+  private _get(url: string)               { return this._req('GET', url); }
   private _post(url: string, body?: unknown) { return this._req('POST', url, body); }
-  private _put(url: string, body: unknown) { return this._req('PUT', url, body); }
-  private _del(url: string) { return this._req('DELETE', url); }
+  private _put(url: string, body: unknown)   { return this._req('PUT', url, body); }
+  private _del(url: string)               { return this._req('DELETE', url); }
 
-  // Re-fetch all collections and push the update to the UI.
   private async _refetch(): Promise<void> {
     const data = await this._get('/api/data') as DataPayload | null;
     if (!data) {
-      // Session expired mid-session
       this._onChange?.({ user: null, canEdit: false, robots: [], modpacks: [], repos: [], scripts: [] });
       return;
     }
@@ -53,7 +71,7 @@ export class HTTPBackend implements Backend {
       robots:   sortByOrder(data.robots.map(normalizeRobot)),
       modpacks: sortByOrder(data.modpacks),
       repos:    sortByOrder(data.repos),
-      scripts:  sortByOrder(data.scripts)
+      scripts:  sortByOrder(data.scripts),
     });
   }
 
@@ -62,11 +80,33 @@ export class HTTPBackend implements Backend {
   init(onChange: (patch: Partial<StoreState>) => void): void {
     this._onChange = onChange;
     onChange({ ready: false, error: null });
-    void this._load();
+    void this._initAsync();
   }
 
   dispose(): void {
+    this._disposed = true;
     this._onChange = null;
+    this._unlistenAuth?.();
+    this._unlistenAuth = null;
+  }
+
+  private async _initAsync(): Promise<void> {
+    if (isTauri()) {
+      this._serverUrl = await getServerUrl();
+      if (this._disposed) return;
+
+      this._token = localStorage.getItem('mosim_token');
+
+      // Listen for the JWT that arrives after the OAuth deep link completes.
+      const unlisten = await tauriListen<string>('mosim:auth-token', (token) => {
+        this._token = token;
+        localStorage.setItem('mosim_token', token);
+        void this._load();
+      });
+      if (this._disposed) { unlisten(); return; }
+      this._unlistenAuth = unlisten;
+    }
+    void this._load();
   }
 
   private async _load(): Promise<void> {
@@ -82,12 +122,12 @@ export class HTTPBackend implements Backend {
           modpacks: sortByOrder(data.modpacks),
           repos:    sortByOrder(data.repos),
           scripts:  sortByOrder(data.scripts),
-          error: null
+          error: null,
         });
       } else {
         this._onChange?.({
           ready: true, user: null, canEdit: false,
-          robots: [], modpacks: [], repos: [], scripts: [], error: null
+          robots: [], modpacks: [], repos: [], scripts: [], error: null,
         });
       }
     } catch (e) {
@@ -185,23 +225,33 @@ export class HTTPBackend implements Backend {
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   async signIn(): Promise<void> {
-    // Server-side OAuth redirect — navigates away; no return value needed.
-    window.location.href = '/api/auth/login';
+    if (isTauri()) {
+      // Open the system browser — the OAuth callback will deep-link back with
+      // mosim://auth?token=<jwt>, which Tauri catches and emits as an event.
+      await openInBrowser(`${this._serverUrl}/api/auth/login?desktop=1`);
+    } else {
+      window.location.href = '/api/auth/login';
+    }
   }
 
   async signOut(): Promise<void> {
-    await this._post('/api/auth/logout');
-    // Clear local state immediately (no reload needed)
+    if (isTauri()) {
+      // Stateless Bearer auth — just drop the local token.
+      this._token = null;
+      localStorage.removeItem('mosim_token');
+    } else {
+      await this._post('/api/auth/logout');
+    }
     this._onChange?.({
       user: null, canEdit: false,
-      robots: [], modpacks: [], repos: [], scripts: []
+      robots: [], modpacks: [], repos: [], scripts: [],
     });
   }
 }
 
 interface DataPayload {
-  robots: Robot[];
+  robots:   Robot[];
   modpacks: Modpack[];
-  repos: Repo[];
-  scripts: ScriptDoc[];
+  repos:    Repo[];
+  scripts:  ScriptDoc[];
 }

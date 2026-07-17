@@ -4,11 +4,11 @@ const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const { db, getAll, insert, update, remove } = require('./db');
 
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI;
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
+const REDIRECT_URI  = process.env.OAUTH_REDIRECT_URI;
+const JWT_SECRET    = process.env.JWT_SECRET;
+const JWT_TTL       = 30 * 24 * 60 * 60; // 30 days in seconds
 
 if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI || !JWT_SECRET) {
   console.error(
@@ -21,10 +21,40 @@ if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI || !JWT_SECRET) {
 
 const oauth = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
+// ── CORS for the Tauri desktop client ────────────────────────────────────────
+// The Tauri webview origin is tauri://localhost (macOS) or
+// http://tauri.localhost (Windows / Linux). Regular browser clients hit the
+// same origin as the server, so no CORS headers are needed for them.
+
+const TAURI_ORIGINS = new Set([
+  'tauri://localhost',
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+]);
+
+const router = Router();
+
+router.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && TAURI_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+  }
+  next();
+});
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 function requireAuth(req, res, next) {
-  const token = req.cookies?.session;
+  // Accept either a session cookie (web) or a Bearer token (Tauri desktop).
+  let token = req.cookies?.session;
+  if (!token) {
+    const auth = req.headers['authorization'];
+    if (auth?.startsWith('Bearer ')) token = auth.slice(7);
+  }
   if (!token) return res.status(401).json({ error: 'Not signed in' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
@@ -46,7 +76,7 @@ function setSession(res, user) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: JWT_TTL * 1000,
-    path: '/'
+    path: '/',
   });
 }
 
@@ -87,19 +117,21 @@ function crud(table, { onDelete } = {}) {
   return r;
 }
 
-// ── Main router ───────────────────────────────────────────────────────────────
-
-const router = Router();
-
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 
-router.get('/auth/login', (_req, res) => {
-  // Sign a short-lived state token for CSRF protection.
-  const state = jwt.sign({ csrf: 1 }, JWT_SECRET, { expiresIn: 600 });
+router.get('/auth/login', (req, res) => {
+  const isDesktop = req.query.desktop === '1';
+  // Encode the desktop flag in the CSRF state token so the callback knows
+  // whether to set a cookie (web) or redirect to the custom deep link (Tauri).
+  const state = jwt.sign(
+    { csrf: 1, desktop: isDesktop ? 1 : 0 },
+    JWT_SECRET,
+    { expiresIn: 600 }
+  );
   const url = oauth.generateAuthUrl({
     access_type: 'online',
     scope: ['openid', 'email', 'profile'],
-    state
+    state,
   });
   res.redirect(url);
 });
@@ -108,19 +140,33 @@ router.get('/auth/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!state || !code) return res.status(400).send('Missing OAuth parameters');
-    jwt.verify(String(state), JWT_SECRET); // CSRF check
+
+    const statePayload = jwt.verify(String(state), JWT_SECRET); // CSRF check
+    const isDesktop = !!statePayload.desktop;
 
     const { tokens } = await oauth.getToken(String(code));
     const ticket = await oauth.verifyIdToken({ idToken: tokens.id_token, audience: CLIENT_ID });
     const p = ticket.getPayload();
-
-    setSession(res, {
-      uid: p.sub,
-      name: p.name ?? p.email,
+    const user = {
+      uid:   p.sub,
+      name:  p.name ?? p.email,
       email: p.email,
-      photo: p.picture ?? null
-    });
-    res.redirect('/#/');
+      photo: p.picture ?? null,
+    };
+
+    if (isDesktop) {
+      // Issue a JWT and send it back via the Tauri custom-protocol deep link.
+      // The app's deep-link handler extracts the token and stores it locally.
+      const token = jwt.sign(
+        { uid: user.uid, name: user.name, email: user.email, photo: user.photo },
+        JWT_SECRET,
+        { expiresIn: JWT_TTL }
+      );
+      res.redirect(`mosim://auth?token=${encodeURIComponent(token)}`);
+    } else {
+      setSession(res, user);
+      res.redirect('/#/');
+    }
   } catch (e) {
     res.status(400).send('Sign-in failed: ' + e.message);
   }
@@ -146,7 +192,7 @@ router.get('/data', requireAuth, (req, res) => {
     robots:   getAll('robots',   uid),
     modpacks: getAll('modpacks', uid),
     repos:    getAll('repos',    uid),
-    scripts:  getAll('scripts',  uid)
+    scripts:  getAll('scripts',  uid),
   });
 });
 
@@ -154,7 +200,6 @@ router.get('/data', requireAuth, (req, res) => {
 
 router.use('/robots', crud('robots'));
 
-// Move a robot into/out of a modpack (updates modpackPrivate too)
 router.post('/robots/:id/modpack', requireAuth, (req, res) => {
   const uid = req.user.uid;
   const { modpackId } = req.body;
@@ -174,7 +219,6 @@ router.post('/robots/:id/modpack', requireAuth, (req, res) => {
 // ── Modpacks ──────────────────────────────────────────────────────────────────
 
 router.use('/modpacks', crud('modpacks', {
-  // When a modpack is deleted, detach all its member robots
   onDelete(uid, modpackId) {
     const rows = db.prepare('SELECT id, data FROM robots WHERE uid = ?').all(uid);
     for (const row of rows) {
@@ -182,10 +226,9 @@ router.use('/modpacks', crud('modpacks', {
         update('robots', uid, row.id, { modpackId: null, modpackPrivate: false });
       }
     }
-  }
+  },
 }));
 
-// Toggle a modpack's privacy flag and sync the denormalized flag to member robots
 router.post('/modpacks/:id/privacy', requireAuth, (req, res) => {
   const uid = req.user.uid;
   const isPrivate = !!req.body.isPrivate;
@@ -206,7 +249,6 @@ router.post('/modpacks/:id/privacy', requireAuth, (req, res) => {
 // ── Repos ─────────────────────────────────────────────────────────────────────
 
 router.use('/repos', crud('repos', {
-  // When a repo is deleted, detach all robots that referenced it
   onDelete(uid, repoId) {
     const rows = db.prepare('SELECT id, data FROM robots WHERE uid = ?').all(uid);
     for (const row of rows) {
@@ -214,7 +256,7 @@ router.use('/repos', crud('repos', {
         update('robots', uid, row.id, { repoId: null });
       }
     }
-  }
+  },
 }));
 
 // ── Scripts ───────────────────────────────────────────────────────────────────

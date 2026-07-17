@@ -1,1 +1,2 @@
 pywebview>=4.4
+pyinstaller>=6.0

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MoSim Mod Tracker",
+  "version": "1.0.0",
+  "identifier": "com.mosim.mod-tracker",
+  "build": {
+    "frontendDist": "../web/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix web run dev",
+    "beforeBuildCommand": "npm --prefix web run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MoSim Mod Tracker",
+        "width": 360,
+        "height": 640,
+        "minWidth": 280,
+        "minHeight": 320,
+        "alwaysOnTop": true,
+        "center": true,
+        "backgroundColor": "#0b0e14"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' tauri: asset:; connect-src 'self' https: http:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" }
+    },
+    "linux": {
+      "deb": { "depends": ["libwebkit2gtk-4.1-0"] }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "mobile": [],
+      "desktop": [{ "schemes": ["mosim"] }]
+    }
+  }
+}

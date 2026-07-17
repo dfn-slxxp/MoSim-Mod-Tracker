@@ -1,0 +1,120 @@
+# ── MoSim Mod Tracker — Tauri cross-platform release builder ─────────────────
+# Triggers on any version tag: git tag v1.2.3 && git push --tags
+#
+# Produces platform-native installers and attaches them to a GitHub Release:
+#   Windows  → NSIS .exe   (or WiX .msi)
+#   macOS    → .dmg        (Intel + Apple Silicon, as separate jobs)
+#   Linux    → .AppImage   (and/or .deb)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write   # needed to create the GitHub Release and upload assets
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Python: generate installer assets ──────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pillow
+      - run: python installer/generate-assets.py
+
+      # ── Node.js ────────────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # ── Rust toolchain ─────────────────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # ── Linux: system libraries required by WebKitGTK ─────────────────────
+      - name: Install WebKitGTK dependencies (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      # ── Install npm dependencies ───────────────────────────────────────────
+      - name: Install root deps (Tauri CLI)
+        run: npm ci
+
+      - name: Install web deps
+        run: npm --prefix web ci
+
+      # ── Generate Tauri icon set from the brand icon ───────────────────────
+      - name: Generate Tauri icons
+        run: npm run tauri -- icon installer/assets/icon.png
+
+      # ── Build & publish via the official Tauri GitHub Action ──────────────
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "MoSim Mod Tracker ${{ github.ref_name }}"
+          releaseBody: |
+            ## MoSim Mod Tracker ${{ github.ref_name }}
+
+            ### Install
+
+            | Platform | File |
+            |----------|------|
+            | Windows 10/11 | `MoSim.Mod.Tracker_*_x64-setup.exe` |
+            | macOS (Apple Silicon) | `MoSim.Mod.Tracker_*_aarch64.dmg` |
+            | macOS (Intel) | `MoSim.Mod.Tracker_*_x64.dmg` |
+            | Linux | `mosim-mod-tracker_*_amd64.AppImage` |
+
+            ### First-run setup
+            On first launch the app reads **mosim.conf** (placed in the same
+            folder as the executable) for the server URL. If no config exists
+            it falls back to `http://localhost:8787`.
+
+            Edit or create `mosim.conf` next to the app:
+            ```
+            MOSIM_URL=https://yourserver.example.com
+            ```
+
+            ### Linux runtime dependency
+            ```
+            # Ubuntu/Debian
+            apt install libwebkit2gtk-4.1-0
+            ```
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: ${{ matrix.args }}

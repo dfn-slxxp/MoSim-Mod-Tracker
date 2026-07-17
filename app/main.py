@@ -220,10 +220,22 @@ DESKTOP_SHIM = """
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _get_server_url() -> str:
+    """Read MOSIM_URL from env var, then a mosim.conf next to the exe, then default."""
+    if 'MOSIM_URL' in os.environ:
+        return os.environ['MOSIM_URL']
+    # When frozen by PyInstaller, sys.executable is the bundled exe path.
+    base = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+    conf = base / 'mosim.conf'
+    if conf.exists():
+        for line in conf.read_text(encoding='utf-8').splitlines():
+            if line.startswith('MOSIM_URL='):
+                return line[10:].strip()
+    return 'http://localhost:8787'
+
+
 def main():
-    # Point at a running server. Default: local dev server on 8787.
-    # Set MOSIM_URL=https://mods.yoursite.com for the deployed app.
-    server_url = os.environ.get('MOSIM_URL', 'http://localhost:8787')
+    server_url = _get_server_url()
     url = server_url.rstrip('/') + '/#/compact'
 
     win_ref = [None]
