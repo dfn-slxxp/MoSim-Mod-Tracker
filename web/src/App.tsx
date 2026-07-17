@@ -1,7 +1,6 @@
 // ---------------------------------------------------------------------------
 // Top-level component: routing + the page shell (top bar, nav, banners).
-// The /compact route renders WITHOUT the shell — that's the LiveSplit-style
-// overlay used by the desktop app.
+// /compact renders WITHOUT the shell — that's the LiveSplit-style overlay.
 // ---------------------------------------------------------------------------
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthButton } from './components/AuthButton';
@@ -15,7 +14,6 @@ import { ScriptsPage } from './pages/ScriptsPage';
 import { useStore } from './store/StoreContext';
 import { THEMES, useTheme } from './theme';
 
-/** Cycles dark -> light -> cloud on click. */
 function ThemeButton() {
   const { theme, setTheme } = useTheme();
   const idx = THEMES.findIndex((t) => t.id === theme);
@@ -32,17 +30,39 @@ function ThemeButton() {
   );
 }
 
+/** Full-page sign-in prompt shown when the app is ready but no user is signed in. */
+function SignInGate() {
+  const { api } = useStore();
+  return (
+    <div className="signin-gate">
+      <div className="signin-card">
+        <div className="brand" style={{ justifyContent: 'center', marginBottom: 12 }}>
+          <span className="brand-mark">M</span>
+          <span className="brand-name">MoSim Mod Tracker</span>
+        </div>
+        <p className="muted" style={{ margin: '0 0 20px', textAlign: 'center' }}>
+          Sign in with your Google account to access your mod tracker.
+        </p>
+        <button
+          className="btn primary"
+          style={{ width: '100%', justifyContent: 'center' }}
+          onClick={() => api.signIn().catch((e) => alert((e as Error).message))}
+        >
+          Sign in with Google
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
-  const { mode, ready, error } = useStore();
+  const { ready, error, user } = useStore();
   const navigate = useNavigate();
   const isDesktop = !!window.desktop;
 
   return (
-    // `is-desktop` lets CSS tighten things up so the app feels less like a website.
     <div className={`shell ${isDesktop ? 'is-desktop' : ''}`}>
       {isDesktop && (
-        // Frameless window = we draw our own title bar; the drag-region CSS
-        // property is what lets you move the window with it.
         <div className="desktop-titlebar">
           <span className="drag-region">MoSim Mod Tracker</span>
           <button
@@ -64,12 +84,9 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="brand">
           <span className="brand-mark">M</span>
           <span className="brand-name">MoSim Mod Tracker</span>
-          <span className={`mode-badge ${mode}`}>{mode === 'local' ? 'Local' : 'Cloud'}</span>
         </div>
         <nav className="nav">
-          <NavLink to="/" end>
-            Robots
-          </NavLink>
+          <NavLink to="/" end>Robots</NavLink>
           <NavLink to="/planned">Planned</NavLink>
           <NavLink to="/modpacks">Modpacks</NavLink>
           <NavLink to="/repos">Repos</NavLink>
@@ -80,13 +97,15 @@ function Shell({ children }: { children: React.ReactNode }) {
         <AuthButton />
       </header>
       {error && <div className="banner error">{error}</div>}
-      {mode === 'local' && ready && (
-        <div className="banner info">
-          Local mode — data lives on this device only. Add your Firebase config to enable sync,
-          Google sign-in and private robots (see README).
-        </div>
-      )}
-      <main className="content">{ready ? children : <div className="loading">Loading…</div>}</main>
+      <main className="content">
+        {!ready ? (
+          <div className="loading">Loading…</div>
+        ) : !user ? (
+          <SignInGate />
+        ) : (
+          children
+        )}
+      </main>
     </div>
   );
 }

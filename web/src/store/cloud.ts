@@ -85,7 +85,7 @@ export class CloudBackend implements Backend {
 
   init(onChange: (patch: Partial<StoreState>) => void): void {
     this.onChange = onChange;
-    onChange({ mode: 'cloud', ready: false, error: null });
+    onChange({ ready: false, error: null });
 
     // Fires on page load with the remembered session, and on sign-in/out.
     this.authUnsub = onAuthStateChanged(this.auth, (user) => {

@@ -1389,6 +1389,24 @@ h3 {
   }
 }
 
+/* ---------- sign-in gate ---------- */
+.signin-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.signin-card {
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 32px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: var(--shadow);
+}
+
 /* ---------- scripts page ---------- */
 .dropzone {
   border: 2px dashed var(--border-solid);

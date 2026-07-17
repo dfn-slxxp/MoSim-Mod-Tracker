@@ -19,15 +19,14 @@ import type {
 
 /** Everything the UI needs to render, kept in one state object. */
 export interface StoreState {
-  mode: 'local' | 'cloud';
-  ready: boolean; // false until the first load/subscription completes
-  user: UserInfo | null; // null = not signed in (or local mode)
+  ready: boolean; // false until the first Firestore subscription completes
+  user: UserInfo | null; // null = not signed in
   robots: Robot[];
   modpacks: Modpack[];
   repos: Repo[];
-  /** Your script library. Cloud mode: only visible to the signed-in owner. */
+  /** Script library — only visible to the signed-in owner, never public. */
   scripts: ScriptDoc[];
-  /** True when the current session is allowed to edit (local mode, or signed in). */
+  /** True when signed in (required to create or edit anything). */
   canEdit: boolean;
   error: string | null;
 }

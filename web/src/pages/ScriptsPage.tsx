@@ -92,7 +92,7 @@ function ScriptRow({ script }: { script: ScriptDoc }) {
 }
 
 export function ScriptsPage() {
-  const { scripts, api, canEdit, mode, user } = useStore();
+  const { scripts, api, canEdit, user } = useStore();
   const [dragOver, setDragOver] = useState(false);
   const [status, setStatus] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -161,7 +161,7 @@ export function ScriptsPage() {
         </p>
       </div>
 
-      {mode === 'cloud' && !user && (
+      {!user && (
         <div className="empty">Sign in to see your script library (scripts are never public).</div>
       )}
 

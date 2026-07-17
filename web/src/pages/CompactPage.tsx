@@ -13,11 +13,10 @@ import { STATUS_META } from '../types';
 
 const LAST_ROBOT_KEY = 'mosim-compact-robot';
 
-/** Statuses that count as "being worked on" for the top of the picker. */
-const WORKING = new Set(['claimed', 'in-unity', 'semi-functional']);
+const WORKING = new Set(['in-unity', 'semi-functional']);
 
 export function CompactPage() {
-  const { robots, mode, user, api, canEdit, ready } = useStore();
+  const { robots, user, api, canEdit, ready } = useStore();
   const navigate = useNavigate();
   const isDesktop = !!window.desktop;
   const [pinned, setPinned] = useState(true);
@@ -76,8 +75,8 @@ export function CompactPage() {
         <div className="loading">Loading…</div>
       ) : (
         <>
-          {mode === 'cloud' && !user && (
-            <button className="btn primary compact-signin" onClick={() => api.signIn().catch((e) => alert(e.message))}>
+          {!user && (
+            <button className="btn primary compact-signin" onClick={() => api.signIn().catch((e) => alert((e as Error).message))}>
               Sign in with Google
             </button>
           )}
