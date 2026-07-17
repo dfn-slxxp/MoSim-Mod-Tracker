@@ -11,8 +11,15 @@ const express = require('express');
 const compression = require('compression');
 const path = require('path');
 
+const fs   = require('fs');
 const PORT = process.env.PORT || 8787;
-const DIST = path.join(__dirname, 'dist'); // upload web/dist as server/dist
+
+// Git-clone layout: web/dist is one level up from server/.
+// Legacy scp layout (still works): server/dist/.
+const DIST = [
+  path.join(__dirname, '..', 'web', 'dist'),
+  path.join(__dirname, 'dist'),
+].find(fs.existsSync) ?? path.join(__dirname, '..', 'web', 'dist');
 
 const app = express();
 app.use(compression()); // gzip responses
