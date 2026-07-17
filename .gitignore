@@ -1,8 +1,12 @@
 node_modules/
 dist/
-.firebase/
-.firebaserc
 *.log
+
+# Server secrets + database (never commit these)
+server/.env
+server/data.db
+server/data.db-wal
+server/data.db-shm
 
 # Python
 __pycache__/
@@ -21,11 +25,6 @@ mosim-coder-lora/
 mosim-coder-merged/
 mosim-coder-gguf/
 mosim-scripts-dataset.jsonl
-
-# Firebase local emulator data
-.firebaserc.local
-firebase-debug.log
-firestore-debug.log
 
 # OS
 .DS_Store

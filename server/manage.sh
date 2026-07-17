@@ -10,22 +10,24 @@
 #   bash manage.sh status   — show service health
 # ─────────────────────────────────────────────────────────────────────────────
 
-set -euo pipefail   # exit on any error, treat unset vars as errors
+set -euo pipefail
 
 # ── Edit these before running 'setup' ────────────────────────────────────────
-#
-# Your GitHub repo URL. Options:
-#   Public repo:          https://github.com/dfn-slxxp/mosim-mod-tracker.git
-#   Private (token):      https://YOUR_TOKEN@github.com/dfn-slxxp/mosim-mod-tracker.git
-#   Private (SSH key):    git@github.com:dfn-slxxp/mosim-mod-tracker.git
-#
-# To create a token: GitHub → Settings → Developer settings →
-#   Personal access tokens (classic) → New token → tick "repo" → copy it.
-#
+
+# Your GitHub repo URL.
+#   Public repo:         https://github.com/dfn-slxxp/mosim-mod-tracker.git
+#   Private (token):     https://YOUR_TOKEN@github.com/dfn-slxxp/mosim-mod-tracker.git
 REPO_URL="https://github.com/dfn-slxxp/mosim-mod-tracker.git"
 
 # The subdomain the app will be served on (must have an A record → this server's IP)
 DOMAIN="mods.yoursite.com"
+
+# Google OAuth credentials — get these from:
+#   console.cloud.google.com → APIs & Services → Credentials
+#   → Create OAuth 2.0 Client ID (Web application type)
+#   → Add redirect URI: https://DOMAIN/api/auth/callback
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
 
 # Where the repo will live on the server
 INSTALL_DIR="/opt/mosim-tracker"
@@ -45,14 +47,16 @@ hr()   { echo -e "${BOLD}──────────────────�
 # ─────────────────────────────────────────────────────────────────────────────
 cmd_setup() {
   [[ $EUID -ne 0 ]] && die "setup must be run as root (sudo bash manage.sh setup)"
+  [[ -z "$GOOGLE_CLIENT_ID"     ]] && die "GOOGLE_CLIENT_ID is not set. Edit the variables at the top of manage.sh first."
+  [[ -z "$GOOGLE_CLIENT_SECRET" ]] && die "GOOGLE_CLIENT_SECRET is not set. Edit the variables at the top of manage.sh first."
 
   hr
   log "Installing system packages"
   hr
   apt-get update -qq
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
-  apt-get install -y nodejs nginx certbot python3-certbot-nginx git >/dev/null
-  log "Node $(node --version), nginx $(nginx -v 2>&1 | grep -o '[0-9.]*' | head -1), git $(git --version | cut -d' ' -f3) installed"
+  apt-get install -y nodejs nginx certbot python3-certbot-nginx git openssl >/dev/null
+  log "Node $(node --version), nginx, certbot, git installed"
 
   hr
   log "Cloning repo → $INSTALL_DIR"
@@ -64,6 +68,11 @@ cmd_setup() {
   fi
   git clone "$REPO_URL" "$INSTALL_DIR"
   chown -R www-data:www-data "$INSTALL_DIR"
+
+  hr
+  log "Writing server/.env"
+  hr
+  _write_env
 
   hr
   log "Installing npm dependencies"
@@ -112,9 +121,11 @@ cmd_setup() {
   echo -e "  Logs:    bash manage.sh logs"
   echo -e "  Update:  bash manage.sh deploy"
   echo ""
-  warn "LAST STEP: Firebase console → Authentication → Settings → Authorized domains"
-  warn "→ Add domain: $DOMAIN"
-  warn "Without this, Google sign-in on your subdomain will be rejected."
+  warn "LAST STEP: Add the callback URI in Google Cloud Console."
+  warn "  console.cloud.google.com → APIs & Services → Credentials"
+  warn "  → Your OAuth 2.0 Client ID → Authorized redirect URIs → Add:"
+  warn "      https://$DOMAIN/api/auth/callback"
+  warn "Without this, Google sign-in will fail with redirect_uri_mismatch."
   echo ""
 }
 
@@ -127,6 +138,11 @@ cmd_deploy() {
   log "Pulling latest code"
   hr
   git -C "$INSTALL_DIR" pull
+
+  # Re-write env if Google credentials were updated in manage.sh
+  if [[ -n "$GOOGLE_CLIENT_ID" && -n "$GOOGLE_CLIENT_SECRET" ]]; then
+    _write_env
+  fi
 
   hr
   log "Installing/updating npm dependencies"
@@ -168,24 +184,43 @@ cmd_status() {
   systemctl status "$SERVICE_NAME" --no-pager
   echo ""
   log "Disk usage"
-  du -sh "$INSTALL_DIR/web/dist" 2>/dev/null || true
+  du -sh "$INSTALL_DIR/web/dist"  2>/dev/null || true
+  du -sh "$INSTALL_DIR/server/data.db" 2>/dev/null || echo "  data.db not found yet"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 
 _install_deps() {
-  # server/  — runtime deps only (express, compression)
   npm --prefix "$INSTALL_DIR/server" install --omit=dev --silent
-  # web/     — needs devDeps to build (vite, typescript, etc.)
   npm --prefix "$INSTALL_DIR/web"    install --silent
   chown -R www-data:www-data "$INSTALL_DIR"
 }
 
 _build() {
-  # Run as www-data so the output files are owned correctly
   su -s /bin/bash www-data -c "npm --prefix $INSTALL_DIR/web run build"
   log "Build complete — $(du -sh $INSTALL_DIR/web/dist | cut -f1) in web/dist"
+}
+
+_write_env() {
+  # Preserve the JWT secret across redeploys so sessions don't get invalidated.
+  local jwt_secret=""
+  if [[ -f "$INSTALL_DIR/server/.env" ]]; then
+    jwt_secret=$(grep '^JWT_SECRET=' "$INSTALL_DIR/server/.env" 2>/dev/null | cut -d= -f2- || true)
+  fi
+  [[ -z "$jwt_secret" ]] && jwt_secret=$(openssl rand -hex 32)
+
+  cat > "$INSTALL_DIR/server/.env" << EOF
+GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+OAUTH_REDIRECT_URI=https://$DOMAIN/api/auth/callback
+JWT_SECRET=$jwt_secret
+NODE_ENV=production
+PORT=$SERVICE_PORT
+EOF
+  chmod 600 "$INSTALL_DIR/server/.env"
+  chown www-data:www-data "$INSTALL_DIR/server/.env"
+  log ".env written (JWT secret preserved: $([[ -n "$jwt_secret" ]] && echo yes || echo freshly generated))"
 }
 
 _write_service() {
@@ -197,7 +232,7 @@ After=network.target
 [Service]
 WorkingDirectory=$INSTALL_DIR/server
 ExecStart=/usr/bin/node server.js
-Environment=PORT=$SERVICE_PORT
+EnvironmentFile=$INSTALL_DIR/server/.env
 Restart=always
 RestartSec=5
 User=www-data
@@ -224,7 +259,6 @@ server {
     }
 }
 EOF
-  # Enable site only if not already linked
   if [[ ! -L "/etc/nginx/sites-enabled/$SERVICE_NAME" ]]; then
     ln -s "/etc/nginx/sites-available/$SERVICE_NAME" "/etc/nginx/sites-enabled/$SERVICE_NAME"
   fi

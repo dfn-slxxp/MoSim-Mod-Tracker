@@ -46,7 +46,7 @@ function SignInGate() {
         <button
           className="btn primary"
           style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => api.signIn().catch((e) => alert((e as Error).message))}
+          onClick={() => api.signIn()}
         >
           Sign in with Google
         </button>

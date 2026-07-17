@@ -7,8 +7,11 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
-    // Allow the dev server to serve /steps.json from the repo root (one
-    // directory above this package).
-    fs: { allow: ['..'] }
+    fs: { allow: ['..'] },
+    proxy: {
+      // Forward /api/* to the Express server during development.
+      // Run `node server/server.js` alongside `npm run dev`.
+      '/api': { target: 'http://localhost:8787', changeOrigin: true }
+    }
   }
 });
