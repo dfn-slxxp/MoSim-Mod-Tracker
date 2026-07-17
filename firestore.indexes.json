@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "robots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "private", "order": "ASCENDING" },
+        { "fieldPath": "modpackPrivate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "robots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "modpackId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "robots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "repoId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

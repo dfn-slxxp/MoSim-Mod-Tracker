@@ -1,0 +1,128 @@
+{
+  "comment": "Shared split template for MoSim robot mods, derived from https://docs.mosimulator.com (modding intro + 9496 Lynk walkthrough). Both the web UI and the desktop app read this file — edit it to change your workflow. Keep ids stable or saved progress will detach.",
+  "steps": [
+    {
+      "id": "model-prep",
+      "title": "Model Prep",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/model-prep",
+      "subs": [
+        { "id": "export-gltf", "label": "Export CAD assembly to GLTF — name it Team(Year), coarse quality" },
+        { "id": "simplify-swerve", "label": "Swap to simplified swerve modules (big perf win)" },
+        { "id": "blender-import", "label": "Import into Blender with Merge Vertices; delete default cube/light/camera" },
+        { "id": "optimize", "label": "Optimize mesh: merge verts, limited dissolve, decimate, weighted normal" },
+        { "id": "export-fbx", "label": "Export as Team(Year).fbx and clean up the GLTF" }
+      ]
+    },
+    {
+      "id": "editor-setup",
+      "title": "Editor Setup",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/codespace-setup",
+      "subs": [
+        { "id": "unity-project", "label": "Open the MoSim Unity project" },
+        { "id": "script-editor", "label": "Set External Script Editor (Rider / VS Code / VS 2022) + Unity extension" }
+      ]
+    },
+    {
+      "id": "import-modpack",
+      "title": "Import & Modpack",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/hierarchy-setup",
+      "subs": [
+        { "id": "pack-folder", "label": "Create pack folder under Prefabs/<Game>/Robots/Mods" },
+        { "id": "metadata", "label": "Create ModpackMetadata scriptable object and fill fields" },
+        { "id": "copy-example", "label": "Copy an example robot folder (e.g. 2910) into your pack" },
+        { "id": "robot-so", "label": "Rename + re-fill robot ScriptableObject; add it to the modpack robot list" },
+        { "id": "import-fbx", "label": "Import the FBX under Imports/<Game>/Models/Robots/<Team>" },
+        { "id": "prefab-base", "label": "Strip example prefab to the drivetrain; drag your model into the hierarchy" }
+      ]
+    },
+    {
+      "id": "hierarchy",
+      "title": "Hierarchy Setup",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/hierarchy-setup",
+      "subs": [
+        { "id": "orient", "label": "Rotate upright (Y up, Z forward); match model height to wheels" },
+        { "id": "unpack", "label": "Unpack model; create Stationary empty and move static parts into it" },
+        { "id": "mechanisms", "label": "Create empties per mechanism (elevator stages, pivots) — never change Y" },
+        { "id": "sort-parts", "label": "Sort every part into its mechanism; group meshes under Model empties" },
+        { "id": "pivots", "label": "Align pivot empties (intake/funnel, arm, climber bar & wedge)" },
+        { "id": "paint", "label": "Apply materials/colors from the Materials folder" }
+      ]
+    },
+    {
+      "id": "colliders",
+      "title": "Colliders & Physics",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/colliders",
+      "subs": [
+        { "id": "box-colliders", "label": "Box colliders on tubing; compound collider children for odd shapes" },
+        { "id": "gamepiece-geo", "label": "Separate collider children wherever game pieces interact" },
+        { "id": "phys-materials", "label": "Assign physics materials (NoBounce / noFricBounce for most)" },
+        { "id": "robot-layer", "label": "Set layer to Robot on root + all children (even if it looks set)" },
+        { "id": "wheels", "label": "Move wheels to match the real robot" }
+      ]
+    },
+    {
+      "id": "code",
+      "title": "Robot Code",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/code",
+      "subs": [
+        { "id": "robot-class", "label": "Create robot class from the RobotBase template (setpoint switch)" },
+        { "id": "setpoint-so", "label": "Create the Setpoint ScriptableObject class" },
+        { "id": "joints", "label": "Declare elevator/joints + PIDs; SetPid in Start, UpdatePid in LateUpdate" },
+        { "id": "infra", "label": "Target fields + SetSetpoint / UpdateSetpoints helpers" },
+        { "id": "switch", "label": "Fill the setpoint switch (incl. Place / LastSetpoint logic)" },
+        { "id": "intake-code", "label": "Game piece controllers: preload, stow states, RequestIntake per mode" },
+        { "id": "place-code", "label": "PlacePiece / release-with-force logic" }
+      ]
+    },
+    {
+      "id": "editor-components",
+      "title": "Editor Components",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/editor-components",
+      "subs": [
+        { "id": "root-components", "label": "Strip root prefab; add robot script, GenericElevator, GamePiece Controller" },
+        { "id": "generic-joints", "label": "GenericJoints on stages/arms — set axes + connected bodies" },
+        { "id": "elevator-config", "label": "Configure elevator: stage order, type, PID, height/overlap/carriage" },
+        { "id": "setpoint-assets", "label": "Create setpoint SO assets and assign them all" },
+        { "id": "intakes", "label": "Intake empties with trigger colliders (speed, force, distance, accuracy)" },
+        { "id": "spawn-test", "label": "Set Robot Spawn override; robot spawns in play mode" }
+      ]
+    },
+    {
+      "id": "tuning",
+      "title": "Tuning & Refinement",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/tuning-and-refinement",
+      "subs": [
+        { "id": "tune-setpoints", "label": "Tune setpoint heights/angles until they score" },
+        { "id": "release-forces", "label": "Set release forces in PlacePiece so pieces actually score" },
+        { "id": "bug-fixes", "label": "Fix collider/intake bugs; GenericJoints ignore Robot layer (drift)" },
+        { "id": "auto-align", "label": "Add + tune Auto Align for consistency (L4, then L1)" },
+        { "id": "mass", "label": "Mass tweaks on light parts (e.g. pivots to ~2 lbs)" }
+      ]
+    },
+    {
+      "id": "climber-polish",
+      "title": "Climber & Polish",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/climber-final",
+      "subs": [
+        { "id": "climber-joints", "label": "Climber joints: disable automatic tensor; set up setpoints" },
+        { "id": "climb-scorer", "label": "Climb scorer + trigger box on the cage scoring trigger" },
+        { "id": "logo", "label": "Import team logo, set texture settings, assign it" },
+        { "id": "menu-prefab", "label": "Main-menu display prefab (copy root, strip all components)" },
+        { "id": "tutorial-cards", "label": "Fill out the tutorial cards" }
+      ]
+    },
+    {
+      "id": "build-ship",
+      "title": "Build & Ship",
+      "docUrl": "https://docs.mosimulator.com/modding/lynk-walkthrough/mod-building",
+      "subs": [
+        { "id": "addressables", "label": "Addressables group: drag mod folder in; add modpack_metadata label" },
+        { "id": "build-paths", "label": "Set custom build/load paths; Include In Build only your mod" },
+        { "id": "build", "label": "Build with Default Build Script" },
+        { "id": "collect", "label": "Collect .bundle + catalog.hash/json + settings.json + mod DLL into one folder" },
+        { "id": "local-test", "label": "Drop into the Mods folder and test in MoSim" },
+        { "id": "publish", "label": "Build Win/macOS/Linux, zip, publish download links, submit for review" }
+      ]
+    }
+  ]
+}

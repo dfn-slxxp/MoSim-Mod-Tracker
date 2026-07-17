@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.firebase/
+.firebaserc
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Electron (legacy — replaced by app/)
+desktop/
+
+# Training artifacts
+*.gguf
+mosim-coder-lora/
+mosim-coder-merged/
+mosim-coder-gguf/
+mosim-scripts-dataset.jsonl
+
+# Firebase local emulator data
+.firebaserc.local
+firebase-debug.log
+firestore-debug.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn() && request.auth.uid == resource.data.ownerUid;
+    }
+
+    // Optional hardening: replace signedIn() in the create rules below with
+    //   request.auth.uid == 'YOUR_UID_HERE'
+    // so only YOUR Google account can create data (find your UID in
+    // Firebase console -> Authentication -> Users after first sign-in).
+
+    match /robots/{robotId} {
+      // Public robots are readable by anyone; private ones only by their owner.
+      allow read: if (resource.data.private == false && resource.data.modpackPrivate == false) || isOwner();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
+
+    match /modpacks/{packId} {
+      allow read: if resource.data.private == false || isOwner();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
+
+    match /repos/{repoId} {
+      allow read: if resource.data.private == false || isOwner();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
+  }
+}

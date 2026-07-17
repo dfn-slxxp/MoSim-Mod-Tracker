@@ -1,0 +1,158 @@
+// ---------------------------------------------------------------------------
+// Shared data shapes for the whole app.
+// TypeScript note (coming from C#/Java): `interface` here is purely a
+// compile-time shape check — it compiles away to nothing. `type X = 'a' | 'b'`
+// is a "union type": a string that is only allowed to be one of those values
+// (think enum, but it stays a plain string at runtime).
+// ---------------------------------------------------------------------------
+
+/**
+ * Robot lifecycle. Single-person tracker, so there's no "Claimed" — a robot
+ * is simply Planned until you actually start it in Unity.
+ */
+export type RobotStatus = 'planned' | 'in-unity' | 'semi-functional' | 'released';
+
+/** Mod type column from the community tracker. '' = not set. */
+export type ModType = '' | 'team-made' | 'team-approved' | 'unofficial' | 'official' | 'base-game';
+
+/** Display labels + pill colors for statuses (used by the table UI). */
+export const STATUS_META: Record<RobotStatus, { label: string; className: string }> = {
+  planned: { label: 'Planned', className: 'st-planned' },
+  'in-unity': { label: 'In Unity', className: 'st-unity' },
+  'semi-functional': { label: 'Semi-Functional', className: 'st-semi' },
+  released: { label: 'Released', className: 'st-released' }
+};
+
+export const MODTYPE_META: Record<Exclude<ModType, ''>, { label: string; className: string }> = {
+  'team-made': { label: 'Team-made', className: 'mt-teammade' },
+  'team-approved': { label: 'Team-approved', className: 'mt-approved' },
+  unofficial: { label: 'Unofficial', className: 'mt-unofficial' },
+  official: { label: 'Official (dev-made)', className: 'mt-official' },
+  'base-game': { label: 'Base Game', className: 'mt-basegame' }
+};
+
+/** Per-step saved progress: which sub-steps are checked + a freeform note. */
+export interface StepProgress {
+  subs: Record<string, boolean>; // sub-step id -> checked (like a HashMap<String, bool>)
+  note: string;
+}
+
+export interface Robot {
+  id: string;
+  name: string;
+  team: string;
+  game: string;
+  status: RobotStatus;
+  modType: ModType;
+  modpackId: string | null;
+  /** Which repo this robot's files live in (id into the repos collection). */
+  repoId: string | null;
+  /** Robot-level privacy flag — private items need Google sign-in to view. */
+  private: boolean;
+  /**
+   * Denormalized copy of the parent modpack's privacy flag. Firestore can't do
+   * SQL-style joins in security rules, so "hide robots whose modpack is
+   * private" only works if the flag is copied onto each robot doc.
+   */
+  modpackPrivate: boolean;
+  ownerUid: string | null;
+  notes: string;
+  order: number;
+  createdAt: number; // Unix ms timestamp (Date.now())
+  progress: Record<string, StepProgress>; // step id -> progress
+}
+
+/** One robot folder found while scanning a repo on disk. */
+export interface ScannedRobot {
+  name: string; // folder name, usually the team number
+  relPath: string; // path relative to the repo root
+  lastModified: number; // Unix ms of the newest git commit (or file mtime fallback)
+  scripts: string[]; // repo-relative paths of .cs files inside the folder
+}
+
+/** Result of a desktop-side repo scan, cached on the repo record. */
+export interface RepoScan {
+  scannedAt: number;
+  robots: ScannedRobot[];
+}
+
+/** A git repo that contains robot mods. */
+export interface Repo {
+  id: string;
+  name: string;
+  /** Absolute path on this PC (used by the desktop app to scan + read scripts). */
+  localPath: string;
+  /** e.g. a GitHub URL — shown as a link everywhere. */
+  remoteUrl: string;
+  private: boolean;
+  ownerUid: string | null;
+  order: number;
+  createdAt: number;
+  /** Last scan result, synced so the web UI can show it too. Null = never scanned. */
+  scan: RepoScan | null;
+}
+
+/**
+ * A saved robot script (.cs) in your personal library. You drag these in
+ * manually on the Scripts page; the AI tool feeds ALL of them to the model as
+ * style/API examples, and they can be exported as a fine-tuning dataset.
+ * In cloud mode scripts are always owner-only (never publicly readable).
+ */
+export interface ScriptDoc {
+  id: string;
+  name: string; // file name, e.g. Lynk.cs
+  /** What the robot does — optional, but this becomes the "prompt" half of a training pair. */
+  description: string;
+  content: string;
+  robotId: string | null; // optionally tied to a tracked robot
+  ownerUid: string | null;
+  order: number;
+  createdAt: number;
+}
+
+export interface Modpack {
+  id: string;
+  name: string;
+  game: string;
+  description: string;
+  private: boolean;
+  ownerUid: string | null;
+  order: number;
+  createdAt: number;
+}
+
+export interface UserInfo {
+  uid: string;
+  name: string;
+  email: string;
+  photo: string | null;
+}
+
+// `Omit<T, K>` = type T minus the listed fields. These are the shapes callers
+// provide when creating records; the backend fills in the rest (ids, owner...).
+export type NewRobot = Omit<Robot, 'id' | 'ownerUid' | 'order' | 'createdAt' | 'modpackPrivate'>;
+export type NewModpack = Omit<Modpack, 'id' | 'ownerUid' | 'order' | 'createdAt'>;
+export type NewRepo = Omit<Repo, 'id' | 'ownerUid' | 'order' | 'createdAt' | 'scan'>;
+export type NewScript = Omit<ScriptDoc, 'id' | 'ownerUid' | 'order' | 'createdAt'>;
+
+/**
+ * Upgrade robots saved by older versions of this app (statuses used to be
+ * 'active'/'complete') and fill in fields added later. Runs on every read so
+ * old data keeps working without a migration script.
+ */
+export function normalizeRobot(r: Robot): Robot {
+  const raw = r.status as string; // may hold legacy values from old saves
+  let status = r.status;
+  if (raw === 'active') status = 'in-unity';
+  if (raw === 'claimed') status = 'planned'; // claimed-but-not-started == planned for one person
+  if (raw === 'complete') status = 'released';
+  return {
+    ...r,
+    status,
+    modType: r.modType ?? '',
+    repoId: r.repoId ?? null,
+    modpackPrivate: r.modpackPrivate ?? false,
+    progress: r.progress ?? {},
+    notes: r.notes ?? ''
+  };
+}
