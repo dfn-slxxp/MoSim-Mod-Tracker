@@ -1,0 +1,872 @@
+==============================================================================
+ MoSim Mod Tracker — Complete AI Context File
+ Generated: 2026-07-18  |  Repo branch: main
+ Purpose: Feed this file to any AI model to continue development
+==============================================================================
+
+------------------------------------------------------------------------------
+1. PROJECT OVERVIEW
+------------------------------------------------------------------------------
+
+The MoSim Mod Tracker is a personal progress tracker for making robot mods for
+MoSim (an FRC robot simulator built on Unity). It is inspired by LiveSplit (the
+speedrunning split timer) — you check off steps as you complete them for each
+robot you're modding.
+
+The app is built for ONE person (the repo owner). There is no multi-user
+collaboration. The "Claimed" status that existed in the original MoSim community
+tracker spreadsheet is intentionally removed — if you haven't started a robot,
+it's Planned; once you open Unity, it's In Unity.
+
+The project is meant to be forked / cloned by other MoSim modders who can run
+their own instance with their own Firebase project (or just use local mode, no
+account needed).
+
+
+------------------------------------------------------------------------------
+2. WHAT MoSim IS
+------------------------------------------------------------------------------
+
+MoSim is an FRC (FIRST Robotics Competition) robot simulator. Modders create
+robot mods by:
+1. Exporting robot CAD from Onshape/Fusion to GLTF
+2. Optimizing the mesh in Blender
+3. Setting up the robot prefab in the MoSim Unity project
+4. Writing a C# robot script (extends ReefscapeRobotBase)
+5. Building with Unity Addressables and publishing the mod
+
+The split template is derived from the official MoSim docs:
+https://docs.mosimulator.com/modding/intro
+https://docs.mosimulator.com/modding/lynk-walkthrough/ (9496 Lynk robot walkthrough, 9 pages)
+
+There are 10 steps, 53 sub-steps total.
+
+
+------------------------------------------------------------------------------
+3. TECH STACK
+------------------------------------------------------------------------------
+
+Web frontend:
+  - React 18 + TypeScript + Vite 5
+  - React Router v6 (HashRouter — so it works from file:// and any static host)
+  - No CSS framework — hand-written CSS with custom properties (variables) for
+    3 themes: dark, light, cloud (soft blue MSI-Center style)
+  - No state management library — custom backend abstraction + React Context
+
+Storage backends (same TypeScript interface, swapped at runtime):
+  - LocalBackend: localStorage JSON blob, no account needed, syncs between
+    tabs via the 'storage' event
+  - CloudBackend: Firebase Firestore (real-time onSnapshot subscriptions) +
+    Firebase Auth (Google sign-in popup)
+  - Which one is used: if firebaseConfig in firebase-config.ts is non-null,
+    CloudBackend is used; otherwise LocalBackend
+
+Desktop app:
+  - Python (3.8+) + pywebview (pip install pywebview)
+  - Serves web/dist/ on a random localhost port via Python's built-in HTTPServer
+  - Opens a native OS window (WebView2 on Windows, WKWebView on macOS, GTK on Linux)
+  - Exposes a JS API (window.desktop.*) via a shim over window.pywebview.api.*
+  - No Electron, no Node.js required to run the desktop app
+
+AI features:
+  - Two providers: Anthropic Claude API (direct browser fetch with the
+    anthropic-dangerous-direct-browser-access header) OR local Ollama
+  - Provider, API key, model name all stored in localStorage only — never
+    written to Firestore or any server
+  - System prompt in web/src/ai/reference.ts explains MoSim APIs to Claude
+  - Script library (Scripts page): drag-drop .cs files in, all fed to AI as
+    examples by default, with checkboxes to EXCLUDE (not include)
+  - JSONL export for fine-tuning your own model (one training pair per script:
+    system + user description + assistant script content)
+
+Server/hosting:
+  - server/: Express static server + DEPLOY.md for a DigitalOcean droplet
+  - Firebase Hosting also works (firebase deploy --only hosting)
+  - Firebase stores all data; the static server is just a file host
+
+
+------------------------------------------------------------------------------
+4. REPOSITORY STRUCTURE
+------------------------------------------------------------------------------
+
+MoSim Mod Tracker/
+├── steps.json                    # THE canonical split template — 10 steps,
+│                                 # 53 sub-steps. Both web AND Python desktop
+│                                 # read this file. Edit here to change workflow.
+│                                 # Keep step/sub-step IDs stable or saved
+│                                 # progress will detach from the new IDs.
+│
+├── app/
+│   ├── main.py                   # Python desktop app entry point
+│   ├── requirements.txt          # Just: pywebview>=4.4
+│   ├── run.bat                   # Windows double-click launcher
+│   └── run.sh                    # Mac/Linux launcher
+│
+├── web/
+│   ├── index.html
+│   ├── package.json              # deps: react, react-dom, react-router-dom,
+│   │                             #   firebase, vite, @vitejs/plugin-react
+│   ├── tsconfig.json
+│   ├── vite.config.ts            # base: './', fs.allow: ['..'] (for steps.json)
+│   └── src/
+│       ├── main.tsx              # React root, wraps in StoreProvider + ThemeProvider
+│       │                         # + HashRouter
+│       ├── App.tsx               # Routes + Shell (topbar/nav); /compact is
+│       │                         # frameless (no Shell wrapper)
+│       ├── types.ts              # All shared TypeScript types + normalizeRobot()
+│       ├── steps.ts              # Imports steps.json, exposes STEPS array +
+│       │                         # stepProgress() + robotProgress() helpers
+│       ├── styles.css            # All CSS. Theme via [data-theme] on <html>.
+│       │                         # ~1500 lines, NO external CSS framework.
+│       ├── theme.tsx             # useTheme() hook + ThemeProvider, persists to
+│       │                         # localStorage
+│       ├── firebase-config.ts    # Paste Firebase config here; null = local mode
+│       ├── desktop.d.ts          # TypeScript types for window.desktop API
+│       │
+│       ├── ai/
+│       │   ├── client.ts         # callAnthropic() + callOllama() + generateScript()
+│       │   │                     # settings helpers (localStorage getters/setters)
+│       │   └── reference.ts      # MOSIM_SYSTEM_PROMPT constant (the system prompt
+│       │                         # sent to Claude explaining MoSim C# APIs)
+│       │
+│       ├── store/
+│       │   ├── backend.ts        # Backend interface + StoreState interface +
+│       │   │                     # sortByOrder() + nextOrder() helpers
+│       │   ├── local.ts          # LocalBackend (localStorage)
+│       │   ├── cloud.ts          # CloudBackend (Firebase)
+│       │   └── StoreContext.tsx  # React context + StoreProvider + useStore() hook
+│       │
+│       ├── components/
+│       │   ├── AuthButton.tsx    # Google sign-in/out button with avatar
+│       │   ├── AiScriptPanel.tsx # AI generator panel (on robot detail page)
+│       │   ├── PillSelect.tsx    # Status/mod-type colored dropdown pill
+│       │   ├── ProgressBar.tsx   # Thin progress bar component
+│       │   ├── RobotForm.tsx     # Add-new-robot inline form
+│       │   └── Splits.tsx        # The checkable split steps component
+│       │
+│       └── pages/
+│           ├── RobotsPage.tsx    # Community-tracker table of tracked robots
+│           ├── RobotDetailPage.tsx # Splits view + notes + AI panel for one robot
+│           ├── PlannedPage.tsx   # Robots with status='planned'
+│           ├── ModpacksPage.tsx  # Modpack management
+│           ├── ReposPage.tsx     # Git repo management + scan button
+│           ├── ScriptsPage.tsx   # .cs library drag-drop + JSONL export
+│           └── CompactPage.tsx   # LiveSplit-style compact overlay
+│
+├── server/
+│   ├── server.js                 # Express static server (serves web/dist/)
+│   ├── package.json
+│   └── DEPLOY.md                 # DigitalOcean droplet setup guide
+│
+├── firestore.rules               # Firestore security rules
+├── firestore.indexes.json        # Firestore composite index definitions
+├── firebase.json                 # Firebase project config (hosting + firestore)
+├── TRAINING.md                   # Guide: fine-tune your own model on your scripts
+├── README.md                     # Setup + feature overview
+├── .gitignore                    # Excludes: node_modules/, dist/, desktop/,
+│                                 # __pycache__/, .gguf, training artifacts
+└── .gitattributes
+
+
+------------------------------------------------------------------------------
+5. DATA MODEL (types.ts)
+------------------------------------------------------------------------------
+
+RobotStatus = 'planned' | 'in-unity' | 'semi-functional' | 'released'
+  NOTE: 'claimed' was removed (single-person tracker, no claiming).
+  normalizeRobot() maps old 'claimed' -> 'planned', 'active' -> 'in-unity',
+  'complete' -> 'released' for backwards compatibility.
+
+ModType = '' | 'team-made' | 'team-approved' | 'unofficial' | 'official' | 'base-game'
+
+Robot {
+  id: string
+  name: string             // e.g. "Lynk"
+  team: string             // e.g. "9496"
+  game: string             // e.g. "Reefscape"
+  status: RobotStatus
+  modType: ModType
+  modpackId: string | null
+  repoId: string | null    // links to a Repo
+  private: boolean
+  modpackPrivate: boolean  // DENORMALIZED copy of parent modpack's private flag
+                           // (Firestore can't join in security rules, so this
+                           // flag is copied to each robot doc)
+  ownerUid: string | null
+  notes: string
+  order: number            // manual sort order
+  createdAt: number        // Date.now() Unix ms
+  progress: Record<string, StepProgress>  // step id -> StepProgress
+}
+
+StepProgress {
+  subs: Record<string, boolean>  // sub-step id -> checked
+  note: string
+}
+
+Modpack {
+  id, name, game, description, private, ownerUid, order, createdAt
+}
+
+Repo {
+  id, name
+  localPath: string        // absolute path on this machine (for desktop scanning)
+  remoteUrl: string        // GitHub URL (shown as a link)
+  private: boolean
+  ownerUid, order, createdAt
+  scan: RepoScan | null    // cached result of last desktop scan
+}
+
+RepoScan {
+  scannedAt: number
+  robots: ScannedRobot[]
+}
+
+ScannedRobot {
+  name: string             // folder name (usually team number)
+  relPath: string          // path relative to repo root
+  lastModified: number     // Unix ms of newest git commit
+  scripts: string[]        // repo-relative paths of .cs files inside the folder
+}
+
+ScriptDoc {
+  id, name                 // filename e.g. "Lynk.cs"
+  description: string      // what the robot does; becomes the prompt in JSONL export
+  content: string          // raw C# file content
+  robotId: string | null   // optionally linked to a tracked robot
+  ownerUid, order, createdAt
+}
+
+New* types = Omit<Full, 'id' | 'ownerUid' | 'order' | 'createdAt' | ...>
+  These are what callers provide; the backend fills in the rest.
+
+
+------------------------------------------------------------------------------
+6. SPLIT TEMPLATE (steps.json)
+------------------------------------------------------------------------------
+
+10 steps at repo root (shared between web and Python desktop):
+
+Step 1: Model Prep (5 sub-steps)
+  - Export CAD to GLTF (Team(Year), coarse quality)
+  - Swap to simplified swerve modules
+  - Import into Blender (merge vertices, delete defaults)
+  - Optimize mesh (merge verts, limited dissolve, decimate, weighted normal)
+  - Export as FBX
+
+Step 2: Editor Setup (2 sub-steps)
+  - Open MoSim Unity project
+  - Set external script editor + Unity extension
+
+Step 3: Import & Modpack (6 sub-steps)
+  - Create pack folder under Prefabs/<Game>/Robots/Mods
+  - Create ModpackMetadata scriptable object
+  - Copy example robot folder
+  - Rename + fill robot ScriptableObject
+  - Import FBX under Imports/<Game>/Models/Robots/<Team>
+  - Strip example prefab to drivetrain
+
+Step 4: Hierarchy Setup (6 sub-steps)
+  - Rotate upright, match height to wheels
+  - Unpack model, create Stationary empty
+  - Create empties per mechanism
+  - Sort parts into mechanisms
+  - Align pivot empties
+  - Apply materials/colors
+
+Step 5: Colliders & Physics (5 sub-steps)
+  - Box colliders on tubing, compound for odd shapes
+  - Separate collider children for game piece interaction
+  - Assign physics materials
+  - Set layer to Robot (root + all children)
+  - Move wheels to match real robot
+
+Step 6: Robot Code (7 sub-steps)
+  - Create robot class from RobotBase template
+  - Create Setpoint ScriptableObject class
+  - Declare elevator/joints + PIDs
+  - Target fields + SetSetpoint/UpdateSetpoints helpers
+  - Fill setpoint switch
+  - Game piece controllers (preload, stow, RequestIntake)
+  - PlacePiece / release-with-force logic
+
+Step 7: Editor Components (6 sub-steps)
+  - Strip root prefab, add robot script + GenericElevator + GamePiece Controller
+  - GenericJoints on stages/arms
+  - Configure elevator (stage order, type, PID, height/overlap/carriage)
+  - Create setpoint SO assets
+  - Intake empties with trigger colliders
+  - Set Robot Spawn override; test in play mode
+
+Step 8: Tuning & Refinement (5 sub-steps)
+  - Tune setpoint heights/angles
+  - Set release forces in PlacePiece
+  - Fix collider/intake bugs
+  - Add + tune Auto Align
+  - Mass tweaks
+
+Step 9: Climber & Polish (5 sub-steps)
+  - Climber joints (disable automatic tensor)
+  - Climb scorer + trigger box
+  - Import team logo, assign it
+  - Main-menu display prefab
+  - Tutorial cards
+
+Step 10: Build & Ship (6 sub-steps)
+  - Addressables group (drag mod folder, add modpack_metadata label)
+  - Set custom build/load paths; Include In Build only your mod
+  - Build with Default Build Script
+  - Collect .bundle + catalog.hash/json + settings.json + mod DLL
+  - Drop into Mods folder and test in MoSim
+  - Build Win/macOS/Linux, zip, publish, submit for review
+
+
+------------------------------------------------------------------------------
+7. STORE / BACKEND ABSTRACTION
+------------------------------------------------------------------------------
+
+The app talks ONLY to the Backend interface (web/src/store/backend.ts).
+Components call `const { robots, api, canEdit } = useStore()` — they never
+import LocalBackend or CloudBackend directly.
+
+Backend interface methods:
+  init(onChange)         // start subscriptions; calls onChange with Partial<StoreState>
+  dispose()              // clean up listeners
+  addRobot / updateRobot / deleteRobot
+  addModpack / updateModpack / setModpackPrivacy / deleteModpack / setRobotModpack
+  addRepo / updateRepo / deleteRepo / saveRepoScan
+  addScript / updateScript / deleteScript
+  signIn / signOut
+
+StoreState:
+  mode: 'local' | 'cloud'
+  ready: boolean         // false until first load completes
+  user: UserInfo | null  // null if not signed in or in local mode
+  robots / modpacks / repos / scripts: arrays, already sorted
+  canEdit: boolean       // true in local mode or if signed in
+  error: string | null
+
+Selection logic in StoreContext.tsx:
+  firebaseConfig !== null  =>  CloudBackend
+  firebaseConfig === null  =>  LocalBackend (DEFAULT — works with zero setup)
+
+LocalBackend details:
+  - localStorage key: 'mosim-mod-tracker'
+  - Syncs between tabs via the 'storage' window event
+  - normalizeRobot() applied on every read (handles old status values)
+
+CloudBackend details:
+  - Two Firestore queries per collection: public (private==false) + owner (ownerUid==uid)
+  - Results merged by document ID into sorted arrays
+  - onSnapshot subscriptions = live updates across devices
+  - ready=true only after every active query has responded at least once
+  - Scripts are NEVER queried publicly (only owner query)
+  - Firestore security rules in firestore.rules enforce read/write access server-side
+
+
+------------------------------------------------------------------------------
+8. FIRESTORE RULES SUMMARY
+------------------------------------------------------------------------------
+
+Collections: robots, modpacks, repos, scripts
+
+robots:
+  read: if (private==false && modpackPrivate==false) OR owner
+  create: if signedIn && ownerUid == me
+  update/delete: if owner
+
+modpacks:
+  read: if private==false OR owner
+  create: if signedIn && ownerUid == me
+  update/delete: if owner
+
+repos:
+  read: if private==false OR owner
+  create: if signedIn && ownerUid == me
+  update/delete: if owner
+
+scripts:
+  read/write: if owner (NEVER public)
+  create: if signedIn && ownerUid == me
+
+The rules include a comment explaining how to lock to a single Google UID
+(replace signedIn() with request.auth.uid == 'YOUR_UID_HERE' in create rules).
+
+NOTE: modpackPrivate is a denormalized copy of the parent modpack's private flag,
+copied to each robot document because Firestore rules can't do cross-collection
+lookups. When a modpack's privacy changes, setModpackPrivacy() updates the flag
+on all member robots in a batch write.
+
+
+------------------------------------------------------------------------------
+9. REACT ROUTING (App.tsx)
+------------------------------------------------------------------------------
+
+Router: HashRouter (in main.tsx)
+  All URLs are /#/path so static hosts don't need server-side routing.
+
+Routes:
+  /compact         -> CompactPage (NO Shell wrapper — no topbar/nav)
+  /                -> RobotsPage
+  /robot/:id       -> RobotDetailPage
+  /planned         -> PlannedPage
+  /modpacks        -> ModpacksPage
+  /repos           -> ReposPage
+  /scripts         -> ScriptsPage
+  /* (catch-all)   -> Navigate to /
+
+Shell component:
+  - Renders desktop-titlebar if window.desktop is defined (Python app mode)
+  - Top bar: brand M logo + nav links + theme button + auth button
+  - Shows error banner if StoreState.error is set
+  - Shows info banner in local mode ("data lives on this device only")
+  - Renders <main> with content, or a Loading spinner if !ready
+
+Nav links: Robots | Planned | Modpacks | Repos | Scripts | Compact
+
+
+------------------------------------------------------------------------------
+10. PAGE DESCRIPTIONS
+------------------------------------------------------------------------------
+
+RobotsPage (/):
+  - Spreadsheet-style table (community tracker style) of robots with
+    status 'in-unity', 'semi-functional', or 'released' (not 'planned')
+  - Columns: Team | Robot | Status | Mod Type | Pack | Repo | Progress | Notes
+  - Filter chips: All / In Unity / Semi-Functional / Released
+  - "In Unity" rows show the current step name in a sub-row
+  - Click row -> navigate to /robot/:id
+  - RobotForm at top to add a new robot (default status: 'in-unity')
+  - STATUS_OPTIONS in RobotsPage excludes 'planned' from the filter chips
+
+PlannedPage (/planned):
+  - List of robots with status='planned'
+  - Shows name, team, game, notes textarea
+  - "Start modding →" button sets status to 'in-unity' and navigates to detail
+  - Can toggle private flag per robot
+  - RobotForm to add planned robots
+
+RobotDetailPage (/robot/:id):
+  - Two-column layout: splits (left) + sidebar (right, sticky)
+  - Sidebar: "What's left" (remaining steps list) + robot notes textarea
+  - Status pill selector + mod type pill selector + modpack selector + repo selector
+  - Inline-editable name, team, game fields
+  - Split steps list (Splits component)
+  - AI Script Generator panel (AiScriptPanel, collapsible) at bottom
+  - Delete robot button
+
+ModpacksPage (/modpacks):
+  - List of modpacks with their member robots shown as chips
+  - Inline name/game/description editing
+  - Private toggle (toggling updates all member robots' modpackPrivate flag)
+  - Add/delete modpack
+  - Robot membership managed via setRobotModpack on the robot detail page
+
+ReposPage (/repos):
+  - List of repos with name, local path, remote URL
+  - "Scan" button triggers window.desktop.scanRepo() (desktop only)
+  - Shows a table of robots found in the scan (name, last modified, script count)
+  - Scan results are cached on the Repo record (scan field) so web UI shows them
+
+ScriptsPage (/scripts):
+  - Drag-and-drop zone for .cs files (also click-to-browse)
+  - Accepts .cs and .txt, max 400 KB per file
+  - Script rows: expandable, shows description textarea + robot link + delete
+  - Description is the "prompt" for JSONL training data export
+  - "Export training dataset (JSONL)" button at top when scripts exist
+  - JSONL format: one JSON object per line, messages: [system, user, assistant]
+  - Warning count if scripts are missing descriptions before export
+
+CompactPage (/compact):
+  - LiveSplit-style compact overlay (no Shell/nav)
+  - Robot selector dropdown at top
+  - Progress bar (sub-steps done / 53 total)
+  - Scrollable list of split steps (compact variant with smaller checks)
+  - Desktop-specific titlebar with 📌 (toggle-pin), ⛶ (expand), ✕ (close)
+  - Works in a browser too (/#/compact URL) without the desktop controls
+
+Splits component (reused in RobotDetailPage and CompactPage):
+  - Each step: collapsible with a check button (blank/half/✓) and sub-step list
+  - Sub-steps: checkboxes
+  - Step note textarea (shown when step is expanded)
+  - Doc link to docs.mosimulator.com for that step
+  - "Expand all / Collapse all" toolbar buttons
+  - compact prop: tighter layout for CompactPage
+
+
+------------------------------------------------------------------------------
+11. AI SCRIPT GENERATOR
+------------------------------------------------------------------------------
+
+Located: web/src/components/AiScriptPanel.tsx
+Shown on: RobotDetailPage (collapsible panel below splits)
+
+Providers:
+  1. Anthropic (Claude API)
+     - User enters their own API key (stored in localStorage only)
+     - Models: claude-sonnet-5, claude-opus-4-8, claude-haiku-4-5-20251001
+     - Sends to https://api.anthropic.com/v1/messages with header
+       'anthropic-dangerous-direct-browser-access': 'true'
+       (this opt-in header is required for browser-side Claude API calls)
+     - max_tokens: 16000
+
+  2. Ollama (local model, free, offline)
+     - User enters Ollama URL (default: http://localhost:11434)
+     - User enters model name (default: mosim-coder)
+     - Sends to {url}/api/chat with stream: false, num_ctx: 16384
+     - Error message tells user to run 'ollama serve' if connection fails
+
+Script library (EXCLUDE not include):
+  - Shows ALL scripts in the library with checkboxes checked by default
+  - Unchecking EXCLUDES a script (inverse of the usual include-list UX)
+  - Shows "{included}/{total} included" count
+  - In desktop mode: also shows repo .cs files from the scan (these are
+    INCLUDE-style — unchecked by default, tick to add)
+
+Prompt building (client.ts buildPrompt()):
+  - Header: "Robot: {team} {name}"
+  - Functionality description (required — button disabled without it)
+  - Video links (informational; model can't watch them)
+  - Past scripts: each one as a ```csharp block, capped at 30,000 chars
+
+System prompt (reference.ts MOSIM_SYSTEM_PROMPT):
+  - Explains MoSim C# robot scripting: ReefscapeRobotBase, GenericElevator,
+    GenericJoint, PidConstants, Setpoint ScriptableObjects
+  - Explains ReefscapeSetpoints enum values
+  - Explains game piece controller API (coral/algae intake, RequestIntake,
+    ReleaseGamePieceWithForce, HasPiece)
+  - Explains naming conventions and code structure
+  - Instructs: output ONE complete .cs file + bullet list of inspector setup
+
+Output:
+  - Displayed in a scrollable <pre> block
+  - "Copy" button: copies raw output
+  - "Download .cs" button: strips ```csharp fences and saves file
+
+
+------------------------------------------------------------------------------
+12. PYTHON DESKTOP APP (app/main.py)
+------------------------------------------------------------------------------
+
+Architecture:
+  1. Scans for web/dist/ (error if missing — build web/ first)
+  2. Starts Python's built-in HTTPServer on a random port, serving web/dist/
+  3. Creates a pywebview window (360×640, on_top=True) pointing to
+     http://127.0.0.1:{port}/#/compact
+  4. DesktopAPI class is passed as js_api to create_window
+     -> exposed as window.pywebview.api.method_name() in the page
+  5. Injects DESKTOP_SHIM JS every time the page loads, which creates
+     window.desktop = { camelCase wrappers around pywebview.api.snake_case }
+     This lets the existing React code call window.desktop.scanRepo() etc.
+     without knowing it's talking to Python instead of Electron
+
+DesktopAPI methods (Python snake_case -> JS camelCase via shim):
+  toggle_pin()     -> togglePin()    Returns bool (new pinned state)
+  is_pinned()      -> isPinned()     Returns bool
+  set_expanded(b)  -> setExpanded()  360×640 (compact) or 1000×800 (expanded)
+  close()          -> close()        Destroys the window
+  scan_repo(path)  -> scanRepo()     Returns {ok, error?, robots: ScannedRobot[]}
+  read_script(r,p) -> readScript()   Returns {ok, error?, content}
+  open_path(s)     -> openPath()     Opens URL in browser or folder in explorer
+
+Always-on-top toggling:
+  Windows: ctypes.windll.user32.SetWindowPos() with HWND_TOPMOST/-1 or
+           HWND_NOTOPMOST/-2, SWP_NOMOVE|SWP_NOSIZE flags
+  macOS:   objc runtime call to NSWindow.setLevel_ (3=floating, 0=normal)
+  Linux:   Not supported (pywebview doesn't expose a reliable post-creation
+           hook; window starts on_top=True and can't be toggled)
+
+Repo scanning (_scan_robots):
+  - Walks Assets/**/Robots/** for folders containing a .prefab file directly
+  - Skips folders named 'Robots' or 'Mods' (they're containers, not robot folders)
+  - Must have a 'Robots' ancestor in the path
+  - Gets last git commit timestamp via: git -C {repo} log -1 --format=%ct -- {rel}
+  - Falls back to max file mtime if git is unavailable
+  - Returns list sorted by folder name (case-insensitive)
+  - Results are stored on the Repo record via api.saveRepoScan()
+
+Security in read_script:
+  - Rejects anything not ending in .cs
+  - Resolves to absolute path and calls relative_to(repo_root) — raises ValueError
+    if the resolved path is outside the repo (path traversal protection)
+
+Pywebview JS API notes:
+  - Methods must be on a class passed as js_api=
+  - They are called async from JS (return a Promise)
+  - Return values must be JSON-serializable (dict, list, str, int, bool)
+  - The page must wait for window.pywebview.api to be populated before calling;
+    the DESKTOP_SHIM is injected in the window.events.loaded handler which fires
+    after pywebview has set up the api object
+
+Dependencies:
+  pip install pywebview
+  That's it. No other third-party packages.
+  Python stdlib used: os, sys, subprocess, threading, webbrowser, http.server,
+                      pathlib, ctypes (Windows/macOS only)
+
+
+------------------------------------------------------------------------------
+13. THEMES (styles.css + theme.tsx)
+------------------------------------------------------------------------------
+
+Theming uses CSS custom properties on :root[data-theme='...'].
+theme.tsx reads/writes 'mosim-theme' in localStorage and stamps data-theme on
+document.documentElement.
+
+Theme 'dark' (default):
+  --bg: #0b0e14
+  --panel: #141a24
+  --panel-2: #1a2130
+  --border-solid: #263042
+  --text: #e6e9ef
+  --muted: #8b95a7
+  --accent: #3fb950 (green)
+  --blue: #58a6ff
+  --gold: #d4a72c
+
+Theme 'light':
+  --bg: #f4f6f9
+  --panel: #ffffff
+  --panel-2: #eef1f5
+  --text: #1c2430
+  --accent: #218739
+
+Theme 'cloud' (MSI Center-style soft blue):
+  --bg: #e9f1fb
+  --bg-image: linear-gradient(160deg, #dcebfb 0%, #eef5fd 45%, #e3edf9 100%)
+  --panel: #fbfdffd9 (semi-transparent)
+  --radius: 12px (larger radius than dark/light)
+  --shadow: 0 4px 16px rgba(79, 143, 247, 0.1)
+
+Status pill colors:
+  planned:        purple tint (#6e40c926 bg / #c297ff text in dark)
+  in-unity:       gold tint
+  semi-functional: green tint
+  released:       blue tint
+
+ThemeButton in App.tsx cycles: dark -> light -> cloud (wraps around).
+Icons: 🌙 / ☀️ / ☁️
+
+
+------------------------------------------------------------------------------
+14. KNOWN ISSUES / BUGS FIXED THIS SESSION
+------------------------------------------------------------------------------
+
+1. TS error: 'claimed' used as RobotStatus in PlannedPage.tsx (line 68) and
+   RobotsPage.tsx (line 108) — FIXED: changed to 'in-unity'
+
+2. JS comment syntax error in the old desktop/main.js: path string
+   "Assets/**/Robots/" inside a /** */ block comment closed the comment early —
+   FIXED: switched to // single-line comments (this was in the old Electron app,
+   now replaced by app/main.py)
+
+3. Firestore rules were missing the 'scripts' collection — FIXED: added rule
+   that makes scripts owner-only (never public):
+   match /scripts/{scriptId} {
+     allow read, write: if isOwner();
+     allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+   }
+
+4. Electron binary not downloading: old Electron desktop issue; the old
+   desktop/ folder is now excluded from git (in .gitignore) since it's been
+   replaced by the Python app.
+
+5. Vite can't import ../../steps.json by default (outside package root) — FIXED:
+   added `fs: { allow: ['..'] }` to vite.config.ts server block
+
+
+------------------------------------------------------------------------------
+15. WHAT'S DONE
+------------------------------------------------------------------------------
+
+[x] React/Vite/TypeScript web app
+[x] 4-status robot lifecycle (Planned / In Unity / Semi-Functional / Released)
+[x] 10 steps / 53 sub-step split template in steps.json (shared single source of truth)
+[x] LocalBackend (localStorage, works with zero config)
+[x] CloudBackend (Firebase Firestore + Google Auth)
+[x] Firestore security rules for all 5 collections
+[x] 3 themes (dark / light / cloud)
+[x] Community tracker table (RobotsPage)
+[x] Planned page
+[x] Robot detail page with splits
+[x] Compact/overlay page (LiveSplit-style)
+[x] Modpacks page
+[x] Repos page with desktop scan
+[x] Scripts page (drag-drop library + JSONL export)
+[x] AI script generator (Anthropic API + Ollama)
+[x] AI system prompt (MoSim C# scripting knowledge)
+[x] Mobile-responsive CSS (tracker table collapses to cards at 720px)
+[x] Python desktop app (pywebview, always-on-top, no Electron)
+[x] TRAINING.md (AMD RX 9070 XT, WSL2+ROCm, Unsloth QLoRA, Ollama import)
+[x] README.md
+[x] .gitignore (excludes desktop/, __pycache__, .gguf, training artifacts)
+[x] Initial git commit (46 files, 8698 lines)
+[x] Build verified: 74 modules, 0 TypeScript errors
+
+
+------------------------------------------------------------------------------
+16. WHAT'S NOT DONE / POSSIBLE NEXT STEPS
+------------------------------------------------------------------------------
+
+These were discussed but not implemented. Listed with priority notes:
+
+HIGH PRIORITY — user mentioned these:
+
+[ ] Training the model (TRAINING.md written, but the user hasn't done it yet)
+    - User has AMD RX 9070 XT (16 GB GDDR6, RDNA 4)
+    - Best path: WSL2 + ROCm or Colab + Unsloth
+    - User's Python version: 3.14.6
+
+[ ] Firebase setup (user hasn't configured it yet)
+    - Currently in local mode (firebaseConfig = null)
+    - All data lives in browser localStorage only
+    - To enable: fill in web/src/firebase-config.ts with console.firebase.google.com config
+
+[ ] Deploy to DigitalOcean (server/DEPLOY.md exists but hasn't been deployed)
+
+LOWER PRIORITY — considered but not requested:
+
+[ ] Drag-to-reorder robots in the table
+    (The embed editor in the MerchSite project has drag-to-reorder — same user)
+    sortByOrder() uses the 'order' field, but there's no UI to change it
+
+[ ] Robot cloning (useful when making a similar robot)
+
+[ ] Bulk import (drag a folder of .cs files instead of one at a time)
+    Currently: one .cs at a time via drag-drop
+
+[ ] Search/filter in ScriptsPage (currently no search bar)
+
+[ ] Export full robot progress report (PDF or markdown)
+
+[ ] Keyboard shortcuts for splits (e.g. Enter to check off next sub-step)
+
+[ ] "Archive" status (robot modding abandoned, don't show in main table)
+
+[ ] Tag/label system on scripts (e.g. tag by game year)
+
+[ ] Auto-scroll to current step in compact view
+
+[ ] The AiScriptPanel on desktop can read .cs files from the repo scan.
+    There's a TODO to make those files preloaded if the robot has repoId set.
+
+[ ] The video links are passed as text to the AI but the AI explicitly can't
+    watch them. A future improvement could auto-fetch TBA match data (match
+    results, robot descriptions) from The Blue Alliance API using the team number.
+
+[ ] Python app packaging (currently requires pip install pywebview and running
+    from command line). Could use PyInstaller to make a standalone .exe:
+    pyinstaller --onefile --windowed --add-data "web/dist;web/dist" app/main.py
+    NOTE: web/dist must be bundled or downloaded separately
+
+[ ] Linux always-on-top toggle (currently silently skipped)
+    Could use GTK via PyGObject: Gtk.Window.set_keep_above()
+
+
+------------------------------------------------------------------------------
+17. USER CONTEXT
+------------------------------------------------------------------------------
+
+- Username: Seb (GitHub: dfn-slxxp)
+- Repos they have (relevant to MoSim):
+    Private-Mods:           14 robots found by scanner (IronPulse, CC, 1706,
+                            CitrusCircuits, 9496/Lynk, 422, etc.)
+    Mosim-Reefscape-Private: 4 robots (5460/StrikeZone, 2910, 118, ClimbExamples)
+    MoSim-Reefscape-Public:  12 robots
+- Hardware: AMD RX 9070 XT (16 GB GDDR6, RDNA 4 architecture)
+- Python: 3.14.6 installed
+- OS: Windows 11 Home 10.0.26200
+- The user builds MoSim mods and wants to track their progress
+- The user codes in Python, Java, and C# — React/TypeScript is newer to them
+  (comments in the codebase explain JS-specific patterns in terms of Python/Java)
+- The user does NOT do MoSim Builder (only robot mods)
+- Docs source used to derive the split template:
+  https://docs.mosimulator.com (modding intro + 9496 Lynk walkthrough, all 9 pages)
+
+Secondary project (different codebase, same user):
+  MerchSite (C:\Users\Seb\Desktop\Merch\MerchSite)
+  - This is the user's merchandise website project
+  - Has its own Claude Code session — DO NOT mix up the two codebases
+
+
+------------------------------------------------------------------------------
+18. KEY CODE PATTERNS TO FOLLOW
+------------------------------------------------------------------------------
+
+Comments:
+  - The codebase has detailed comments explaining JS/React patterns to someone
+    coming from Python/Java/C#. Continue this style.
+  - Explain the WHY, not just the WHAT.
+  - Explain async/Promise in terms of C# Task, 'interface' in terms of C# interface, etc.
+
+State mutations:
+  - ALWAYS go through the Backend interface (api.updateRobot etc.)
+  - NEVER mutate arrays or objects from useStore() directly
+  - The store is read-only from the component side
+
+Adding a new page:
+  1. Create web/src/pages/NewPage.tsx
+  2. Add import + <NavLink> in App.tsx nav
+  3. Add <Route path="/new-page" element={<NewPage />} /> in App.tsx routes
+  4. Add CSS in styles.css with a section comment
+
+Adding a new data type:
+  1. Add interface + New* type to types.ts
+  2. Add to StoreState in backend.ts
+  3. Add add*/update*/delete* methods to Backend interface
+  4. Implement in local.ts (localStorage) AND cloud.ts (Firestore)
+  5. Add to StoreContext.tsx initialState
+  6. Add Firestore rules to firestore.rules
+  7. Add Firestore index if querying by multiple fields
+
+The window.desktop API:
+  - Always check `if (window.desktop)` before calling any desktop method
+  - window.desktop is undefined in a normal browser
+  - In the Python app it's populated by the DESKTOP_SHIM injected at page load
+  - In the old Electron app it was populated by preload.js contextBridge
+
+AI API key handling:
+  - The API key is the user's own key, stored ONLY in this device's localStorage
+  - It is NEVER written to Firestore, localStorage-synced to cloud, or sent to
+    any server other than api.anthropic.com
+  - The Ollama URL is also localStorage-only
+
+
+------------------------------------------------------------------------------
+19. HOW TO RUN
+------------------------------------------------------------------------------
+
+Web (browser):
+  cd web
+  npm install        (first time only)
+  npm run dev        -> http://localhost:5173
+  -- or --
+  npm run build      -> web/dist/ (static files for production)
+
+Desktop (Python):
+  cd {repo root}
+  pip install pywebview    (first time only — requires Python 3.8+)
+  npm run build            (in web/ — Python app serves web/dist/)
+  python app/main.py
+  -- or double-click app/run.bat (Windows) / app/run.sh (Mac/Linux)
+
+Firebase setup (to enable cloud sync):
+  1. Create project at console.firebase.google.com
+  2. Enable Authentication -> Google
+  3. Create Firestore database (production mode)
+  4. Register a Web app, copy the config object
+  5. Paste config into web/src/firebase-config.ts (replace the null)
+  6. npm install -g firebase-tools
+     firebase login
+     firebase use <project-id>
+     firebase deploy --only firestore    (deploys rules + indexes)
+  7. npm run build (in web/)
+
+DigitalOcean deploy:
+  See server/DEPLOY.md for full instructions.
+  Summary: scp web/dist/ + server/ to droplet, npm install in server/,
+  systemd service, nginx reverse proxy, certbot HTTPS
+
+==============================================================================
+ END OF CONTEXT FILE
+==============================================================================

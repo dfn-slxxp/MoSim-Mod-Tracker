@@ -33,5 +33,11 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if isOwner();
     }
+
+    match /scripts/{scriptId} {
+      // Scripts are NEVER public — only the owner can read or write them.
+      allow read, write: if isOwner();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+    }
   }
 }
