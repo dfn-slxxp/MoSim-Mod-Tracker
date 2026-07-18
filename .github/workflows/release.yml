@@ -150,7 +150,7 @@ jobs:
       # ── Build: produces installer-app/src-tauri/target/release/mosim-setup.exe
       - name: Build installer app
         working-directory: installer-app
-        run: npx tauri build
+        run: npx tauri build --bundles none
 
       # ── Upload MoSimSetup.exe to the release ───────────────────────────
       - name: Upload MoSimSetup.exe

@@ -97,12 +97,13 @@ async fn start_install(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Flush failed: {e}"))?;
     drop(file);
 
-    // 3. Run NSIS installer silently
+    // 3. Run NSIS installer silently (async so we don't block the runtime)
     let _ = app.emit("install-progress", InstallProgress::Installing);
 
-    let status = std::process::Command::new(&temp_path)
+    let status = tokio::process::Command::new(&temp_path)
         .arg("/S")
         .status()
+        .await
         .map_err(|e| format!("Failed to launch installer: {e}"))?;
 
     if !status.success() {
@@ -137,15 +138,18 @@ async fn start_install(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn launch_app(exe_path: String) -> Result<(), String> {
-    std::process::Command::new(&exe_path)
+    tokio::process::Command::new(&exe_path)
         .spawn()
         .map_err(|e| format!("Cannot launch app: {e}"))?;
     Ok(())
 }
 
 #[tauri::command]
-async fn close_window(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
+async fn close_window(app: tauri::AppHandle) -> Result<(), String> {
+    app.get_webview_window("main")
+        .ok_or("Window not found".to_string())?
+        .close()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
