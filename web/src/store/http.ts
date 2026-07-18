@@ -21,7 +21,7 @@ import type {
 import { normalizeRobot } from '../types';
 import type { Backend, StoreState } from './backend';
 import { sortByOrder } from './backend';
-import { isTauri, getServerUrl, hasServerConfigured, setServerUrl, tauriListen, openInBrowser } from '../lib/desktop';
+import { isTauri, getServerUrl, tauriListen, openInBrowser } from '../lib/desktop';
 
 export class HTTPBackend implements Backend {
   private _onChange: ((patch: Partial<StoreState>) => void) | null = null;
@@ -92,33 +92,19 @@ export class HTTPBackend implements Backend {
 
   private async _initAsync(): Promise<void> {
     if (isTauri()) {
-      const configured = await hasServerConfigured();
-      if (this._disposed) return;
-
-      if (!configured) {
-        this._onChange?.({ ready: true, needsServerSetup: true });
-        return;
-      }
-
       this._serverUrl = await getServerUrl();
       if (this._disposed) return;
 
-      await this._setupTauriAuth();
-      if (this._disposed) return;
+      this._token = localStorage.getItem('mosim_token');
+      const unlisten = await tauriListen<string>('mosim:auth-token', (token) => {
+        this._token = token;
+        localStorage.setItem('mosim_token', token);
+        void this._load();
+      });
+      if (this._disposed) { unlisten(); return; }
+      this._unlistenAuth = unlisten;
     }
     void this._load();
-  }
-
-  private async _setupTauriAuth(): Promise<void> {
-    this._unlistenAuth?.();
-    this._token = localStorage.getItem('mosim_token');
-    const unlisten = await tauriListen<string>('mosim:auth-token', (token) => {
-      this._token = token;
-      localStorage.setItem('mosim_token', token);
-      void this._load();
-    });
-    if (this._disposed) { unlisten(); return; }
-    this._unlistenAuth = unlisten;
   }
 
   private async _load(): Promise<void> {
@@ -260,13 +246,6 @@ export class HTTPBackend implements Backend {
     });
   }
 
-  async configureServer(url: string): Promise<void> {
-    await setServerUrl(url);
-    this._serverUrl = url;
-    await this._setupTauriAuth();
-    this._onChange?.({ needsServerSetup: false });
-    void this._load();
-  }
 }
 
 interface DataPayload {

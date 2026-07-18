@@ -23,13 +23,6 @@ export async function getServerUrl(): Promise<string> {
   return inv<string>('get_server_url');
 }
 
-export async function hasServerConfigured(): Promise<boolean> {
-  return inv<boolean>('has_server_configured');
-}
-
-export async function setServerUrl(url: string): Promise<void> {
-  return inv('set_server_url', { url });
-}
 
 export async function openInBrowser(url: string): Promise<void> {
   return inv('open_path', { pathOrUrl: url });

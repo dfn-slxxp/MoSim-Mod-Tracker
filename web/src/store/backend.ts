@@ -29,8 +29,6 @@ export interface StoreState {
   /** True when signed in (required to create or edit anything). */
   canEdit: boolean;
   error: string | null;
-  /** Tauri desktop only: true when no mosim.conf exists yet (first run). */
-  needsServerSetup: boolean;
 }
 
 export interface Backend {
@@ -66,8 +64,6 @@ export interface Backend {
 
   signIn(): Promise<void>;
   signOut(): Promise<void>;
-  /** Tauri only: write mosim.conf with the given URL and start connecting. */
-  configureServer(url: string): Promise<void>;
 }
 
 /** Stable sort: manual order first, creation time as tiebreaker. */

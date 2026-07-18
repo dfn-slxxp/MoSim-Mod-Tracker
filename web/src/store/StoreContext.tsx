@@ -19,7 +19,6 @@ const initialState: StoreState = {
   scripts: [],
   canEdit: false,
   error: null,
-  needsServerSetup: false,
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
