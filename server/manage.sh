@@ -32,6 +32,10 @@ GOOGLE_CLIENT_SECRET=""  # (existing deployments read creds from server/.env on 
 # Where the repo will live on the server
 INSTALL_DIR="/apps/mosim-tracker-server"
 
+# Database lives OUTSIDE the repo tree so no git operation, re-clone, or
+# directory mixup can ever touch user data. Backed up on every deploy.
+DATA_DIR="/var/lib/mosim-tracker"
+
 # Internal port the Node server listens on (nginx proxies to this)
 SERVICE_PORT="8787"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +78,7 @@ cmd_setup() {
   log "Writing server/.env"
   hr
   _write_env
+  _migrate_data
 
   hr
   log "Installing npm dependencies"
@@ -140,6 +145,12 @@ cmd_deploy() {
   git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
 
   hr
+  log "Backing up database"
+  hr
+  _backup_data
+  _migrate_data
+
+  hr
   log "Pulling latest code"
   hr
   git -C "$INSTALL_DIR" pull
@@ -196,11 +207,51 @@ cmd_status() {
   echo ""
   log "Disk usage"
   du -sh "$INSTALL_DIR/web/dist"  2>/dev/null || true
-  du -sh "$INSTALL_DIR/server/data.db" 2>/dev/null || echo "  data.db not found yet"
+  du -sh "$DATA_DIR/data.db" 2>/dev/null \
+    || du -sh "$INSTALL_DIR/server/data.db" 2>/dev/null \
+    || echo "  data.db not found yet"
+  ls -1t "$DATA_DIR/backups"/data-*.db 2>/dev/null | head -3 | sed 's/^/  backup: /' || true
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
+
+# One-time move of data.db out of the repo tree + point .env at it.
+_migrate_data() {
+  mkdir -p "$DATA_DIR/backups"
+  if [[ -f "$INSTALL_DIR/server/data.db" && ! -f "$DATA_DIR/data.db" ]]; then
+    log "Moving database out of the repo tree → $DATA_DIR"
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    mv "$INSTALL_DIR/server/data.db" "$DATA_DIR/data.db"
+    [[ -f "$INSTALL_DIR/server/data.db-wal" ]] && mv "$INSTALL_DIR/server/data.db-wal" "$DATA_DIR/data.db-wal"
+    [[ -f "$INSTALL_DIR/server/data.db-shm" ]] && mv "$INSTALL_DIR/server/data.db-shm" "$DATA_DIR/data.db-shm"
+  fi
+  # Ensure the server reads the external DB (db.js honors DB_PATH)
+  if [[ -f "$INSTALL_DIR/server/.env" ]] && ! grep -q '^DB_PATH=' "$INSTALL_DIR/server/.env"; then
+    echo "DB_PATH=$DATA_DIR/data.db" >> "$INSTALL_DIR/server/.env"
+  fi
+  chown -R www-data:www-data "$DATA_DIR"
+}
+
+# Timestamped copy of the DB before each deploy; keeps the last 10.
+_backup_data() {
+  mkdir -p "$DATA_DIR/backups"
+  local src="$DATA_DIR/data.db"
+  [[ -f "$src" ]] || src="$INSTALL_DIR/server/data.db"   # pre-migration location
+  if [[ -f "$src" ]]; then
+    local stamp
+    stamp=$(date +%Y%m%d-%H%M%S)
+    cp "$src" "$DATA_DIR/backups/data-$stamp.db"
+    [[ -f "$src-wal" ]] && cp "$src-wal" "$DATA_DIR/backups/data-$stamp.db-wal"
+    # Prune: keep the 10 newest backups
+    ls -1t "$DATA_DIR/backups"/data-*.db 2>/dev/null | tail -n +11 | while read -r f; do
+      rm -f "$f" "$f-wal"
+    done
+    log "Database backed up → backups/data-$stamp.db (keeping last 10)"
+  else
+    warn "No database found to back up yet (fresh install?)"
+  fi
+}
 
 _install_deps() {
   # chown FIRST, then install as www-data with its own npm cache. Running npm
@@ -249,6 +300,7 @@ OAUTH_REDIRECT_URI=https://$DOMAIN/api/auth/callback
 JWT_SECRET=$jwt_secret
 NODE_ENV=production
 PORT=$SERVICE_PORT
+DB_PATH=$DATA_DIR/data.db
 EOF
   chmod 600 "$INSTALL_DIR/server/.env"
   chown www-data:www-data "$INSTALL_DIR/server/.env"

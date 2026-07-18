@@ -139,10 +139,15 @@ MoSim Mod Tracker/
 │   │                               (public); PUT /api/admin/steps|themes (admin only)
 │   ├── db.js                    ← better-sqlite3. Tables: robots, modpacks, repos,
 │   │                               scripts (uid-scoped JSON blobs) + settings (global
-│   │                               key/value: 'steps', 'themes'). getSetting/setSetting
+│   │                               key/value: 'steps', 'themes'). getSetting/setSetting.
+│   │                               DB_PATH env overrides location (set on droplet)
 │   ├── manage.sh                ← Droplet ops: setup|deploy|restart|logs|status.
 │   │                               NO SECRETS in git (empty GOOGLE_* vars = deploy
-│   │                               skips .env rewrite; fill only for fresh setup)
+│   │                               skips .env rewrite; fill only for fresh setup).
+│   │                               DB lives at /var/lib/mosim-tracker/data.db (outside
+│   │                               repo tree); deploy backs it up first (last 10 kept);
+│   │                               npm runs as www-data w/ local cache + install-scripts
+│   │                               approve for better-sqlite3/esbuild + verify require
 │   └── DEPLOY.md                ← Droplet + nginx + certbot walkthrough
 │
 ├── installer/                   ← Shared installer assets
@@ -295,10 +300,15 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 ### Server / Deploy
 - Droplet path: `/apps/mosim-tracker-server`; systemd service `mosim-tracker`;
   nginx proxies 443→8787. Deploy: `bash server/manage.sh deploy` (as root).
+- Database at `/var/lib/mosim-tracker/data.db` (OUTSIDE the repo tree; DB_PATH in
+  .env). Deploy auto-backs-up to `/var/lib/mosim-tracker/backups/` (last 10).
+  manage.sh migrates the old in-repo `server/data.db` automatically on first run.
 - manage.sh contains NO secrets. Creds live only in `server/.env` on the droplet
   (deploy preserves it when GOOGLE_* vars are empty).
 - Server-side auth env: GOOGLE_CLIENT_ID/SECRET, OAUTH_REDIRECT_URI, JWT_SECRET,
-  optional ADMIN_EMAILS.
+  DB_PATH, optional ADMIN_EMAILS.
+- Droplet npm blocks install scripts (allowScripts): manage.sh approves
+  better-sqlite3 + esbuild each deploy and verifies require('better-sqlite3').
 
 ---
 

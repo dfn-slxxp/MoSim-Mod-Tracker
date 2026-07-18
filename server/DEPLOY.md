@@ -119,8 +119,9 @@ Or add a PowerShell alias:
 function Deploy-Tracker { ssh root@YOUR_DROPLET_IP "bash /opt/mosim-tracker/server/manage.sh deploy" }
 ```
 
-The deploy command: `git pull` → `npm install` → `npm run build` → `systemctl restart`.
-Your data in `server/data.db` is never touched by a deploy.
+The deploy command: backup DB → `git pull` → `npm install` → `npm run build` → `systemctl restart`.
+Your data lives OUTSIDE the repo at `/var/lib/mosim-tracker/data.db` and is
+backed up to `/var/lib/mosim-tracker/backups/` (last 10 kept) before every deploy.
 
 ---
 
@@ -166,7 +167,10 @@ python app/main.py   # loads http://localhost:8787 by default
 
 **Cert expired** → `certbot renew` (usually handled automatically by certbot's systemd timer).
 
-**Lost data?** Your `data.db` lives at `/opt/mosim-tracker/server/data.db`. Back it up with:
+**Lost data?** Your `data.db` lives at `/var/lib/mosim-tracker/data.db`, with
+automatic pre-deploy backups in `/var/lib/mosim-tracker/backups/`. Pull a copy locally:
 ```bash
-scp root@YOUR_DROPLET_IP:/opt/mosim-tracker/server/data.db ./backup-$(date +%Y%m%d).db
+scp root@YOUR_DROPLET_IP:/var/lib/mosim-tracker/data.db ./backup-$(date +%Y%m%d).db
 ```
+To restore a backup: stop the service, copy the backup over `data.db` (delete any
+`data.db-wal`/`data.db-shm`), `chown www-data:www-data` it, start the service.
