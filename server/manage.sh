@@ -62,11 +62,12 @@ cmd_setup() {
   log "Cloning repo → $INSTALL_DIR"
   hr
   if [[ -d "$INSTALL_DIR/.git" ]]; then
-    warn "Repo already cloned. Running deploy instead of re-cloning."
-    cmd_deploy
-    return
+    warn "Repo already cloned at $INSTALL_DIR — skipping clone, continuing setup."
+    git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+    git -C "$INSTALL_DIR" pull
+  else
+    git clone "$REPO_URL" "$INSTALL_DIR"
   fi
-  git clone "$REPO_URL" "$INSTALL_DIR"
   chown -R www-data:www-data "$INSTALL_DIR"
 
   hr
@@ -90,7 +91,7 @@ cmd_setup() {
   _write_service
   systemctl daemon-reload
   systemctl enable "$SERVICE_NAME"
-  systemctl start  "$SERVICE_NAME"
+  systemctl restart "$SERVICE_NAME" 2>/dev/null || systemctl start "$SERVICE_NAME"
   sleep 1
   systemctl is-active --quiet "$SERVICE_NAME" \
     && log "Service started OK" \
@@ -161,6 +162,12 @@ cmd_deploy() {
   hr
   log "Restarting service"
   hr
+  if ! systemctl cat "$SERVICE_NAME" &>/dev/null; then
+    warn "Service not found — creating it now."
+    _write_service
+    systemctl daemon-reload
+    systemctl enable "$SERVICE_NAME"
+  fi
   systemctl restart "$SERVICE_NAME"
   sleep 1
   systemctl is-active --quiet "$SERVICE_NAME" \
