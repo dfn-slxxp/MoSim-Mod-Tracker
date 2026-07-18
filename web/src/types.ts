@@ -12,6 +12,9 @@
  */
 export type RobotStatus = 'planned' | 'in-unity' | 'semi-functional' | 'released';
 
+export const GAMES = ['2025: Reefscape', '2026: Rebuilt'] as const;
+export type GameName = (typeof GAMES)[number];
+
 /** Mod type column from the community tracker. '' = not set. */
 export type ModType = '' | 'team-made' | 'team-approved' | 'unofficial' | 'official' | 'base-game';
 
@@ -41,6 +44,7 @@ export interface Robot {
   id: string;
   name: string;
   team: string;
+  teamName?: string; // cached from TBA (team nickname)
   game: string;
   status: RobotStatus;
   modType: ModType;
@@ -153,6 +157,7 @@ export function normalizeRobot(r: Robot): Robot {
     repoId: r.repoId ?? null,
     modpackPrivate: r.modpackPrivate ?? false,
     progress: r.progress ?? {},
-    notes: r.notes ?? ''
+    notes: r.notes ?? '',
+    teamName: r.teamName ?? undefined
   };
 }

@@ -1608,3 +1608,107 @@ h3 {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-solid);
 }
+
+/* ---------- tabs (Robots page) ---------- */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-solid);
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 18px;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 13.5px;
+  margin-bottom: -1px;
+  border-radius: 0;
+  transition: color 0.12s;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+  font-weight: 600;
+}
+
+/* ---------- filter bar ---------- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filter-bar select,
+.filter-bar .filter-search {
+  font-size: 12.5px;
+  padding: 5px 8px;
+}
+
+.filter-bar .filter-search {
+  min-width: 150px;
+  flex: 1;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
+.sort-dir-btn {
+  border: 1px solid var(--border-solid);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sort-dir-btn:hover {
+  background: var(--panel-2);
+}
+
+/* ---------- robot form extras ---------- */
+.form-field-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-name-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.tba-key-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Game column in tracker table */
+.col-game {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}

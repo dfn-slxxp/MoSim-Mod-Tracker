@@ -1,44 +1,50 @@
-// ---------------------------------------------------------------------------
-// "Add robot" form, shared by the Robots page (status starts at Claimed) and
-// the Planned page (status starts at Planned).
-// React form pattern: each input's value lives in state ("controlled input"),
-// onChange keeps it in sync, submit handler calls the store API.
-// ---------------------------------------------------------------------------
 import { FormEvent, useState } from 'react';
+import { fetchTeamName, getTbaKey, setTbaKey } from '../lib/tba';
 import { useStore } from '../store/StoreContext';
-import type { RobotStatus } from '../types';
+import { GAMES } from '../types';
 
-export function RobotForm({ status, onAdded }: { status: RobotStatus; onAdded?: (id: string) => void }) {
-  const { api, modpacks, repos, canEdit } = useStore();
-  const [name, setName] = useState('');
+export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
+  const { api, modpacks, canEdit } = useStore();
   const [team, setTeam] = useState('');
-  const [game, setGame] = useState('Reefscape');
+  const [teamName, setTeamName] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [game, setGame] = useState<string>(GAMES[0]);
   const [modpackId, setModpackId] = useState('');
-  const [repoId, setRepoId] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [keyDraft, setKeyDraft] = useState(getTbaKey());
 
-  if (!canEdit) return null; // read-only visitors don't get the form
+  if (!canEdit) return null;
+
+  const lookupTeam = async (num: string) => {
+    const trimmed = num.trim();
+    if (!trimmed) { setTeamName(null); return; }
+    setFetching(true);
+    const name = await fetchTeamName(trimmed);
+    setTeamName(name);
+    setFetching(false);
+  };
 
   const submit = async (e: FormEvent) => {
-    e.preventDefault(); // stop the browser's default full-page form submit
-    if (!name.trim()) return;
+    e.preventDefault();
+    if (!team.trim()) return;
     setBusy(true);
     try {
       const id = await api.addRobot({
-        name: name.trim(),
+        name: teamName ?? `Team ${team.trim()}`,
         team: team.trim(),
-        game: game.trim() || 'Reefscape',
-        status,
+        teamName: teamName ?? undefined,
+        game,
+        status: 'planned',
         modType: '',
         modpackId: modpackId || null,
-        repoId: repoId || null,
-        private: isPrivate,
+        repoId: null,
+        private: false,
         notes: '',
         progress: {}
       });
-      setName('');
       setTeam('');
+      setTeamName(null);
       onAdded?.(id);
     } catch (err) {
       alert((err as Error).message);
@@ -47,39 +53,88 @@ export function RobotForm({ status, onAdded }: { status: RobotStatus; onAdded?: 
     }
   };
 
+  const hasTbaKey = !!getTbaKey();
+
   return (
     <form className="add-form" onSubmit={submit}>
-      <input
-        placeholder="Robot name (e.g. Lynk)"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
-      <input placeholder="Team # (e.g. 9496)" value={team} onChange={(e) => setTeam(e.target.value)} />
-      <input placeholder="Game" value={game} onChange={(e) => setGame(e.target.value)} />
-      <select value={modpackId} onChange={(e) => setModpackId(e.target.value)}>
+      {/* Team number + TBA name preview */}
+      <div className="form-field-group">
+        <input
+          placeholder="Team # (e.g. 9496)"
+          value={team}
+          onChange={(e) => { setTeam(e.target.value); setTeamName(null); }}
+          onBlur={(e) => lookupTeam(e.target.value)}
+          style={{ width: 130 }}
+          required
+        />
+        {fetching && <span className="muted" style={{ fontSize: 12 }}>Looking up…</span>}
+        {!fetching && teamName && <span className="team-name-tag">✓ {teamName}</span>}
+        {!fetching && !teamName && team.trim() && hasTbaKey && (
+          <span className="muted" style={{ fontSize: 12 }}>Team not found</span>
+        )}
+      </div>
+
+      {/* Game dropdown */}
+      <select value={game} onChange={(e) => setGame(e.target.value)} style={{ minWidth: 160 }}>
+        {GAMES.map((g) => (
+          <option key={g} value={g}>{g}</option>
+        ))}
+      </select>
+
+      {/* Modpack dropdown */}
+      <select value={modpackId} onChange={(e) => setModpackId(e.target.value)} style={{ minWidth: 140 }}>
         <option value="">No modpack</option>
         {modpacks.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
-          </option>
+          <option key={m.id} value={m.id}>{m.name}</option>
         ))}
       </select>
-      <select value={repoId} onChange={(e) => setRepoId(e.target.value)}>
-        <option value="">No repo</option>
-        {repos.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
-      <label className="inline-check">
-        <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
-        Private
-      </label>
+
       <button className="btn primary" disabled={busy} type="submit">
-        {status === 'planned' ? 'Add plan' : 'Add robot'}
+        Add robot
       </button>
+
+      {/* TBA key config */}
+      {!hasTbaKey && !showKeyInput && (
+        <button
+          type="button"
+          className="btn subtle"
+          style={{ fontSize: 12 }}
+          onClick={() => setShowKeyInput(true)}
+        >
+          Set TBA API key →
+        </button>
+      )}
+      {hasTbaKey && (
+        <span className="team-name-tag" style={{ cursor: 'pointer' }} onClick={() => setShowKeyInput(!showKeyInput)}>
+          TBA ✓
+        </span>
+      )}
+      {showKeyInput && (
+        <div className="tba-key-row">
+          <input
+            placeholder="TBA read API key"
+            value={keyDraft}
+            onChange={(e) => setKeyDraft(e.target.value)}
+            style={{ minWidth: 220 }}
+          />
+          <button
+            type="button"
+            className="btn"
+            onClick={() => { setTbaKey(keyDraft); setShowKeyInput(false); }}
+          >
+            Save
+          </button>
+          <a
+            href="https://www.thebluealliance.com/account"
+            target="_blank"
+            rel="noreferrer"
+            className="muted"
+            style={{ fontSize: 12 }}
+          >
+            Get key ↗
+          </a>
+        </div>
+      )}
     </form>
   );
 }

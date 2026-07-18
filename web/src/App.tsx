@@ -89,7 +89,6 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="nav">
           <NavLink to="/" end>Robots</NavLink>
-          <NavLink to="/planned">Planned</NavLink>
           <NavLink to="/modpacks">Modpacks</NavLink>
           <NavLink to="/repos">Repos</NavLink>
           <NavLink to="/scripts">Scripts</NavLink>

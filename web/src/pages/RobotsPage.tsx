@@ -1,9 +1,3 @@
-// ---------------------------------------------------------------------------
-// Robots page — a spreadsheet-style table like the community MoSim tracker:
-// colored status / mod-type pill dropdowns, comments inline, no search bar.
-// Filter chips narrow by status. Clicking a row opens the robot's splits.
-// On phones the table collapses into stacked cards (pure CSS, see styles).
-// ---------------------------------------------------------------------------
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PillSelect } from '../components/PillSelect';
@@ -11,7 +5,13 @@ import { ProgressBar } from '../components/ProgressBar';
 import { RobotForm } from '../components/RobotForm';
 import { STEPS, robotProgress, stepProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { MODTYPE_META, ModType, Robot, RobotStatus, STATUS_META } from '../types';
+import { GAMES, MODTYPE_META, ModType, Robot, RobotStatus, STATUS_META } from '../types';
+
+type Tab = 'in-progress' | 'all';
+type SortKey = 'team' | 'game' | 'progress' | 'status' | 'createdAt';
+type SortDir = 'asc' | 'desc';
+
+const STATUS_ORDER: RobotStatus[] = ['planned', 'in-unity', 'semi-functional', 'released'];
 
 const STATUS_OPTIONS = (Object.keys(STATUS_META) as RobotStatus[]).map((s) => ({
   value: s,
@@ -25,12 +25,31 @@ const MODTYPE_OPTIONS = (Object.keys(MODTYPE_META) as Exclude<ModType, ''>[]).ma
   className: MODTYPE_META[m].className
 }));
 
-/** First step that isn't finished — the "give details" part of In Unity. */
 function currentStep(robot: Robot): string | null {
   for (const step of STEPS) {
     if (!stepProgress(robot, step).complete) return step.title;
   }
   return null;
+}
+
+const PROGRESS_FILTERS = [
+  { value: '', label: 'Any progress' },
+  { value: 'none', label: 'No progress (0%)' },
+  { value: 'some', label: 'Started (1–49%)' },
+  { value: 'half', label: 'Halfway+ (≥50%)' },
+  { value: 'almost', label: 'Almost done (≥75%)' },
+  { value: 'done', label: 'Complete (100%)' }
+];
+
+function matchesProgress(pct: number, filter: string): boolean {
+  switch (filter) {
+    case 'none':   return pct === 0;
+    case 'some':   return pct > 0 && pct < 50;
+    case 'half':   return pct >= 50;
+    case 'almost': return pct >= 75;
+    case 'done':   return pct === 100;
+    default:       return true;
+  }
 }
 
 function RobotRow({ robot }: { robot: Robot }) {
@@ -45,14 +64,14 @@ function RobotRow({ robot }: { robot: Robot }) {
     <tr className="robot-row" onClick={() => navigate(`/robot/${robot.id}`)}>
       <td className="col-team">{robot.team}</td>
       <td className="col-name">
-        {robot.name}
+        {robot.teamName ?? robot.name}
         {(robot.private || robot.modpackPrivate) && (
-          <span className="lock" title="Private — requires sign-in to view">
-            {' '}
-            🔒
+          <span className="lock" title="Private">
+            {' '}🔒
           </span>
         )}
       </td>
+      <td className="col-game" data-label="Game">{robot.game}</td>
       <td className="col-status" data-label="Status">
         <PillSelect
           value={robot.status}
@@ -92,45 +111,145 @@ function RobotRow({ robot }: { robot: Robot }) {
 
 export function RobotsPage() {
   const { robots } = useStore();
-  const [filter, setFilter] = useState<RobotStatus | 'all'>('all');
 
-  // Everything except planned (those get their own page).
-  const tracked = robots.filter((r) => r.status !== 'planned');
-  const shown = filter === 'all' ? tracked : tracked.filter((r) => r.status === filter);
-  const counts = (s: RobotStatus) => tracked.filter((r) => r.status === s).length;
+  const [tab, setTab] = useState<Tab>('in-progress');
+  const [filterGame, setFilterGame] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterProgress, setFilterProgress] = useState('');
+  const [teamSearch, setTeamSearch] = useState('');
+  const [sortBy, setSortBy] = useState<SortKey>('team');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const YEARS = [...new Set(GAMES.map((g) => g.split(':')[0].trim()))];
+
+  // Base set by tab
+  const base = tab === 'in-progress'
+    ? robots.filter((r) => r.status !== 'planned')
+    : robots;
+
+  // Apply filters
+  let shown = base;
+  if (filterGame) shown = shown.filter((r) => r.game === filterGame);
+  if (filterYear) shown = shown.filter((r) => r.game.startsWith(filterYear));
+  if (filterStatus) shown = shown.filter((r) => r.status === filterStatus);
+  if (filterProgress) shown = shown.filter((r) => matchesProgress(robotProgress(r).pct, filterProgress));
+  if (teamSearch.trim()) {
+    const q = teamSearch.toLowerCase();
+    shown = shown.filter(
+      (r) => r.team.includes(teamSearch.trim()) ||
+             (r.teamName ?? r.name).toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  const dir = sortDir === 'asc' ? 1 : -1;
+  shown = [...shown].sort((a, b) => {
+    switch (sortBy) {
+      case 'team':      return dir * (parseInt(a.team || '0') - parseInt(b.team || '0'));
+      case 'game':      return dir * a.game.localeCompare(b.game);
+      case 'progress':  return dir * (robotProgress(a).pct - robotProgress(b).pct);
+      case 'status':    return dir * (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
+      case 'createdAt': return dir * (a.createdAt - b.createdAt);
+      default:          return 0;
+    }
+  });
+
+  const inProgressCount = robots.filter((r) => r.status !== 'planned').length;
 
   return (
     <div className="page wide">
       <div className="page-head">
         <h1>Robots</h1>
-        <p className="muted">Mods you're working on. Click a row to open its splits.</p>
+        <p className="muted">Click a row to open its splits and progress tracker.</p>
       </div>
-      <RobotForm status="in-unity" />
 
-      <div className="filter-chips">
-        <button className={`chip ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
-          All ({tracked.length})
+      <RobotForm />
+
+      {/* Tabs */}
+      <div className="tab-bar">
+        <button
+          className={`tab-btn ${tab === 'in-progress' ? 'active' : ''}`}
+          onClick={() => { setTab('in-progress'); setFilterStatus(''); }}
+        >
+          In Progress ({inProgressCount})
         </button>
-        {STATUS_OPTIONS.filter((o) => o.value !== 'planned').map((o) => (
+        <button
+          className={`tab-btn ${tab === 'all' ? 'active' : ''}`}
+          onClick={() => setTab('all')}
+        >
+          All ({robots.length})
+        </button>
+      </div>
+
+      {/* Filter + sort bar */}
+      <div className="filter-bar">
+        <select value={filterGame} onChange={(e) => setFilterGame(e.target.value)}>
+          <option value="">All games</option>
+          {GAMES.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+
+        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
+          <option value="">All years</option>
+          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+
+        {tab === 'all' && (
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        )}
+
+        <select value={filterProgress} onChange={(e) => setFilterProgress(e.target.value)}>
+          {PROGRESS_FILTERS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+
+        <input
+          className="filter-search"
+          placeholder="Team # or name…"
+          value={teamSearch}
+          onChange={(e) => setTeamSearch(e.target.value)}
+        />
+
+        <div className="sort-controls">
+          <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Sort:</span>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
+            <option value="team">Team #</option>
+            <option value="game">Game</option>
+            <option value="progress">Progress</option>
+            <option value="status">Status</option>
+            <option value="createdAt">Date added</option>
+          </select>
           <button
-            key={o.value}
-            className={`chip ${o.className} ${filter === o.value ? 'on' : ''}`}
-            onClick={() => setFilter(o.value as RobotStatus)}
+            type="button"
+            className="sort-dir-btn"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
           >
-            {o.label} ({counts(o.value as RobotStatus)})
+            {sortDir === 'asc' ? '↑' : '↓'}
           </button>
-        ))}
+        </div>
       </div>
 
       {shown.length === 0 ? (
-        <div className="empty">No robots here yet — add your first mod above.</div>
+        <div className="empty">
+          {robots.length === 0
+            ? 'No robots yet — add your first one above.'
+            : 'No robots match the current filters.'}
+        </div>
       ) : (
         <div className="table-wrap">
           <table className="tracker-table">
             <thead>
               <tr>
                 <th>Team #</th>
-                <th>Name</th>
+                <th>Team Name</th>
+                <th>Game</th>
                 <th>Status</th>
                 <th>Mod Type</th>
                 <th>Modpack</th>

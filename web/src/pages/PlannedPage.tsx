@@ -19,7 +19,7 @@ export function PlannedPage() {
           Robots you intend to make and the modpacks they'd ship in. Hit “Start modding” when you begin.
         </p>
       </div>
-      <RobotForm status="planned" />
+      <RobotForm />
       {planned.length === 0 && <div className="empty">Nothing planned yet.</div>}
       <div className="planned-list">
         {planned.map((r) => {
