@@ -130,6 +130,17 @@ export interface UserInfo {
   name: string;
   email: string;
   photo: string | null;
+  /** True when this email is on the server's ADMIN_EMAILS allowlist. */
+  admin?: boolean;
+}
+
+/** A server-stored custom theme created in the admin dashboard. */
+export interface CustomTheme {
+  id: string;    // e.g. 'custom-midnight' (always prefixed to avoid builtin clashes)
+  label: string;
+  icon: string;  // single emoji shown on the theme cycle button
+  /** CSS variable overrides, keys WITHOUT the leading '--' (e.g. bg, panel, accent). */
+  vars: Record<string, string>;
 }
 
 // `Omit<T, K>` = type T minus the listed fields. These are the shapes callers

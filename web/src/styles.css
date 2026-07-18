@@ -1265,6 +1265,113 @@ h3 {
   border-radius: var(--radius);
 }
 
+/* ---------- admin dashboard ---------- */
+.admin-section {
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.admin-section-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.admin-msg {
+  padding: 6px 10px;
+  background: var(--accent-dim);
+  border-radius: var(--radius);
+}
+.admin-step {
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-step-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.admin-step-head input {
+  flex: 1;
+  min-width: 120px;
+}
+.admin-step-head .admin-docurl {
+  flex: 1.4;
+  font-size: 12px;
+}
+.admin-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 26px;
+}
+.admin-sub-row {
+  display: flex;
+  gap: 6px;
+}
+.admin-sub-row input {
+  flex: 1;
+}
+.admin-theme {
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-theme-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.admin-theme-head input {
+  flex: 1;
+}
+.admin-theme-head .admin-theme-icon {
+  flex: 0 0 52px;
+  text-align: center;
+}
+.admin-theme-vars {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+.admin-var {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.admin-color-pair {
+  display: flex;
+  gap: 4px;
+}
+.admin-color-pair input[type='color'] {
+  flex: 0 0 34px;
+  height: 30px;
+  padding: 2px;
+  cursor: pointer;
+}
+.admin-color-pair input[type='text'],
+.admin-color-pair input:not([type='color']) {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ---------- desktop density (feels less like a website) ---------- */
 .is-desktop .topbar {
   padding: 6px 12px;

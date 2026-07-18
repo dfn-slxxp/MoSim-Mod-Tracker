@@ -208,7 +208,7 @@ export function RobotDetailPage() {
       <div className="detail-progress">
         <ProgressBar pct={prog.pct} />
         <span className="muted">
-          {prog.done}/{prog.total} sub-steps · {prog.stepsDone}/10 steps · {prog.pct}%
+          {prog.done}/{prog.total} sub-steps · {prog.stepsDone}/{STEPS.length} steps · {prog.pct}%
         </span>
       </div>
 

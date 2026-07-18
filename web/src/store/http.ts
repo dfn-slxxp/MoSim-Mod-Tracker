@@ -22,6 +22,7 @@ import { normalizeRobot } from '../types';
 import type { Backend, StoreState } from './backend';
 import { sortByOrder } from './backend';
 import { isTauri, getServerUrl, tauriListen, openInBrowser } from '../lib/desktop';
+import { loadRemoteSteps } from '../steps';
 
 export class HTTPBackend implements Backend {
   private _onChange: ((patch: Partial<StoreState>) => void) | null = null;
@@ -104,6 +105,9 @@ export class HTTPBackend implements Backend {
       if (this._disposed) { unlisten(); return; }
       this._unlistenAuth = unlisten;
     }
+    // Pull admin-edited steps before first data render so progress math uses
+    // the live step set (falls back silently to bundled steps.json).
+    await loadRemoteSteps(this._serverUrl);
     void this._load();
   }
 

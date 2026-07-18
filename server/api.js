@@ -2,7 +2,7 @@
 const { Router } = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const { db, getAll, insert, update, remove } = require('./db');
+const { db, getAll, insert, update, remove, getSetting, setSetting } = require('./db');
 
 const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -47,6 +47,24 @@ router.use((req, res, next) => {
 });
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
+
+// Comma-separated allowlist of admin emails. Overridable via env without
+// code changes; defaults to the owner.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? 'waldman.sebastian@gmail.com')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdmin(user) {
+  return !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+}
+
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (!isAdmin(req.user)) return res.status(403).json({ error: 'Admin only' });
+    next();
+  });
+}
 
 function requireAuth(req, res, next) {
   // Accept either a session cookie (web) or a Bearer token (Tauri desktop).
@@ -181,7 +199,42 @@ router.post('/auth/logout', (_req, res) => {
 
 router.get('/me', requireAuth, (req, res) => {
   const { uid, name, email, photo } = req.user;
-  res.json({ uid, name, email, photo });
+  res.json({ uid, name, email, photo, admin: isAdmin(req.user) });
+});
+
+// ── Global config: steps + themes ────────────────────────────────────────────
+// Readable by anyone (steps/themes are not secret); writable by admins only.
+
+router.get('/steps', (_req, res) => {
+  res.json({ steps: getSetting('steps') }); // null = client falls back to bundled steps.json
+});
+
+router.get('/themes', (_req, res) => {
+  res.json({ themes: getSetting('themes') ?? [] });
+});
+
+router.put('/admin/steps', requireAdmin, (req, res) => {
+  const steps = req.body?.steps;
+  if (!Array.isArray(steps)) return res.status(400).json({ error: 'steps must be an array' });
+  for (const s of steps) {
+    if (!s?.id || !s?.title || !Array.isArray(s.subs)) {
+      return res.status(400).json({ error: 'each step needs id, title, subs[]' });
+    }
+  }
+  setSetting('steps', steps);
+  res.json({ ok: true });
+});
+
+router.put('/admin/themes', requireAdmin, (req, res) => {
+  const themes = req.body?.themes;
+  if (!Array.isArray(themes)) return res.status(400).json({ error: 'themes must be an array' });
+  for (const t of themes) {
+    if (!t?.id || !t?.label || typeof t?.vars !== 'object') {
+      return res.status(400).json({ error: 'each theme needs id, label, vars{}' });
+    }
+  }
+  setSetting('themes', themes);
+  res.json({ ok: true });
 });
 
 // ── Bulk data (one request to initialise the whole app) ───────────────────────

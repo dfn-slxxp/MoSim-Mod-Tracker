@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import avatarUrl from './assets/avatar.png';
 import { AuthButton } from './components/AuthButton';
+import { AdminPage } from './pages/AdminPage';
 import { CompactPage } from './pages/CompactPage';
 import { ModpacksPage } from './pages/ModpacksPage';
 import { PlannedPage } from './pages/PlannedPage';
@@ -14,13 +15,13 @@ import { RobotDetailPage } from './pages/RobotDetailPage';
 import { RobotsPage } from './pages/RobotsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { useStore } from './store/StoreContext';
-import { THEMES, useTheme } from './theme';
+import { useTheme } from './theme';
 
 function ThemeButton() {
-  const { theme, setTheme } = useTheme();
-  const idx = THEMES.findIndex((t) => t.id === theme);
-  const next = THEMES[(idx + 1) % THEMES.length];
-  const current = THEMES[idx];
+  const { theme, setTheme, allThemes } = useTheme();
+  const idx = Math.max(0, allThemes.findIndex((t) => t.id === theme));
+  const next = allThemes[(idx + 1) % allThemes.length];
+  const current = allThemes[idx];
   return (
     <button
       className="btn subtle theme-btn"
@@ -123,6 +124,7 @@ export default function App() {
               <Route path="/" element={<RobotsPage />} />
               <Route path="/robot/:id" element={<RobotDetailPage />} />
               <Route path="/planned" element={<PlannedPage />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="/modpacks" element={<ModpacksPage />} />
               <Route path="/repos" element={<ReposPage />} />
               <Route path="/scripts" element={<ScriptsPage />} />

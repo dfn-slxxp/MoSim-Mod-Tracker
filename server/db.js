@@ -45,6 +45,12 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS scripts_uid ON scripts(uid);
+
+  -- Global key/value store for admin-editable config (steps, themes).
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 `);
 
 function getAll(table, uid) {
@@ -84,4 +90,15 @@ function remove(table, uid, id) {
   if (info.changes === 0) throw Object.assign(new Error('Not found'), { status: 404 });
 }
 
-module.exports = { db, getAll, insert, update, remove };
+function getSetting(key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? JSON.parse(row.value) : null;
+}
+
+function setSetting(key, value) {
+  db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  ).run(key, JSON.stringify(value));
+}
+
+module.exports = { db, getAll, insert, update, remove, getSetting, setSetting };

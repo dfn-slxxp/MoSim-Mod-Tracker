@@ -219,3 +219,61 @@ export async function generateScript(input: GenerateInput): Promise<string> {
   const prompt = buildPrompt(input);
   return provider === 'ollama' ? callOllama(prompt) : callAnthropic(prompt);
 }
+
+/** True when the currently selected provider has enough config to be called. */
+export function providerConfigured(): boolean {
+  const p = settings.getProvider();
+  if (p === 'anthropic') return !!settings.getApiKey();
+  if (p === 'gemini') return !!settings.getGeminiKey();
+  return true; // ollama needs no key; the call itself errors if unreachable
+}
+
+const ANALYZE_PROMPT = `You are documenting a C# robot script for MoSim (a Unity FRC robot simulator).
+Read the script and describe what the robot does, as short bullet points.
+Rules:
+- Only describe behavior that is actually evident in the script (mechanisms, controls, setpoints, scoring actions, climb, autos).
+- No code commentary, no style notes, no assumptions beyond the code.
+- Plain hyphen bullets, one behavior per line, max ~8 bullets.
+- Output ONLY the bullet list, nothing else.`;
+
+/** Plain text-in/text-out Gemini call (no video parts, no script-gen framing). */
+async function callGeminiText(prompt: string): Promise<string> {
+  const apiKey = settings.getGeminiKey();
+  if (!apiKey) throw new Error('No Gemini API key set. Add your Google AI Studio key first.');
+  const model = settings.getGeminiModel();
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 2000 },
+      }),
+    }
+  );
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try { const b = await res.json(); detail = b?.error?.message ?? detail; } catch { /* keep */ }
+    throw new Error(`Gemini API error: ${detail}`);
+  }
+  const body = await res.json();
+  return (body?.candidates?.[0]?.content?.parts as { text?: string }[] | undefined)
+    ?.map((p) => p.text ?? '')
+    .join('') ?? '';
+}
+
+/** Ask the selected provider for a bullet-point description of a script. */
+export async function analyzeScript(name: string, content: string): Promise<string> {
+  const prompt = `${ANALYZE_PROMPT}\n\nScript file: ${name}\n\n\`\`\`csharp\n${content.slice(0, 60000)}\n\`\`\``;
+  const provider = settings.getProvider();
+  let text: string;
+  if (provider === 'gemini') {
+    text = await callGeminiText(prompt);
+  } else if (provider === 'ollama') {
+    text = await callOllama(prompt);
+  } else {
+    text = await callAnthropic(prompt);
+  }
+  return text.trim();
+}

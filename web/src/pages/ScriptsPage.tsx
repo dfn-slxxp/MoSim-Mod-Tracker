@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 import { DragEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { analyzeScript, providerConfigured } from '../ai/client';
 import { MOSIM_SYSTEM_PROMPT } from '../ai/reference';
 import { useStore } from '../store/StoreContext';
 import type { ScriptDoc } from '../types';
@@ -22,7 +23,20 @@ function fmtSize(chars: number): string {
 function ScriptRow({ script }: { script: ScriptDoc }) {
   const { robots, api, canEdit } = useStore();
   const [open, setOpen] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const robot = robots.find((r) => r.id === script.robotId);
+
+  const reanalyze = async () => {
+    setAnalyzing(true);
+    try {
+      const description = await analyzeScript(script.name, script.content);
+      if (description) await api.updateScript(script.id, { description });
+    } catch (e) {
+      alert(`AI analysis failed: ${(e as Error).message}`);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   return (
     <div className="script-row">
@@ -45,8 +59,8 @@ function ScriptRow({ script }: { script: ScriptDoc }) {
             <label className="ai-field grow">
               What does this robot do? (used as the prompt when exporting training data)
               <textarea
-                key={`d-${script.id}`}
-                rows={2}
+                key={`d-${script.id}-${script.description}`}
+                rows={4}
                 defaultValue={script.description}
                 readOnly={!canEdit}
                 placeholder="e.g. 2-stage elevator, coral end effector, algae pivot intake, deep climb…"
@@ -74,6 +88,14 @@ function ScriptRow({ script }: { script: ScriptDoc }) {
                   </select>
                 </label>
                 <button
+                  className="btn subtle"
+                  disabled={analyzing || !providerConfigured()}
+                  title="Regenerate the description with AI (overwrites the current one)"
+                  onClick={reanalyze}
+                >
+                  {analyzing ? 'Analyzing…' : '✦ AI describe'}
+                </button>
+                <button
                   className="btn danger subtle"
                   onClick={() => {
                     if (confirm(`Remove ${script.name} from the library?`)) api.deleteScript(script.id);
@@ -100,18 +122,35 @@ export function ScriptsPage() {
   const addFiles = async (files: FileList | File[]) => {
     let added = 0;
     let skipped = 0;
+    const canAnalyze = providerConfigured();
     for (const f of Array.from(files)) {
       if (!/\.(cs|txt)$/i.test(f.name) || f.size > MAX_SIZE) {
         skipped++;
         continue;
       }
       const content = await f.text();
-      await api.addScript({ name: f.name, description: '', content, robotId: null });
+
+      // AI autofill: describe what the robot does (only what the script shows).
+      // Editable afterwards in the description box. Failure = empty description.
+      let description = '';
+      if (canAnalyze) {
+        setStatus(`Analyzing ${f.name} with AI…`);
+        try {
+          description = await analyzeScript(f.name, content);
+        } catch {
+          // No key / network / provider error — add without a description.
+        }
+      }
+
+      await api.addScript({ name: f.name, description, content, robotId: null });
       added++;
     }
     setStatus(
       `Added ${added} script${added === 1 ? '' : 's'}` +
-        (skipped ? ` (skipped ${skipped} — only .cs/.txt under 400 KB)` : '')
+        (skipped ? ` (skipped ${skipped} — only .cs/.txt under 400 KB)` : '') +
+        (added > 0 && !canAnalyze
+          ? ' — set an AI key (robot page → AI panel) to auto-describe scripts'
+          : '')
     );
   };
 

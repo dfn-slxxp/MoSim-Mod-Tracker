@@ -46,9 +46,9 @@ fn win_exe_candidates() -> Vec<std::path::PathBuf> {
 #[cfg(target_os = "windows")]
 fn win_find_via_registry() -> Option<String> {
     let key_names = [
-        "MoSim Mod Tracker_is1",
-        "com.mosim.mod-tracker_is1",
+        "MoSim Mod Tracker",
         "com.mosim.mod-tracker",
+        "MoSim Mod Tracker_is1",
     ];
     for hive in &["HKCU", "HKLM"] {
         for name in &key_names {
@@ -332,7 +332,11 @@ async fn start_install(app: tauri::AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let release: serde_json::Value = client
+    // The public release only carries the custom installers; the actual app
+    // binaries live in a companion prerelease tagged "<tag>-bin" to keep the
+    // releases page uncluttered. /releases/latest never returns prereleases,
+    // so it always resolves to the main release.
+    let latest: serde_json::Value = client
         .get(format!(
             "https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         ))
@@ -343,10 +347,26 @@ async fn start_install(app: tauri::AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("Failed to parse release info: {e}"))?;
 
+    let tag = latest["tag_name"]
+        .as_str()
+        .ok_or("Latest release has no tag")?
+        .to_string();
+
+    let release: serde_json::Value = client
+        .get(format!(
+            "https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag}-bin"
+        ))
+        .send()
+        .await
+        .map_err(|e| format!("GitHub API failed: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse binaries release: {e}"))?;
+
     let suffix = asset_suffix();
     let asset = release["assets"]
         .as_array()
-        .ok_or("No assets in release")?
+        .ok_or(format!("No binaries release found for {tag}"))?
         .iter()
         .find(|a| a["name"].as_str().map(|n| n.ends_with(suffix)).unwrap_or(false))
         .ok_or(format!("No release asset matching *{suffix}"))?;
