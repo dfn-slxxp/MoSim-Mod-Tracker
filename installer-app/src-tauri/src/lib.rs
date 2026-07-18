@@ -1,4 +1,4 @@
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 const GITHUB_REPO: &str = "dfn-slxxp/MoSim-Mod-Tracker";
 
