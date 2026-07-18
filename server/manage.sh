@@ -203,9 +203,23 @@ cmd_status() {
 # Helpers
 
 _install_deps() {
-  npm --prefix "$INSTALL_DIR/server" install --omit=dev --silent
-  npm --prefix "$INSTALL_DIR/web"    install --silent
+  # chown FIRST, then install as www-data with its own npm cache. Running npm
+  # as root in a www-data-owned tree makes npm drop lifecycle scripts to
+  # www-data while the cache stays root-owned, so native builds (better-sqlite3)
+  # fail silently and the .node binary never gets written.
   chown -R www-data:www-data "$INSTALL_DIR"
+  local cache="$INSTALL_DIR/.npm-cache"
+  mkdir -p "$cache" && chown www-data:www-data "$cache"
+  su -s /bin/bash www-data -c "npm_config_cache=$cache npm --prefix $INSTALL_DIR/server install --omit=dev"
+  su -s /bin/bash www-data -c "npm_config_cache=$cache npm --prefix $INSTALL_DIR/web install"
+
+  # Verify the native module actually loads; rebuild from source if not.
+  if ! su -s /bin/bash www-data -c "cd $INSTALL_DIR/server && node -e \"require('better-sqlite3')\"" 2>/dev/null; then
+    warn "better-sqlite3 native module broken — rebuilding from source"
+    su -s /bin/bash www-data -c "npm_config_cache=$cache npm --prefix $INSTALL_DIR/server rebuild better-sqlite3 --build-from-source --foreground-scripts"
+    su -s /bin/bash www-data -c "cd $INSTALL_DIR/server && node -e \"require('better-sqlite3')\"" \
+      || die "better-sqlite3 still won't load — check node/npm versions (node $(node --version))"
+  fi
 }
 
 _build() {
