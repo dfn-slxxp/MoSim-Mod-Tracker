@@ -1,10 +1,12 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useDialog } from '../components/Dialog';
 import { useStore } from '../store/StoreContext';
 import { GAMES } from '../types';
 
 export function ModpacksPage() {
   const { modpacks, robots, api, canEdit } = useStore();
+  const { confirmDialog, alertDialog } = useDialog();
   const [name, setName] = useState('');
   const [game, setGame] = useState<string>(GAMES[0]);
   const [description, setDescription] = useState('');
@@ -24,7 +26,7 @@ export function ModpacksPage() {
       setDescription('');
       setIsPrivate(false);
     } catch (err) {
-      alert((err as Error).message);
+      void alertDialog((err as Error).message, 'Could not add modpack');
     }
   };
 
@@ -93,11 +95,12 @@ export function ModpacksPage() {
                   </button>
                   <button
                     className="btn danger subtle"
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        confirm(
-                          `Delete modpack "${m.name}"? Robots inside it are kept but detached.`
-                        )
+                        await confirmDialog({
+                          title: 'Delete modpack',
+                          message: `Delete modpack "${m.name}"? Robots inside it are kept but detached.`,
+                        })
                       ) {
                         api.deleteModpack(m.id);
                       }

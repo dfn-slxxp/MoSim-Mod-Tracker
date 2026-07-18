@@ -11,6 +11,8 @@ export interface DesktopAPI {
   /** Switch the window between compact (splits) and expanded (full UI) sizes. */
   setExpanded(expanded: boolean): Promise<void>;
   close(): Promise<void>;
+  minimize(): Promise<void>;
+  toggleMaximize(): Promise<void>;
 
   /** Scan a local repo folder for robot mod folders (+ git last-modified). */
   scanRepo(localPath: string): Promise<{ ok: boolean; error?: string; robots: ScannedRobot[] }>;

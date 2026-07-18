@@ -123,10 +123,12 @@ export function RobotsPage() {
 
   const YEARS = [...new Set(GAMES.map((g) => g.split(':')[0].trim()))];
 
+  // "In progress" = status moved past planned OR any sub-step checked
+  // (a planned robot you started checking boxes on is being worked on).
+  const isInProgress = (r: Robot) => r.status !== 'planned' || robotProgress(r).done > 0;
+
   // Base set by tab
-  const base = tab === 'in-progress'
-    ? robots.filter((r) => r.status !== 'planned')
-    : robots;
+  const base = tab === 'in-progress' ? robots.filter(isInProgress) : robots;
 
   // Apply filters
   let shown = base;
@@ -155,7 +157,7 @@ export function RobotsPage() {
     }
   });
 
-  const inProgressCount = robots.filter((r) => r.status !== 'planned').length;
+  const inProgressCount = robots.filter(isInProgress).length;
 
   return (
     <div className="page wide">
@@ -217,8 +219,7 @@ export function RobotsPage() {
         />
 
         <div className="sort-controls">
-          <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Sort:</span>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
+          <select title="Sort by" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
             <option value="team">Team #</option>
             <option value="game">Game</option>
             <option value="progress">Progress</option>

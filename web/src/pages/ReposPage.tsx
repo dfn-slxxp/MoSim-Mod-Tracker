@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useDialog } from '../components/Dialog';
 import { useStore } from '../store/StoreContext';
 import type { Repo } from '../types';
 
@@ -22,6 +23,7 @@ function fmtDate(ms: number): string {
 
 function RepoCard({ repo }: { repo: Repo }) {
   const { robots, api, canEdit } = useStore();
+  const { confirmDialog } = useDialog();
   const isDesktop = !!window.desktop;
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
@@ -82,8 +84,12 @@ function RepoCard({ repo }: { repo: Repo }) {
             </label>
             <button
               className="btn danger subtle"
-              onClick={() => {
-                if (confirm(`Remove repo "${repo.name}"? (Doesn't touch the folder on disk.)`))
+              onClick={async () => {
+                if (await confirmDialog({
+                  title: 'Remove repo',
+                  message: `Remove repo "${repo.name}"? (Doesn't touch the folder on disk.)`,
+                  confirmLabel: 'Remove',
+                }))
                   api.deleteRepo(repo.id);
               }}
             >
@@ -164,6 +170,7 @@ function RepoCard({ repo }: { repo: Repo }) {
 
 export function ReposPage() {
   const { repos, api, canEdit } = useStore();
+  const { alertDialog } = useDialog();
   const [name, setName] = useState('');
   const [localPath, setLocalPath] = useState('');
   const [remoteUrl, setRemoteUrl] = useState('');
@@ -183,7 +190,7 @@ export function ReposPage() {
       setLocalPath('');
       setRemoteUrl('');
     } catch (err) {
-      alert((err as Error).message);
+      void alertDialog((err as Error).message, 'Could not add repo');
     }
   };
 

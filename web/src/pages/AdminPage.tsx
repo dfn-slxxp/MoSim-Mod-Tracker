@@ -9,6 +9,7 @@
 //      usable on all devices exactly like the built-in dark/light/cloud.
 // ---------------------------------------------------------------------------
 import { useState } from 'react';
+import { useDialog } from '../components/Dialog';
 import { isTauri, getServerUrl } from '../lib/desktop';
 import { STEPS, Step, applySteps } from '../steps';
 import { useStore } from '../store/StoreContext';
@@ -44,6 +45,7 @@ function uniqueId(base: string, taken: Set<string>): string {
 // ── Steps editor ─────────────────────────────────────────────────────────────
 
 function StepsEditor() {
+  const { confirmDialog } = useDialog();
   const [steps, setSteps] = useState<Step[]>(() => JSON.parse(JSON.stringify(STEPS)));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -114,8 +116,8 @@ function StepsEditor() {
             >↓</button>
             <button
               className="btn danger subtle"
-              onClick={() => {
-                if (confirm(`Delete step "${step.title}" and its sub-steps?`))
+              onClick={async () => {
+                if (await confirmDialog({ title: 'Delete step', message: `Delete step "${step.title}" and its sub-steps?` }))
                   mutate((d) => { d.splice(si, 1); });
               }}
             >Delete</button>
@@ -192,6 +194,7 @@ const BASES: Record<string, Record<string, string>> = {
 };
 
 function ThemesEditor() {
+  const { confirmDialog } = useDialog();
   const { customThemes, setCustomThemes, setTheme } = useTheme();
   const [themes, setThemes] = useState<CustomTheme[]>(() => JSON.parse(JSON.stringify(customThemes)));
   const [saving, setSaving] = useState(false);
@@ -269,8 +272,9 @@ function ThemesEditor() {
             <button className="btn subtle" onClick={() => setTheme(t.id)}>Preview</button>
             <button
               className="btn danger subtle"
-              onClick={() => {
-                if (confirm(`Delete theme "${t.label}"?`)) mutate((d) => { d.splice(ti, 1); });
+              onClick={async () => {
+                if (await confirmDialog({ title: 'Delete theme', message: `Delete theme "${t.label}"?` }))
+                  mutate((d) => { d.splice(ti, 1); });
               }}
             >Delete</button>
           </div>

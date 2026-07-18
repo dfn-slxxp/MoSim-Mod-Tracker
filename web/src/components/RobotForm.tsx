@@ -2,9 +2,11 @@ import { FormEvent, useState } from 'react';
 import { fetchTeamName, getTbaKey, setTbaKey } from '../lib/tba';
 import { useStore } from '../store/StoreContext';
 import { GAMES } from '../types';
+import { useDialog } from './Dialog';
 
 export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const { api, modpacks, canEdit } = useStore();
+  const { alertDialog } = useDialog();
   const [team, setTeam] = useState('');
   const [teamName, setTeamName] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -45,7 +47,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       setNewPackName('');
       setShowNewModpack(false);
     } catch (err) {
-      alert((err as Error).message);
+      void alertDialog((err as Error).message, 'Something went wrong');
     } finally {
       setCreatingPack(false);
     }
@@ -73,7 +75,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       setTeamName(null);
       onAdded?.(id);
     } catch (err) {
-      alert((err as Error).message);
+      void alertDialog((err as Error).message, 'Something went wrong');
     } finally {
       setBusy(false);
     }

@@ -20,7 +20,8 @@
         "minHeight": 320,
         "alwaysOnTop": true,
         "center": true,
-        "backgroundColor": "#0b0e14"
+        "decorations": false,
+        "transparent": true
       }
     ],
     "security": {

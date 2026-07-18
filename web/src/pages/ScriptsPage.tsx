@@ -11,6 +11,7 @@ import { DragEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { analyzeScript, providerConfigured } from '../ai/client';
 import { MOSIM_SYSTEM_PROMPT } from '../ai/reference';
+import { useDialog } from '../components/Dialog';
 import { useStore } from '../store/StoreContext';
 import type { ScriptDoc } from '../types';
 
@@ -22,6 +23,7 @@ function fmtSize(chars: number): string {
 
 function ScriptRow({ script }: { script: ScriptDoc }) {
   const { robots, api, canEdit } = useStore();
+  const { confirmDialog, alertDialog } = useDialog();
   const [open, setOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const robot = robots.find((r) => r.id === script.robotId);
@@ -32,7 +34,7 @@ function ScriptRow({ script }: { script: ScriptDoc }) {
       const description = await analyzeScript(script.name, script.content);
       if (description) await api.updateScript(script.id, { description });
     } catch (e) {
-      alert(`AI analysis failed: ${(e as Error).message}`);
+      void alertDialog((e as Error).message, 'AI analysis failed');
     } finally {
       setAnalyzing(false);
     }
@@ -97,8 +99,9 @@ function ScriptRow({ script }: { script: ScriptDoc }) {
                 </button>
                 <button
                   className="btn danger subtle"
-                  onClick={() => {
-                    if (confirm(`Remove ${script.name} from the library?`)) api.deleteScript(script.id);
+                  onClick={async () => {
+                    if (await confirmDialog({ title: 'Remove script', message: `Remove ${script.name} from the library?`, confirmLabel: 'Remove' }))
+                      api.deleteScript(script.id);
                   }}
                 >
                   Delete

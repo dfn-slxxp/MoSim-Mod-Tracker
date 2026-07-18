@@ -44,7 +44,20 @@ export function Splits({
     const sp = cloneStep(robot, step.id);
     const complete = step.subs.every((s) => sp.subs[s.id]);
     for (const s of step.subs) sp.subs[s.id] = !complete;
-    saveStep(step.id, sp);
+
+    const next = { ...robot.progress, [step.id]: sp };
+    if (!complete) {
+      // Checking a step implies everything before it is done too — cascade
+      // them checked. Unchecking never cascades, so manual corrections stick.
+      const idx = STEPS.findIndex((s) => s.id === step.id);
+      for (let i = 0; i < idx; i++) {
+        const prev = STEPS[i];
+        const psp = cloneStep(robot, prev.id);
+        for (const s of prev.subs) psp.subs[s.id] = true;
+        next[prev.id] = psp;
+      }
+    }
+    api.updateRobot(robot.id, { progress: next });
   };
 
   const setNote = (stepId: string, note: string) => {

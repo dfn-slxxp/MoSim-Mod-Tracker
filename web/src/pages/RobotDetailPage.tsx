@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 import { useNavigate, useParams } from 'react-router-dom';
 import { AiScriptPanel } from '../components/AiScriptPanel';
+import { useDialog } from '../components/Dialog';
 import { PillSelect } from '../components/PillSelect';
 import { ProgressBar } from '../components/ProgressBar';
 import { Splits, WhatsLeft } from '../components/Splits';
@@ -31,6 +32,7 @@ const MODTYPE_OPTIONS = (Object.keys(MODTYPE_META) as Exclude<ModType, ''>[]).ma
 export function RobotDetailPage() {
   const { id } = useParams<{ id: string }>(); // the :id part of /robot/:id
   const { robots, modpacks, repos, api, canEdit } = useStore();
+  const { confirmDialog } = useDialog();
   const navigate = useNavigate();
   const robot = robots.find((r) => r.id === id);
   const isDesktop = !!window.desktop;
@@ -189,8 +191,11 @@ export function RobotDetailPage() {
         {canEdit && (
           <button
             className="btn danger"
-            onClick={() => {
-              if (confirm(`Delete ${robot.name}? This can't be undone.`)) {
+            onClick={async () => {
+              if (await confirmDialog({
+                title: 'Delete robot',
+                message: `Delete ${robot.name}? This can't be undone.`,
+              })) {
                 api.deleteRobot(robot.id);
                 navigate('/');
               }

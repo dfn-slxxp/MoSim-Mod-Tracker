@@ -101,12 +101,18 @@ MoSim Mod Tracker/
 │       │   ├── RobotForm.tsx      ← Add-robot: team # (TBA lookup on blur), game
 │       │   │                         dropdown, modpack dropdown + inline "+ New"
 │       │   │                         modpack mini-form, TBA key config
-│       │   └── Splits.tsx         ← Accordion steps + Check all/Uncheck all buttons
+│       │   ├── Splits.tsx         ← Accordion steps + Check all/Uncheck all.
+│       │   │                         Checking a step header CASCADES: all earlier
+│       │   │                         steps get checked too (uncheck never cascades)
+│       │   └── Dialog.tsx         ← DialogProvider + useDialog(): custom
+│       │                             confirmDialog/alertDialog replacing every
+│       │                             native confirm()/alert() in the app
 │       ├── lib/
 │       │   ├── desktop.ts        ← window.desktop bridge; isTauri, getServerUrl…
 │       │   └── tba.ts            ← TBA API: getTbaKey, setTbaKey, fetchTeamName
 │       ├── pages/
-│       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort
+│       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort.
+│       │   │                        In Progress = status != planned OR progress > 0
 │       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Status UPGRADE
 │       │   │                         auto-checks all sub-steps (keeps notes)
 │       │   ├── AdminPage.tsx     ← /#/admin (hidden). Gated by user.admin.
@@ -122,7 +128,10 @@ MoSim Mod Tracker/
 │       │   │                        (bullet points, only script-evident behavior);
 │       │   │                        per-row "AI describe" re-run button; JSONL export
 │       │   └── CompactPage.tsx   ← Overlay (/compact). Pin button: grayscale when
-│       │                            unpinned, accent highlight when pinned
+│       │                            unpinned, accent highlight when pinned.
+│       │                            🏁 toggle switches to RUN MODE (LiveSplit-style:
+│       │                            current step ±2, next-sub quick-check button;
+│       │                            persisted in localStorage mosim-compact-view)
 │       └── store/
 │           ├── StoreContext.tsx  ← React context; useStore()
 │           ├── backend.ts        ← Backend interface + StoreState
@@ -303,6 +312,19 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Cold start (browser launches the app with the URL in argv): lib.rs stashes the
   token in PendingToken state; frontend collects via take_pending_auth_token
   command in http.ts _initAsync.
+
+### Desktop window chrome
+- Main window: decorations false + transparent true (tauri.conf). The shell
+  paints its own rounded chrome (.shell.is-desktop / .compact-shell: 12px
+  radius, border) and a custom .app-titlebar (drag via data-tauri-drag-region;
+  min/max/close via minimize_window/toggle_maximize/close_window commands).
+  Pin + compact-switch + theme buttons live in the titlebar; topbar is a
+  single slim row (brand hidden on desktop).
+- desktop.ts stamps <html data-desktop data-pinned data-blurred>; CSS makes
+  the shell background semi-transparent when pinned AND blurred (overlay feel).
+- -webkit-app-region does nothing in Tauri; ONLY data-tauri-drag-region works.
+- Dropdowns: global select restyle (appearance:none, pill radius, accent tint,
+  SVG chevron). The open popup list remains OS-drawn.
 
 ### Windows install facts (verified on a real machine)
 - Tauri NSIS (currentUser) installs to `%LOCALAPPDATA%\MoSim Mod Tracker\`

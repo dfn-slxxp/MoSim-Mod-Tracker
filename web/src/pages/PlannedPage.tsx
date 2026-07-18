@@ -3,11 +3,13 @@
 // "Start modding" flips the status to Claimed and opens the splits view.
 // ---------------------------------------------------------------------------
 import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../components/Dialog';
 import { RobotForm } from '../components/RobotForm';
 import { useStore } from '../store/StoreContext';
 
 export function PlannedPage() {
   const { robots, modpacks, api, canEdit } = useStore();
+  const { confirmDialog } = useDialog();
   const navigate = useNavigate();
   const planned = robots.filter((r) => r.status === 'planned');
 
@@ -81,8 +83,9 @@ export function PlannedPage() {
                   </label>
                   <button
                     className="btn danger subtle"
-                    onClick={() => {
-                      if (confirm(`Delete plan for ${r.name}?`)) api.deleteRobot(r.id);
+                    onClick={async () => {
+                      if (await confirmDialog({ title: 'Delete plan', message: `Delete plan for ${r.name}?` }))
+                        api.deleteRobot(r.id);
                     }}
                   >
                     Delete

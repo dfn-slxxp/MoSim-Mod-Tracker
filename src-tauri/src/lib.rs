@@ -75,6 +75,8 @@ pub fn run() {
             commands::is_pinned,
             commands::set_expanded,
             commands::close_window,
+            commands::minimize_window,
+            commands::toggle_maximize,
             commands::open_path,
             commands::scan_repo,
             commands::read_script,

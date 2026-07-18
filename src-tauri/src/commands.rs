@@ -63,6 +63,20 @@ pub fn close_window(window: Window) {
 }
 
 #[tauri::command]
+pub fn minimize_window(window: Window) {
+    let _ = window.minimize();
+}
+
+#[tauri::command]
+pub fn toggle_maximize(window: Window) {
+    if window.is_maximized().unwrap_or(false) {
+        let _ = window.unmaximize();
+    } else {
+        let _ = window.maximize();
+    }
+}
+
+#[tauri::command]
 pub async fn open_path(path_or_url: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
     if path_or_url.starts_with("http://") || path_or_url.starts_with("https://") {

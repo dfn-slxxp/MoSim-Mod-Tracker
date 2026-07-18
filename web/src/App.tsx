@@ -82,6 +82,29 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`shell ${isDesktop ? 'is-desktop' : ''}`}>
+      {isDesktop && (
+        <div className="app-titlebar" data-tauri-drag-region>
+          <img className="titlebar-mark" src={avatarUrl} alt="" data-tauri-drag-region />
+          <span className="titlebar-name" data-tauri-drag-region>MoSim Mod Tracker</span>
+          <PinButton />
+          <button
+            className="btn subtle theme-btn"
+            title="Switch to compact splits view"
+            onClick={async () => {
+              await window.desktop?.setExpanded(false);
+              navigate('/compact');
+            }}
+          >
+            ▣
+          </button>
+          <ThemeButton />
+          <div className="win-controls">
+            <button className="win-btn" title="Minimize" onClick={() => window.desktop?.minimize()}>─</button>
+            <button className="win-btn" title="Maximize" onClick={() => window.desktop?.toggleMaximize()}>▢</button>
+            <button className="win-btn close" title="Close" onClick={() => window.desktop?.close()}>✕</button>
+          </div>
+        </div>
+      )}
       <header className="topbar">
         <div className="brand">
           <img className="brand-mark" src={avatarUrl} alt="" />
@@ -94,22 +117,11 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/scripts">Scripts</NavLink>
           {!isDesktop && <NavLink to="/compact">Compact</NavLink>}
         </nav>
-        <div className="topbar-actions">
-          {isDesktop && <PinButton />}
-          {isDesktop && (
-            <button
-              className="btn subtle theme-btn"
-              title="Switch to compact splits view"
-              onClick={async () => {
-                await window.desktop?.setExpanded(false);
-                navigate('/compact');
-              }}
-            >
-              ▣
-            </button>
-          )}
-          <ThemeButton />
-        </div>
+        {!isDesktop && (
+          <div className="topbar-actions">
+            <ThemeButton />
+          </div>
+        )}
         <AuthButton />
       </header>
       {error && <div className="banner error">{error}</div>}
