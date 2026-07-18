@@ -82,15 +82,47 @@ def load_font(size):
 # ── Avatar image ──────────────────────────────────────────────────────────────
 
 def _remove_white_bg(img, threshold=240):
-    """Replace near-white pixels with transparent so the avatar composites cleanly."""
+    """BFS flood-fill from border edges to remove background white only.
+    Interior white pixels (e.g. character eyes) are left untouched."""
+    from collections import deque
     img = img.convert('RGBA')
-    pixels = list(img.getdata())
-    new_pixels = [
-        (r, g, b, 0) if (r >= threshold and g >= threshold and b >= threshold) else (r, g, b, a)
-        for r, g, b, a in pixels
-    ]
+    width, height = img.size
+    pix = img.load()
+
+    def is_near_white(x, y):
+        r, g, b, _ = pix[x, y]
+        return r >= threshold and g >= threshold and b >= threshold
+
+    visited = bytearray(width * height)
+    queue = deque()
+
+    def seed(x, y):
+        i = y * width + x
+        if not visited[i] and is_near_white(x, y):
+            visited[i] = 1
+            queue.append((x, y))
+
+    for x in range(width):
+        seed(x, 0); seed(x, height - 1)
+    for y in range(1, height - 1):
+        seed(0, y); seed(width - 1, y)
+
+    while queue:
+        x, y = queue.popleft()
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < width and 0 <= ny < height:
+                i = ny * width + nx
+                if not visited[i] and is_near_white(nx, ny):
+                    visited[i] = 1
+                    queue.append((nx, ny))
+
     result = Image.new('RGBA', img.size)
-    result.putdata(new_pixels)
+    out = result.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = pix[x, y]
+            out[x, y] = (r, g, b, 0) if visited[y * width + x] else (r, g, b, a)
     return result
 
 _AVATAR_PATH = Path(__file__).parent / 'assets' / 'avatar.png'
