@@ -18,7 +18,8 @@ const initialState: StoreState = {
   repos: [],
   scripts: [],
   canEdit: false,
-  error: null
+  error: null,
+  needsServerSetup: false,
 };
 
 const StoreContext = createContext<StoreValue | null>(null);

@@ -2,6 +2,7 @@
 // Top-level component: routing + the page shell (top bar, nav, banners).
 // /compact renders WITHOUT the shell — that's the LiveSplit-style overlay.
 // ---------------------------------------------------------------------------
+import { useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AuthButton } from './components/AuthButton';
 import { CompactPage } from './pages/CompactPage';
@@ -27,6 +28,63 @@ function ThemeButton() {
     >
       {current.icon}
     </button>
+  );
+}
+
+/** First-run prompt shown in the desktop app when no mosim.conf exists. */
+function ServerSetupGate() {
+  const { api } = useStore();
+  const [url, setUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    const trimmed = url.trim().replace(/\/+$/, '');
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      setErr('URL must start with http:// or https://');
+      return;
+    }
+    setSaving(true);
+    setErr('');
+    try {
+      await api.configureServer(trimmed);
+    } catch (e) {
+      setErr((e as Error).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="signin-gate">
+      <div className="signin-card">
+        <div className="brand" style={{ justifyContent: 'center', marginBottom: 12 }}>
+          <span className="brand-mark">M</span>
+        </div>
+        <p className="muted" style={{ margin: '0 0 12px', textAlign: 'center' }}>
+          Enter your MoSim server URL to get started.
+        </p>
+        <input
+          type="url"
+          placeholder="https://mods.yoursite.com"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && void save()}
+          style={{ width: '100%', marginBottom: 8, boxSizing: 'border-box' }}
+          autoFocus
+        />
+        {err && (
+          <p style={{ color: 'var(--danger, #f87171)', margin: '0 0 8px', fontSize: 12 }}>{err}</p>
+        )}
+        <button
+          className="btn primary"
+          style={{ width: '100%', justifyContent: 'center' }}
+          onClick={() => void save()}
+          disabled={saving || !url.trim()}
+        >
+          {saving ? 'Connecting…' : 'Connect'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -56,7 +114,7 @@ function SignInGate() {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const { ready, error, user } = useStore();
+  const { ready, error, user, needsServerSetup } = useStore();
   const navigate = useNavigate();
   const isDesktop = !!window.desktop;
 
@@ -100,6 +158,8 @@ function Shell({ children }: { children: React.ReactNode }) {
       <main className="content">
         {!ready ? (
           <div className="loading">Loading…</div>
+        ) : needsServerSetup ? (
+          <ServerSetupGate />
         ) : !user ? (
           <SignInGate />
         ) : (

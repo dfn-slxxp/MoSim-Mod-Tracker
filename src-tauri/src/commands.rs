@@ -36,6 +36,16 @@ pub fn get_server_url() -> String {
 }
 
 #[tauri::command]
+pub fn has_server_configured() -> bool {
+    crate::config::has_server_configured()
+}
+
+#[tauri::command]
+pub fn set_server_url(url: String) -> Result<(), String> {
+    crate::config::set_server_url(&url)
+}
+
+#[tauri::command]
 pub fn toggle_pin(window: Window) -> bool {
     let next = !window.is_always_on_top().unwrap_or(false);
     let _ = window.set_always_on_top(next);

@@ -36,6 +36,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_server_url,
+            commands::has_server_configured,
+            commands::set_server_url,
             commands::toggle_pin,
             commands::is_pinned,
             commands::set_expanded,
