@@ -1,6 +1,6 @@
 use tauri::Emitter;
 
-const GITHUB_REPO: &str = "MoSim-Modding-Fun/MoSim-Mod-Tracker";
+const GITHUB_REPO: &str = "dfn-slxxp/MoSim-Mod-Tracker";
 const SERVER_URL: &str = "https://mods.sebastianw.tech";
 const INSTALL_DIR_NAME: &str = "MoSim Mod Tracker";
 const APP_EXE_NAME: &str = "MoSim Mod Tracker.exe";
