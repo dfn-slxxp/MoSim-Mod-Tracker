@@ -1409,19 +1409,52 @@ h3 {
   min-width: 0;
 }
 
-/* Narrow windows (desktop app default width, small browser windows) */
+/* Narrow windows (desktop app default width, small browser windows).
+   Deliberate two-row topbar: brand+nav on top, actions+account below —
+   instead of letting flex wrap wherever it runs out of room. */
 @media (max-width: 560px) {
   .topbar {
-    padding: 8px 10px;
-    gap: 6px;
-    row-gap: 4px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'brand nav nav'
+      'actions actions auth';
+    align-items: center;
+    padding: 6px 10px;
+    gap: 4px 8px;
+  }
+  .brand {
+    grid-area: brand;
+  }
+  .brand-name {
+    display: none; /* icon is enough this narrow; frees the row for the nav */
   }
   .nav {
-    gap: 2px;
+    grid-area: nav;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
   }
   .nav a {
-    padding: 4px 8px;
-    font-size: 12.5px;
+    padding: 4px 7px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .topbar-actions {
+    grid-area: actions;
+    margin-left: 0;
+  }
+  .auth {
+    grid-area: auth;
+    justify-self: end;
+  }
+  .topbar > .btn.primary {
+    grid-area: auth; /* signed-out state renders the button directly */
+    justify-self: end;
   }
   .auth-name {
     display: none; /* avatar + sign out is enough at this width */
