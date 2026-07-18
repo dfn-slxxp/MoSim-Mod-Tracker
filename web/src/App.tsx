@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 import { useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import avatarUrl from './assets/avatar.png';
 import { AuthButton } from './components/AuthButton';
 import { CompactPage } from './pages/CompactPage';
 import { ModpacksPage } from './pages/ModpacksPage';
@@ -58,7 +59,7 @@ function ServerSetupGate() {
     <div className="signin-gate">
       <div className="signin-card">
         <div className="brand" style={{ justifyContent: 'center', marginBottom: 12 }}>
-          <span className="brand-mark">M</span>
+          <img className="brand-mark" src={avatarUrl} alt="" style={{ width: 48, height: 48 }} />
         </div>
         <p className="muted" style={{ margin: '0 0 12px', textAlign: 'center' }}>
           Enter your MoSim server URL to get started.
@@ -95,7 +96,7 @@ function SignInGate() {
     <div className="signin-gate">
       <div className="signin-card">
         <div className="brand" style={{ justifyContent: 'center', marginBottom: 12 }}>
-          <span className="brand-mark">M</span>
+          <img className="brand-mark" src={avatarUrl} alt="" style={{ width: 48, height: 48 }} />
           <span className="brand-name">MoSim Mod Tracker</span>
         </div>
         <p className="muted" style={{ margin: '0 0 20px', textAlign: 'center' }}>
@@ -140,7 +141,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       )}
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">M</span>
+          <img className="brand-mark" src={avatarUrl} alt="" />
           <span className="brand-name">MoSim Mod Tracker</span>
         </div>
         <nav className="nav">

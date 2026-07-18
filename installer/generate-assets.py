@@ -79,19 +79,34 @@ def load_font(size):
             continue
     return ImageFont.load_default()
 
-# ── Glow effect helper ────────────────────────────────────────────────────────
+# ── Avatar image ──────────────────────────────────────────────────────────────
 
-def paste_glow(base_rgba, text, font, cx, cy, color, glow_color, blur_r=18):
-    """Draw text with a soft glow onto base_rgba (RGBA image). Modifies in-place."""
-    # Glow layer
-    glow = Image.new('RGBA', base_rgba.size, (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    gd.text((cx, cy), text, font=font, fill=(*glow_color, 200), anchor='mm')
-    glow = glow.filter(ImageFilter.GaussianBlur(blur_r))
-    base_rgba.alpha_composite(glow)
-    # Sharp text
-    d = ImageDraw.Draw(base_rgba)
-    d.text((cx, cy), text, font=font, fill=(*color, 230), anchor='mm')
+def _remove_white_bg(img, threshold=240):
+    """Replace near-white pixels with transparent so the avatar composites cleanly."""
+    img = img.convert('RGBA')
+    pixels = list(img.getdata())
+    new_pixels = [
+        (r, g, b, 0) if (r >= threshold and g >= threshold and b >= threshold) else (r, g, b, a)
+        for r, g, b, a in pixels
+    ]
+    result = Image.new('RGBA', img.size)
+    result.putdata(new_pixels)
+    return result
+
+_AVATAR_PATH = Path(__file__).parent / 'assets' / 'avatar.png'
+_avatar_cache = None
+
+def _get_avatar():
+    global _avatar_cache
+    if _avatar_cache is None:
+        _avatar_cache = _remove_white_bg(Image.open(_AVATAR_PATH))
+    return _avatar_cache
+
+def paste_avatar(base_rgba, size, cx, cy):
+    """Paste the pixel-art avatar (NEAREST scale) centered at (cx, cy)."""
+    av = _get_avatar().resize((size, size), Image.NEAREST)
+    x, y = cx - size // 2, cy - size // 2
+    base_rgba.alpha_composite(av, (max(0, x), max(0, y)))
 
 # ── Main panel drawing ────────────────────────────────────────────────────────
 
@@ -173,9 +188,7 @@ def draw_side_panel(W=164, H=314):
     draw = ImageDraw.Draw(img, 'RGBA')
     draw_circuit(draw, W, H)
 
-    # "M" lettermark with glow
-    font_m = load_font(68)
-    paste_glow(img, 'M', font_m, W // 2, H // 2 - 28, WHITE, (124, 58, 237), blur_r=22)
+    paste_avatar(img, 96, W // 2, H // 2 - 28)
 
     # App name
     d = ImageDraw.Draw(img)
@@ -190,8 +203,7 @@ def draw_side_panel(W=164, H=314):
 def draw_small_logo(W=55, H=58):
     img = Image.new('RGBA', (W, H))
     draw_bg(img)
-    font_m = load_font(28)
-    paste_glow(img, 'M', font_m, W // 2, H // 2, WHITE, (124, 58, 237), blur_r=10)
+    paste_avatar(img, 44, W // 2, H // 2)
     return img.convert('RGB')
 
 
@@ -232,9 +244,7 @@ def draw_icon(size=512):
             cd.ellipse([ax - gr//i, ay - gr//i, ax + gr//i, ay + gr//i],
                        fill=(*col, al // i))
 
-    # "M"
-    font_m = load_font(int(s * 0.52))
-    paste_glow(img, 'M', font_m, s // 2, s // 2, WHITE, (124, 58, 237), blur_r=int(s * 0.06))
+    paste_avatar(img, int(s * 0.72), s // 2, s // 2)
 
     return img
 
