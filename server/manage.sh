@@ -134,6 +134,10 @@ cmd_deploy() {
   [[ $EUID -ne 0 ]] && die "deploy must be run as root"
   [[ -d "$INSTALL_DIR/.git" ]] || die "Repo not found at $INSTALL_DIR. Run setup first."
 
+  # The repo is owned by www-data after chown; git refuses to run as root unless
+  # this directory is explicitly marked safe.
+  git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+
   hr
   log "Pulling latest code"
   hr
