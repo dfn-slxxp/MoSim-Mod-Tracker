@@ -60,16 +60,42 @@ export function Splits({
     setExpanded(next);
   };
 
+  const checkAll = () => {
+    if (!editable) return;
+    const progress: Record<string, StepProgress> = {};
+    for (const step of STEPS) {
+      progress[step.id] = {
+        subs: Object.fromEntries(step.subs.map((s) => [s.id, true])),
+        note: robot.progress[step.id]?.note ?? '',
+      };
+    }
+    api.updateRobot(robot.id, { progress });
+  };
+
+  const uncheckAll = () => {
+    if (!editable) return;
+    const progress: Record<string, StepProgress> = {};
+    for (const step of STEPS) {
+      progress[step.id] = {
+        subs: Object.fromEntries(step.subs.map((s) => [s.id, false])),
+        note: robot.progress[step.id]?.note ?? '',
+      };
+    }
+    api.updateRobot(robot.id, { progress });
+  };
+
   return (
     <div className={`splits ${compact ? 'compact' : ''}`}>
       {!compact && (
         <div className="splits-tools">
-          <button className="btn subtle" onClick={() => setAll(true)}>
-            Expand all
-          </button>
-          <button className="btn subtle" onClick={() => setAll(false)}>
-            Collapse all
-          </button>
+          {editable && (
+            <>
+              <button className="btn subtle" onClick={checkAll}>Check all</button>
+              <button className="btn subtle" onClick={uncheckAll}>Uncheck all</button>
+            </>
+          )}
+          <button className="btn subtle" onClick={() => setAll(true)}>Expand all</button>
+          <button className="btn subtle" onClick={() => setAll(false)}>Collapse all</button>
         </div>
       )}
       {STEPS.map((step, i) => {

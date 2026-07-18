@@ -1,15 +1,12 @@
-// ---------------------------------------------------------------------------
-// Modpacks page — the packs robots ship in. Marking a pack private cascades
-// to its member robots (see setModpackPrivacy in the backends for how).
-// ---------------------------------------------------------------------------
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/StoreContext';
+import { GAMES } from '../types';
 
 export function ModpacksPage() {
   const { modpacks, robots, api, canEdit } = useStore();
   const [name, setName] = useState('');
-  const [game, setGame] = useState('Reefscape');
+  const [game, setGame] = useState<string>(GAMES[0]);
   const [description, setDescription] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
 
@@ -19,12 +16,13 @@ export function ModpacksPage() {
     try {
       await api.addModpack({
         name: name.trim(),
-        game: game.trim() || 'Reefscape',
+        game,
         description: description.trim(),
         private: isPrivate
       });
       setName('');
       setDescription('');
+      setIsPrivate(false);
     } catch (err) {
       alert((err as Error).message);
     }
@@ -41,16 +39,23 @@ export function ModpacksPage() {
       {canEdit && (
         <form className="add-form" onSubmit={submit}>
           <input placeholder="Pack name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <input placeholder="Game" value={game} onChange={(e) => setGame(e.target.value)} />
+          <select value={game} onChange={(e) => setGame(e.target.value)}>
+            {GAMES.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
           <input
             placeholder="Description (optional)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <label className="inline-check">
-            <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
-            Private
-          </label>
+          <button
+            type="button"
+            className={`toggle-btn ${isPrivate ? 'on' : ''}`}
+            onClick={() => setIsPrivate(!isPrivate)}
+          >
+            {isPrivate ? '🔒 Private' : '🌐 Public'}
+          </button>
           <button className="btn primary" type="submit">
             Add modpack
           </button>
@@ -63,10 +68,7 @@ export function ModpacksPage() {
           return (
             <div key={m.id} className="pack-row">
               <div className="pack-main">
-                <span className="pack-name">
-                  {m.name}
-                  {m.private && <span className="lock"> 🔒</span>}
-                </span>
+                <span className="pack-name">{m.name}</span>
                 <span className="muted">{m.game}</span>
                 {m.description && <span className="pack-desc">{m.description}</span>}
               </div>
@@ -82,14 +84,13 @@ export function ModpacksPage() {
               </div>
               {canEdit && (
                 <div className="pack-actions">
-                  <label className="inline-check">
-                    <input
-                      type="checkbox"
-                      checked={m.private}
-                      onChange={(e) => api.setModpackPrivacy(m.id, e.target.checked)}
-                    />
-                    Private
-                  </label>
+                  <button
+                    type="button"
+                    className={`toggle-btn ${m.private ? 'on' : ''}`}
+                    onClick={() => api.setModpackPrivacy(m.id, !m.private)}
+                  >
+                    {m.private ? '🔒 Private' : '🌐 Public'}
+                  </button>
                   <button
                     className="btn danger subtle"
                     onClick={() => {

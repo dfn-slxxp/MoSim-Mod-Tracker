@@ -44,7 +44,7 @@ export function CompactPage() {
         {isDesktop ? (
           <>
             <button
-              className={`titlebar-btn ${pinned ? 'active' : ''}`}
+              className={`titlebar-btn pin-btn ${pinned ? 'active' : ''}`}
               title={pinned ? 'Unpin (allow other windows on top)' : 'Pin on top'}
               onClick={async () => setPinned((await window.desktop!.togglePin()) ?? !pinned)}
             >

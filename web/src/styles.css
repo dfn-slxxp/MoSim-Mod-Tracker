@@ -1214,6 +1214,57 @@ h3 {
   color: var(--accent);
 }
 
+/* Pin button: dimmed when not pinned, highlighted when pinned */
+.pin-btn {
+  filter: grayscale(1) opacity(0.4);
+  transition: filter 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.pin-btn:hover {
+  filter: none;
+}
+.pin-btn.active {
+  filter: none;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Toggle button (private / public) */
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-solid);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.toggle-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.toggle-btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Inline modpack creation inside RobotForm */
+.inline-modpack-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+}
+
 /* ---------- desktop density (feels less like a website) ---------- */
 .is-desktop .topbar {
   padding: 6px 12px;

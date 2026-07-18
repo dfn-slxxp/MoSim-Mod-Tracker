@@ -11,7 +11,7 @@
 
 import { MOSIM_SYSTEM_PROMPT } from './reference';
 
-export type Provider = 'anthropic' | 'ollama';
+export type Provider = 'anthropic' | 'ollama' | 'gemini';
 
 // localStorage keys for panel settings (all device-local, never synced).
 const KEYS = {
@@ -19,7 +19,9 @@ const KEYS = {
   apiKey: 'mosim-anthropic-key',
   model: 'mosim-anthropic-model',
   ollamaUrl: 'mosim-ollama-url',
-  ollamaModel: 'mosim-ollama-model'
+  ollamaModel: 'mosim-ollama-model',
+  geminiKey: 'mosim-gemini-key',
+  geminiModel: 'mosim-gemini-model',
 };
 
 export const ANTHROPIC_MODELS = [
@@ -28,9 +30,19 @@ export const ANTHROPIC_MODELS = [
   { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fastest/cheapest)' }
 ];
 
+export const GEMINI_MODELS = [
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (fast · video)' },
+  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (strongest · video)' },
+  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (fast · video)' },
+];
+
 // Trivial getters/setters around localStorage with defaults.
 export const settings = {
-  getProvider: (): Provider => (localStorage.getItem(KEYS.provider) === 'ollama' ? 'ollama' : 'anthropic'),
+  getProvider: (): Provider => {
+    const v = localStorage.getItem(KEYS.provider);
+    if (v === 'ollama' || v === 'gemini') return v;
+    return 'anthropic';
+  },
   setProvider: (p: Provider) => localStorage.setItem(KEYS.provider, p),
   getApiKey: () => localStorage.getItem(KEYS.apiKey) ?? '',
   setApiKey: (k: string) => localStorage.setItem(KEYS.apiKey, k.trim()),
@@ -39,7 +51,11 @@ export const settings = {
   getOllamaUrl: () => localStorage.getItem(KEYS.ollamaUrl) ?? 'http://localhost:11434',
   setOllamaUrl: (u: string) => localStorage.setItem(KEYS.ollamaUrl, u.trim().replace(/\/$/, '')),
   getOllamaModel: () => localStorage.getItem(KEYS.ollamaModel) ?? 'mosim-coder',
-  setOllamaModel: (m: string) => localStorage.setItem(KEYS.ollamaModel, m.trim())
+  setOllamaModel: (m: string) => localStorage.setItem(KEYS.ollamaModel, m.trim()),
+  getGeminiKey: () => localStorage.getItem(KEYS.geminiKey) ?? '',
+  setGeminiKey: (k: string) => localStorage.setItem(KEYS.geminiKey, k.trim()),
+  getGeminiModel: () => localStorage.getItem(KEYS.geminiModel) ?? GEMINI_MODELS[0].id,
+  setGeminiModel: (m: string) => localStorage.setItem(KEYS.geminiModel, m),
 };
 
 export interface GenerateInput {
@@ -51,7 +67,11 @@ export interface GenerateInput {
   exampleScripts: Record<string, string>;
 }
 
-/** Build the user-turn message from all the pieces the panel collects. */
+function isYouTubeUrl(url: string): boolean {
+  return /youtu\.be\/|youtube\.com\/watch/.test(url);
+}
+
+/** Build the text-only user message (used by Claude + Ollama). */
 function buildPrompt(input: GenerateInput): string {
   const parts: string[] = [];
   parts.push(`Robot: ${input.team ? input.team + ' ' : ''}${input.robotName}`);
@@ -146,8 +166,56 @@ async function callOllama(prompt: string): Promise<string> {
   return body?.message?.content ?? '';
 }
 
+async function callGemini(input: GenerateInput): Promise<string> {
+  const apiKey = settings.getGeminiKey();
+  if (!apiKey) throw new Error('No Gemini API key set. Add your Google AI Studio key first.');
+
+  const model = settings.getGeminiModel();
+
+  // Build content parts: YouTube video links are passed as fileData so Gemini
+  // can actually watch them; non-YouTube links fall back to text references.
+  const videoParts: unknown[] = [];
+  const textOnlyLinks: string[] = [];
+  for (const link of input.videoLinks) {
+    if (isYouTubeUrl(link)) {
+      videoParts.push({ fileData: { mimeType: 'video/mp4', fileUri: link } });
+    } else {
+      textOnlyLinks.push(link);
+    }
+  }
+
+  const textInput: GenerateInput = { ...input, videoLinks: textOnlyLinks };
+  const textParts: unknown[] = [{ text: buildPrompt(textInput) }];
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: MOSIM_SYSTEM_PROMPT }] },
+        contents: [{ role: 'user', parts: [...videoParts, ...textParts] }],
+        generationConfig: { maxOutputTokens: 16000 },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try { const b = await res.json(); detail = b?.error?.message ?? detail; } catch { /* keep */ }
+    throw new Error(`Gemini API error: ${detail}`);
+  }
+
+  const body = await res.json();
+  return (body?.candidates?.[0]?.content?.parts as { text?: string }[] | undefined)
+    ?.map((p) => p.text ?? '')
+    .join('') ?? '';
+}
+
 /** Generate via whichever provider is selected. Throws readable Errors. */
 export async function generateScript(input: GenerateInput): Promise<string> {
+  const provider = settings.getProvider();
+  if (provider === 'gemini') return callGemini(input);
   const prompt = buildPrompt(input);
-  return settings.getProvider() === 'ollama' ? callOllama(prompt) : callAnthropic(prompt);
+  return provider === 'ollama' ? callOllama(prompt) : callAnthropic(prompt);
 }

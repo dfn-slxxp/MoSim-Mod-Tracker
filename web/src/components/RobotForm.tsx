@@ -14,6 +14,12 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [keyDraft, setKeyDraft] = useState(getTbaKey());
 
+  // Inline new modpack
+  const [showNewModpack, setShowNewModpack] = useState(false);
+  const [newPackName, setNewPackName] = useState('');
+  const [newPackGame, setNewPackGame] = useState<string>(GAMES[0]);
+  const [creatingPack, setCreatingPack] = useState(false);
+
   if (!canEdit) return null;
 
   const lookupTeam = async (num: string) => {
@@ -23,6 +29,26 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
     const name = await fetchTeamName(trimmed);
     setTeamName(name);
     setFetching(false);
+  };
+
+  const createModpack = async () => {
+    if (!newPackName.trim()) return;
+    setCreatingPack(true);
+    try {
+      const id = await api.addModpack({
+        name: newPackName.trim(),
+        game: newPackGame,
+        description: '',
+        private: false,
+      });
+      setModpackId(id);
+      setNewPackName('');
+      setShowNewModpack(false);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setCreatingPack(false);
+    }
   };
 
   const submit = async (e: FormEvent) => {
@@ -81,13 +107,53 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         ))}
       </select>
 
-      {/* Modpack dropdown */}
-      <select value={modpackId} onChange={(e) => setModpackId(e.target.value)} style={{ minWidth: 140 }}>
-        <option value="">No modpack</option>
-        {modpacks.map((m) => (
-          <option key={m.id} value={m.id}>{m.name}</option>
-        ))}
-      </select>
+      {/* Modpack dropdown + create new */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <select value={modpackId} onChange={(e) => setModpackId(e.target.value)} style={{ minWidth: 140 }}>
+          <option value="">No modpack</option>
+          {modpacks.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn subtle"
+          style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+          onClick={() => setShowNewModpack(!showNewModpack)}
+        >
+          + New
+        </button>
+      </div>
+
+      {/* Inline new-modpack mini-form */}
+      {showNewModpack && (
+        <div className="inline-modpack-form">
+          <input
+            placeholder="Pack name"
+            value={newPackName}
+            onChange={(e) => setNewPackName(e.target.value)}
+            style={{ minWidth: 140 }}
+          />
+          <select value={newPackGame} onChange={(e) => setNewPackGame(e.target.value)}>
+            {GAMES.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={creatingPack || !newPackName.trim()}
+            onClick={createModpack}
+          >
+            {creatingPack ? 'Creating…' : 'Create'}
+          </button>
+          <button
+            type="button"
+            className="btn subtle"
+            onClick={() => { setShowNewModpack(false); setNewPackName(''); }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       <button className="btn primary" disabled={busy} type="submit">
         Add robot

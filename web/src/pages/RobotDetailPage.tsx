@@ -11,9 +11,11 @@ import { AiScriptPanel } from '../components/AiScriptPanel';
 import { PillSelect } from '../components/PillSelect';
 import { ProgressBar } from '../components/ProgressBar';
 import { Splits, WhatsLeft } from '../components/Splits';
-import { robotProgress } from '../steps';
+import { STEPS, robotProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { MODTYPE_META, ModType, RobotStatus, STATUS_META } from '../types';
+import { MODTYPE_META, ModType, RobotStatus, STATUS_META, StepProgress } from '../types';
+
+const STATUS_ORDER: RobotStatus[] = ['planned', 'in-unity', 'semi-functional', 'released'];
 
 const STATUS_OPTIONS = (Object.keys(STATUS_META) as RobotStatus[]).map((s) => ({
   value: s,
@@ -43,6 +45,24 @@ export function RobotDetailPage() {
 
   const repo = repos.find((r) => r.id === robot.repoId);
   const prog = robotProgress(robot);
+
+  const handleStatusChange = async (newStatus: string) => {
+    const currentIdx = STATUS_ORDER.indexOf(robot.status);
+    const newIdx = STATUS_ORDER.indexOf(newStatus as RobotStatus);
+    if (newIdx > currentIdx) {
+      // Upgrading status: mark all steps done so the tracker reflects reality
+      const progress: Record<string, StepProgress> = {};
+      for (const step of STEPS) {
+        progress[step.id] = {
+          subs: Object.fromEntries(step.subs.map((s) => [s.id, true])),
+          note: robot.progress[step.id]?.note ?? '',
+        };
+      }
+      await api.updateRobot(robot.id, { status: newStatus as RobotStatus, progress });
+    } else {
+      await api.updateRobot(robot.id, { status: newStatus as RobotStatus });
+    }
+  };
 
   return (
     <div className="page robot-detail">
@@ -112,7 +132,7 @@ export function RobotDetailPage() {
             value={robot.status}
             options={STATUS_OPTIONS}
             disabled={!canEdit}
-            onChange={(v) => api.updateRobot(robot.id, { status: v as RobotStatus })}
+            onChange={handleStatusChange}
           />
         </label>
         <label>

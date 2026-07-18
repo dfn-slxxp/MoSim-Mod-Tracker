@@ -6,7 +6,7 @@
 // local Ollama model (including one you trained yourself — TRAINING.md).
 // ---------------------------------------------------------------------------
 import { useMemo, useState } from 'react';
-import { ANTHROPIC_MODELS, Provider, generateScript, settings } from '../ai/client';
+import { ANTHROPIC_MODELS, GEMINI_MODELS, Provider, generateScript, settings } from '../ai/client';
 import { useStore } from '../store/StoreContext';
 import type { Repo, Robot } from '../types';
 
@@ -24,6 +24,8 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
   const [model, setModelState] = useState(settings.getModel());
   const [ollamaUrl, setOllamaUrlState] = useState(settings.getOllamaUrl());
   const [ollamaModel, setOllamaModelState] = useState(settings.getOllamaModel());
+  const [geminiKey, setGeminiKeyState] = useState(settings.getGeminiKey());
+  const [geminiModel, setGeminiModelState] = useState(settings.getGeminiModel());
   const [description, setDescription] = useState('');
   const [videos, setVideos] = useState('');
   const [excludedLibrary, setExcludedLibrary] = useState<Set<string>>(new Set());
@@ -60,6 +62,8 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
       settings.setModel(model);
       settings.setOllamaUrl(ollamaUrl);
       settings.setOllamaModel(ollamaModel);
+      settings.setGeminiKey(geminiKey);
+      settings.setGeminiModel(geminiModel);
 
       // 1) All library scripts except the unticked ones.
       const examples: Record<string, string> = {};
@@ -116,20 +120,44 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
       {open && (
         <div className="ai-body">
           <p className="muted small">
-            Describe what the robot does (mechanisms, setpoints, how it scores). Video links are
-            included as reference, but the model can't watch them — the description is what
-            drives the script. Keys/settings stay on this device only.
+            Describe what the robot does (mechanisms, setpoints, how it scores).{' '}
+            {provider === 'gemini'
+              ? 'YouTube links are sent directly to Gemini for video analysis.'
+              : 'Video links are included as text reference — the description is what drives the script.'}
+            {' '}Keys/settings stay on this device only.
           </p>
 
           <div className="ai-row">
             <label>
               Provider
               <select value={provider} onChange={(e) => setProviderState(e.target.value as Provider)}>
-                <option value="anthropic">Claude API (Anthropic key)</option>
-                <option value="ollama">Local model via Ollama (free, see TRAINING.md)</option>
+                <option value="gemini">Gemini (Google AI Studio key · watches videos)</option>
+                <option value="anthropic">Claude (Anthropic key · text only)</option>
+                <option value="ollama">Local model via Ollama (free, trainable)</option>
               </select>
             </label>
-            {provider === 'anthropic' ? (
+            {provider === 'gemini' && (
+              <>
+                <label>
+                  Google AI Studio key
+                  <input
+                    type="password"
+                    placeholder="AIza..."
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKeyState(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Model
+                  <select value={geminiModel} onChange={(e) => setGeminiModelState(e.target.value)}>
+                    {GEMINI_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            {provider === 'anthropic' && (
               <>
                 <label>
                   Anthropic API key
@@ -144,14 +172,13 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
                   Model
                   <select value={model} onChange={(e) => setModelState(e.target.value)}>
                     {ANTHROPIC_MODELS.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
+                      <option key={m.id} value={m.id}>{m.label}</option>
                     ))}
                   </select>
                 </label>
               </>
-            ) : (
+            )}
+            {provider === 'ollama' && (
               <>
                 <label>
                   Ollama URL
@@ -180,10 +207,12 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
           </label>
 
           <label className="ai-field">
-            Match / reveal video links (one per line — TBA, YouTube, …)
+            {provider === 'gemini'
+              ? 'YouTube video links (one per line — Gemini will watch them)'
+              : 'Match / reveal video links (one per line — TBA, YouTube, …)'}
             <textarea
               rows={2}
-              placeholder={'https://www.thebluealliance.com/match/...\nhttps://youtu.be/...'}
+              placeholder={'https://youtu.be/...\nhttps://www.thebluealliance.com/match/...'}
               value={videos}
               onChange={(e) => setVideos(e.target.value)}
             />
