@@ -1372,6 +1372,92 @@ h3 {
   min-width: 0;
 }
 
+/* ---------- topbar action cluster + narrow-window polish ---------- */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* Add-robot form: fields flex instead of fixed widths */
+.add-form .form-field-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+.add-form .team-input {
+  flex: 1 1 110px;
+  min-width: 0;
+  max-width: 170px;
+}
+.add-form .game-select {
+  flex: 1 1 130px;
+  min-width: 0;
+}
+.add-form .modpack-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.add-form .modpack-group select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Narrow windows (desktop app default width, small browser windows) */
+@media (max-width: 560px) {
+  .topbar {
+    padding: 8px 10px;
+    gap: 6px;
+    row-gap: 4px;
+  }
+  .nav {
+    gap: 2px;
+  }
+  .nav a {
+    padding: 4px 8px;
+    font-size: 12.5px;
+  }
+  .auth-name {
+    display: none; /* avatar + sign out is enough at this width */
+  }
+  .auth .btn {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+  .page-head h1 {
+    font-size: 20px;
+  }
+  .add-form {
+    padding: 10px;
+    gap: 6px;
+  }
+  .add-form input,
+  .add-form select {
+    font-size: 12.5px;
+  }
+  .tab-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+  .filter-bar {
+    gap: 4px;
+  }
+  .filter-bar select,
+  .filter-bar .filter-search {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+  .sort-controls {
+    margin-left: 0; /* let it wrap under the filters instead of squeezing */
+  }
+}
+
 /* ---------- desktop density (feels less like a website) ---------- */
 .is-desktop .topbar {
   padding: 6px 12px;

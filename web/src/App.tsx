@@ -2,7 +2,7 @@
 // Top-level component: routing + the page shell (top bar, nav, banners).
 // /compact renders WITHOUT the shell — that's the LiveSplit-style overlay.
 // ---------------------------------------------------------------------------
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import avatarUrl from './assets/avatar.png';
 import { AuthButton } from './components/AuthButton';
@@ -16,6 +16,23 @@ import { RobotsPage } from './pages/RobotsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { useStore } from './store/StoreContext';
 import { useTheme } from './theme';
+
+/** Desktop-only: toggle always-on-top. Grayscale = unpinned, accent = pinned. */
+function PinButton() {
+  const [pinned, setPinned] = useState(true);
+  useEffect(() => {
+    window.desktop?.isPinned().then(setPinned);
+  }, []);
+  return (
+    <button
+      className={`btn subtle theme-btn pin-btn ${pinned ? 'active' : ''}`}
+      title={pinned ? 'Pinned on top (click to unpin)' : 'Not pinned (click to pin on top)'}
+      onClick={async () => setPinned((await window.desktop!.togglePin()) ?? !pinned)}
+    >
+      📌
+    </button>
+  );
+}
 
 function ThemeButton() {
   const { theme, setTheme, allThemes } = useTheme();
@@ -65,24 +82,6 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`shell ${isDesktop ? 'is-desktop' : ''}`}>
-      {isDesktop && (
-        <div className="desktop-titlebar">
-          <span className="drag-region">MoSim Mod Tracker</span>
-          <button
-            className="titlebar-btn"
-            title="Switch to compact splits view"
-            onClick={async () => {
-              await window.desktop?.setExpanded(false);
-              navigate('/compact');
-            }}
-          >
-            ▣
-          </button>
-          <button className="titlebar-btn danger" title="Close" onClick={() => window.desktop?.close()}>
-            ✕
-          </button>
-        </div>
-      )}
       <header className="topbar">
         <div className="brand">
           <img className="brand-mark" src={avatarUrl} alt="" />
@@ -93,9 +92,24 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/modpacks">Modpacks</NavLink>
           <NavLink to="/repos">Repos</NavLink>
           <NavLink to="/scripts">Scripts</NavLink>
-          <NavLink to="/compact">Compact</NavLink>
+          {!isDesktop && <NavLink to="/compact">Compact</NavLink>}
         </nav>
-        <ThemeButton />
+        <div className="topbar-actions">
+          {isDesktop && <PinButton />}
+          {isDesktop && (
+            <button
+              className="btn subtle theme-btn"
+              title="Switch to compact splits view"
+              onClick={async () => {
+                await window.desktop?.setExpanded(false);
+                navigate('/compact');
+              }}
+            >
+              ▣
+            </button>
+          )}
+          <ThemeButton />
+        </div>
         <AuthButton />
       </header>
       {error && <div className="banner error">{error}</div>}

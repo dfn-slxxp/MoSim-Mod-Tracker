@@ -86,11 +86,11 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       {/* Team number + TBA name preview */}
       <div className="form-field-group">
         <input
+          className="team-input"
           placeholder="Team # (e.g. 9496)"
           value={team}
           onChange={(e) => { setTeam(e.target.value); setTeamName(null); }}
           onBlur={(e) => lookupTeam(e.target.value)}
-          style={{ width: 130 }}
           required
         />
         {fetching && <span className="muted" style={{ fontSize: 12 }}>Looking up…</span>}
@@ -101,15 +101,15 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       </div>
 
       {/* Game dropdown */}
-      <select value={game} onChange={(e) => setGame(e.target.value)} style={{ minWidth: 160 }}>
+      <select className="game-select" value={game} onChange={(e) => setGame(e.target.value)}>
         {GAMES.map((g) => (
           <option key={g} value={g}>{g}</option>
         ))}
       </select>
 
       {/* Modpack dropdown + create new */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <select value={modpackId} onChange={(e) => setModpackId(e.target.value)} style={{ minWidth: 140 }}>
+      <div className="modpack-group">
+        <select value={modpackId} onChange={(e) => setModpackId(e.target.value)}>
           <option value="">No modpack</option>
           {modpacks.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
