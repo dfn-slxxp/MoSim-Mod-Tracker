@@ -30,7 +30,7 @@ export async function openInBrowser(url: string): Promise<void> {
 // Mirror the exact window.desktop shape from desktop/preload.js so all
 // existing React components work in Tauri without any changes.
 if (isTauri()) {
-  (window as Record<string, unknown>).desktop = {
+  (window as unknown as Record<string, unknown>).desktop = {
     togglePin:   ()                               => inv<boolean>('toggle_pin'),
     isPinned:    ()                               => inv<boolean>('is_pinned'),
     setExpanded: (expanded: boolean)              => inv('set_expanded', { expanded }),
