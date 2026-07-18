@@ -72,37 +72,41 @@
   --pill-official-fg: #b05316;
 }
 
-/* ---------- theme: cloud (MSI-Center-ish soft blue) ---------- */
+/* ---------- theme: cloud (purple-indigo dream, MSI-Center-ish) ---------- */
 :root[data-theme='cloud'] {
-  --bg: #e9f1fb;
-  --bg-image: linear-gradient(160deg, #dcebfb 0%, #eef5fd 45%, #e3edf9 100%);
-  --panel: #fbfdffd9;
-  --panel-2: #eaf2fb;
-  --border-solid: #c9dbf0;
-  --text: #22344c;
-  --muted: #6c82a0;
-  --accent: #2f9e58;
-  --accent-dim: #2f9e5816;
-  --gold: #c29a2b;
-  --red: #d64545;
-  --blue: #4f8ff7;
-  --titlebar: #dcE9f8;
-  --shadow: 0 4px 16px rgba(79, 143, 247, 0.1);
-  --radius: 12px;
-  --pill-planned-bg: #e9defd;
-  --pill-planned-fg: #7048c8;
-  --pill-claimed-bg: #ffe4cd;
-  --pill-claimed-fg: #b25d18;
-  --pill-unity-bg: #fdf2c4;
-  --pill-unity-fg: #92700a;
-  --pill-semi-bg: #d5f4dd;
-  --pill-semi-fg: #1f7f3a;
-  --pill-released-bg: #d8e8ff;
-  --pill-released-fg: #3468b8;
-  --pill-gray-bg: #e3ebf4;
-  --pill-gray-fg: #5f7288;
-  --pill-official-bg: #ffe4d0;
-  --pill-official-fg: #b3591b;
+  --bg: #f7f5ff;
+  --bg-image:
+    radial-gradient(ellipse at 10% 92%, rgba(167, 139, 250, 0.45) 0%, transparent 44%),
+    radial-gradient(ellipse at 90% 8%,  rgba(147, 197, 253, 0.42) 0%, transparent 44%),
+    radial-gradient(ellipse at 55% 50%, rgba(196, 181, 253, 0.14) 0%, transparent 55%),
+    linear-gradient(150deg, #f5f2ff 0%, #eff6ff 100%);
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-2: rgba(241, 237, 255, 0.72);
+  --border-solid: #ddd6fe;
+  --text: #1e1b4b;
+  --muted: #6d5fa8;
+  --accent: #7c3aed;
+  --accent-dim: rgba(124, 58, 237, 0.1);
+  --gold: #b45309;
+  --red: #dc2626;
+  --blue: #4f46e5;
+  --titlebar: #4c1d95;
+  --shadow: 0 2px 16px rgba(109, 40, 217, 0.1);
+  --radius: 14px;
+  --pill-planned-bg: #ede9fe;
+  --pill-planned-fg: #6d28d9;
+  --pill-claimed-bg: #ffedd5;
+  --pill-claimed-fg: #c2410c;
+  --pill-unity-bg: #fef3c7;
+  --pill-unity-fg: #92400e;
+  --pill-semi-bg: #dcfce7;
+  --pill-semi-fg: #166534;
+  --pill-released-bg: #dbeafe;
+  --pill-released-fg: #1d4ed8;
+  --pill-gray-bg: #f1f0ff;
+  --pill-gray-fg: #5b4fa0;
+  --pill-official-bg: #fee2e2;
+  --pill-official-fg: #b91c1c;
 }
 
 * {
@@ -208,14 +212,13 @@ h3 {
 }
 
 .brand-mark {
-  background: linear-gradient(135deg, var(--accent), var(--blue));
-  color: #fff;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+  flex-shrink: 0;
 }
 
 .mode-badge {
@@ -1233,6 +1236,81 @@ h3 {
 .is-desktop .banner {
   padding: 6px 12px;
   font-size: 12px;
+}
+
+/* ── Cloud theme: purple gradient topbar ──────────────────────────────── */
+:root[data-theme='cloud'] .topbar {
+  background: linear-gradient(135deg, #5b21b6 0%, #4338ca 55%, #2563eb 100%);
+  border-bottom: none;
+  box-shadow: 0 4px 20px rgba(91, 33, 182, 0.28);
+}
+
+:root[data-theme='cloud'] .topbar .brand-name {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+:root[data-theme='cloud'] .topbar .nav a {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+:root[data-theme='cloud'] .topbar .nav a:hover,
+:root[data-theme='cloud'] .topbar .nav a.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme='cloud'] .topbar .btn {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='cloud'] .topbar .btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.38);
+}
+
+:root[data-theme='cloud'] .auth-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Desktop titlebar matches gradient start */
+:root[data-theme='cloud'] .desktop-titlebar {
+  background: #4c1d95;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+:root[data-theme='cloud'] .desktop-titlebar .drag-region {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+:root[data-theme='cloud'] .titlebar-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+:root[data-theme='cloud'] .titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* Glassmorphism sign-in / setup card */
+:root[data-theme='cloud'] .signin-card {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 8px 40px rgba(109, 40, 217, 0.14);
+}
+
+/* Purple primary button */
+:root[data-theme='cloud'] .btn.primary {
+  background: #7c3aed;
+  border-color: #8b5cf6;
+}
+
+:root[data-theme='cloud'] .btn.primary:hover {
+  background: #6d28d9;
+  border-color: #7c3aed;
 }
 
 /* ---------- compact view ---------- */

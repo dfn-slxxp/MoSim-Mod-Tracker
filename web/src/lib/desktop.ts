@@ -23,6 +23,7 @@ export async function getServerUrl(): Promise<string> {
   return inv<string>('get_server_url');
 }
 
+
 export async function openInBrowser(url: string): Promise<void> {
   return inv('open_path', { pathOrUrl: url });
 }

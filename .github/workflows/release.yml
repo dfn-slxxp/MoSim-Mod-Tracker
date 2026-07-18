@@ -47,7 +47,7 @@ jobs:
       # ── Node.js ────────────────────────────────────────────────────────────
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # ── Rust toolchain ─────────────────────────────────────────────────────
@@ -93,22 +93,12 @@ jobs:
 
             ### Install
 
-            | Platform | File |
-            |----------|------|
-            | Windows 10/11 | `MoSim.Mod.Tracker_*_x64-setup.exe` |
-            | macOS (Apple Silicon) | `MoSim.Mod.Tracker_*_aarch64.dmg` |
-            | macOS (Intel) | `MoSim.Mod.Tracker_*_x64.dmg` |
-            | Linux | `mosim-mod-tracker_*_amd64.AppImage` |
-
-            ### First-run setup
-            On first launch the app reads **mosim.conf** (placed in the same
-            folder as the executable) for the server URL. If no config exists
-            it falls back to `http://localhost:8787`.
-
-            Edit or create `mosim.conf` next to the app:
-            ```
-            MOSIM_URL=https://yourserver.example.com
-            ```
+            | Platform | Custom Installer | Direct Download |
+            |----------|-----------------|-----------------|
+            | Windows 10/11 | `MoSimSetup.exe` | `MoSim.Mod.Tracker_*_x64-setup.exe` |
+            | macOS Apple Silicon | `MoSimSetup-arm.dmg` | `MoSim.Mod.Tracker_*_aarch64.dmg` |
+            | macOS Intel | `MoSimSetup-intel.dmg` | `MoSim.Mod.Tracker_*_x64.dmg` |
+            | Linux x64 | `MoSimSetup.AppImage` | `mosim-mod-tracker_*_amd64.AppImage` |
 
             ### Linux runtime dependency
             ```
@@ -118,3 +108,105 @@ jobs:
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.args }}
+
+  build-installer:
+    name: Build installer (${{ matrix.upload_name }})
+    needs: publish-tauri
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Windows x64 ────────────────────────────────────────────────
+          - platform: windows-latest
+            rust_target: ''
+            tauri_args: ''
+            artifact_cmd: |
+              gh release upload $TAG "installer-app/src-tauri/target/release/mosim-setup.exe#MoSimSetup.exe" --clobber
+            upload_name: MoSimSetup.exe
+
+          # ── macOS Apple Silicon ─────────────────────────────────────────
+          - platform: macos-latest
+            rust_target: aarch64-apple-darwin
+            tauri_args: '--bundles dmg --target aarch64-apple-darwin'
+            artifact_cmd: |
+              DMG=$(find installer-app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+              gh release upload $TAG "${DMG}#MoSimSetup-arm.dmg" --clobber
+            upload_name: MoSimSetup-arm.dmg
+
+          # ── macOS Intel ─────────────────────────────────────────────────
+          - platform: macos-latest
+            rust_target: x86_64-apple-darwin
+            tauri_args: '--bundles dmg --target x86_64-apple-darwin'
+            artifact_cmd: |
+              DMG=$(find installer-app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+              gh release upload $TAG "${DMG}#MoSimSetup-intel.dmg" --clobber
+            upload_name: MoSimSetup-intel.dmg
+
+          # ── Linux x64 ──────────────────────────────────────────────────
+          - platform: ubuntu-22.04
+            rust_target: ''
+            tauri_args: '--bundles appimage'
+            artifact_cmd: |
+              APP=$(find installer-app/src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
+              gh release upload $TAG "${APP}#MoSimSetup.AppImage" --clobber
+            upload_name: MoSimSetup.AppImage
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Python: generate installer assets (icons) ──────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pillow
+      - run: python installer/generate-assets.py
+
+      # ── Node.js ────────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # ── Rust toolchain ─────────────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: installer-app/src-tauri
+
+      # ── Linux: WebKitGTK required by Tauri ─────────────────────────────
+      - name: Install WebKitGTK (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      # ── Install installer-app dependencies ─────────────────────────────
+      - name: Install installer-app deps
+        run: npm --prefix installer-app ci
+
+      # ── Generate icons for the installer binary ────────────────────────
+      - name: Generate installer icons
+        working-directory: installer-app
+        run: npx tauri icon ../installer/assets/icon.png
+
+      # ── Build the installer ─────────────────────────────────────────────
+      - name: Build installer app
+        working-directory: installer-app
+        run: npx tauri build ${{ matrix.tauri_args }}
+
+      # ── Upload to the GitHub release ────────────────────────────────────
+      - name: Upload installer artifact
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: ${{ matrix.artifact_cmd }}

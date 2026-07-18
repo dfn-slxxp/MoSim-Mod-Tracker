@@ -96,8 +96,6 @@ export class HTTPBackend implements Backend {
       if (this._disposed) return;
 
       this._token = localStorage.getItem('mosim_token');
-
-      // Listen for the JWT that arrives after the OAuth deep link completes.
       const unlisten = await tauriListen<string>('mosim:auth-token', (token) => {
         this._token = token;
         localStorage.setItem('mosim_token', token);
@@ -247,6 +245,7 @@ export class HTTPBackend implements Backend {
       robots: [], modpacks: [], repos: [], scripts: [],
     });
   }
+
 }
 
 interface DataPayload {

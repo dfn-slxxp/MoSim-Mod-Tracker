@@ -35,6 +35,7 @@ pub fn get_server_url() -> String {
     crate::config::get_server_url()
 }
 
+
 #[tauri::command]
 pub fn toggle_pin(window: Window) -> bool {
     let next = !window.is_always_on_top().unwrap_or(false);

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+const DEFAULT_SERVER: &str = "https://mods.sebastianw.tech";
+
 pub fn get_server_url() -> String {
     if let Ok(url) = std::env::var("MOSIM_URL") {
         return url;
@@ -16,7 +18,7 @@ pub fn get_server_url() -> String {
             }
         }
     }
-    "http://localhost:8787".to_string()
+    DEFAULT_SERVER.to_string()
 }
 
 fn find_conf() -> Option<PathBuf> {

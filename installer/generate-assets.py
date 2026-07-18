@@ -79,19 +79,66 @@ def load_font(size):
             continue
     return ImageFont.load_default()
 
-# ── Glow effect helper ────────────────────────────────────────────────────────
+# ── Avatar image ──────────────────────────────────────────────────────────────
 
-def paste_glow(base_rgba, text, font, cx, cy, color, glow_color, blur_r=18):
-    """Draw text with a soft glow onto base_rgba (RGBA image). Modifies in-place."""
-    # Glow layer
-    glow = Image.new('RGBA', base_rgba.size, (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    gd.text((cx, cy), text, font=font, fill=(*glow_color, 200), anchor='mm')
-    glow = glow.filter(ImageFilter.GaussianBlur(blur_r))
-    base_rgba.alpha_composite(glow)
-    # Sharp text
-    d = ImageDraw.Draw(base_rgba)
-    d.text((cx, cy), text, font=font, fill=(*color, 230), anchor='mm')
+def _remove_white_bg(img, threshold=240):
+    """BFS flood-fill from border edges to remove background white only.
+    Interior white pixels (e.g. character eyes) are left untouched."""
+    from collections import deque
+    img = img.convert('RGBA')
+    width, height = img.size
+    pix = img.load()
+
+    def is_near_white(x, y):
+        r, g, b, _ = pix[x, y]
+        return r >= threshold and g >= threshold and b >= threshold
+
+    visited = bytearray(width * height)
+    queue = deque()
+
+    def seed(x, y):
+        i = y * width + x
+        if not visited[i] and is_near_white(x, y):
+            visited[i] = 1
+            queue.append((x, y))
+
+    for x in range(width):
+        seed(x, 0); seed(x, height - 1)
+    for y in range(1, height - 1):
+        seed(0, y); seed(width - 1, y)
+
+    while queue:
+        x, y = queue.popleft()
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < width and 0 <= ny < height:
+                i = ny * width + nx
+                if not visited[i] and is_near_white(nx, ny):
+                    visited[i] = 1
+                    queue.append((nx, ny))
+
+    result = Image.new('RGBA', img.size)
+    out = result.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = pix[x, y]
+            out[x, y] = (r, g, b, 0) if visited[y * width + x] else (r, g, b, a)
+    return result
+
+_AVATAR_PATH = Path(__file__).parent / 'assets' / 'avatar.png'
+_avatar_cache = None
+
+def _get_avatar():
+    global _avatar_cache
+    if _avatar_cache is None:
+        _avatar_cache = _remove_white_bg(Image.open(_AVATAR_PATH))
+    return _avatar_cache
+
+def paste_avatar(base_rgba, size, cx, cy):
+    """Paste the pixel-art avatar (NEAREST scale) centered at (cx, cy)."""
+    av = _get_avatar().resize((size, size), Image.NEAREST)
+    x, y = cx - size // 2, cy - size // 2
+    base_rgba.alpha_composite(av, (max(0, x), max(0, y)))
 
 # ── Main panel drawing ────────────────────────────────────────────────────────
 
@@ -173,9 +220,7 @@ def draw_side_panel(W=164, H=314):
     draw = ImageDraw.Draw(img, 'RGBA')
     draw_circuit(draw, W, H)
 
-    # "M" lettermark with glow
-    font_m = load_font(68)
-    paste_glow(img, 'M', font_m, W // 2, H // 2 - 28, WHITE, (124, 58, 237), blur_r=22)
+    paste_avatar(img, 96, W // 2, H // 2 - 28)
 
     # App name
     d = ImageDraw.Draw(img)
@@ -190,8 +235,7 @@ def draw_side_panel(W=164, H=314):
 def draw_small_logo(W=55, H=58):
     img = Image.new('RGBA', (W, H))
     draw_bg(img)
-    font_m = load_font(28)
-    paste_glow(img, 'M', font_m, W // 2, H // 2, WHITE, (124, 58, 237), blur_r=10)
+    paste_avatar(img, 44, W // 2, H // 2)
     return img.convert('RGB')
 
 
@@ -232,9 +276,7 @@ def draw_icon(size=512):
             cd.ellipse([ax - gr//i, ay - gr//i, ax + gr//i, ay + gr//i],
                        fill=(*col, al // i))
 
-    # "M"
-    font_m = load_font(int(s * 0.52))
-    paste_glow(img, 'M', font_m, s // 2, s // 2, WHITE, (124, 58, 237), blur_r=int(s * 0.06))
+    paste_avatar(img, int(s * 0.72), s // 2, s // 2)
 
     return img
 
@@ -285,15 +327,15 @@ def main():
 
     side = draw_side_panel(164, 314)
     side.save(OUT / 'wizard-side.bmp')
-    print(f'  ✓  wizard-side.bmp  (164×314)')
+    print(f'  OK wizard-side.bmp  (164x314)')
 
     small = draw_small_logo(55, 58)
     small.save(OUT / 'wizard-small.bmp')
-    print(f'  ✓  wizard-small.bmp  (55×58)')
+    print(f'  OK wizard-small.bmp  (55x58)')
 
     icon_base = draw_icon(512)
     icon_base.save(OUT / 'icon.png')
-    print(f'  ✓  icon.png  (512×512)')
+    print(f'  OK icon.png  (512x512)')
 
     # Multi-size ICO
     sizes = [16, 24, 32, 48, 64, 128, 256]
@@ -304,11 +346,11 @@ def main():
         append_images=ico_images[1:],
         sizes=[(s, s) for s in sizes],
     )
-    print(f'  ✓  icon.ico  ({", ".join(str(s) for s in sizes)}px)')
+    print(f'  OK icon.ico  ({", ".join(str(s) for s in sizes)}px)')
 
     dmg = draw_dmg_bg(600, 400)
     dmg.save(OUT / 'dmg-bg.png')
-    print(f'  ✓  dmg-bg.png  (600×400)')
+    print(f'  OK dmg-bg.png  (600x400)')
 
     print(f'\nAll assets written to {OUT.resolve()}')
     print('Next: pyinstaller app/mosim-tracker.spec')
