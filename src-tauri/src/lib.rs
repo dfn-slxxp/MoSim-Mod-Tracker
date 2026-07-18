@@ -1,36 +1,62 @@
 mod commands;
 mod config;
 
-use tauri::{Emitter, Listener};
+use tauri::{Emitter, Listener, Manager};
+
+/// Pull the JWT out of a mosim://auth?token=... deep link URL.
+fn extract_token(url_str: &str) -> Option<String> {
+    let url = url::Url::parse(url_str).ok()?;
+    if url.scheme() == "mosim" && url.host_str() == Some("auth") {
+        url.query_pairs()
+            .find(|(k, _)| k == "token")
+            .map(|(_, v)| v.into_owned())
+    } else {
+        None
+    }
+}
+
+/// Auth token captured from argv on a cold start (browser launched the app
+/// with the deep link before the frontend was listening). The frontend
+/// collects it via take_pending_auth_token once its listener is ready.
+struct PendingToken(std::sync::Mutex<Option<String>>);
+
+#[tauri::command]
+fn take_pending_auth_token(state: tauri::State<PendingToken>) -> Option<String> {
+    state.0.lock().unwrap().take()
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Cold start: Windows/Linux pass the deep link as a CLI argument.
+    let startup_token = std::env::args().find_map(|a| extract_token(&a));
+
     tauri::Builder::default()
+        .manage(PendingToken(std::sync::Mutex::new(startup_token)))
         .plugin(tauri_plugin_shell::init())
-        // Single-instance must come before deep-link: on Windows, without it
-        // the OS launches a fresh process for mosim:// URLs instead of routing
-        // the deep link to the already-running instance.
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
+        // Single-instance must come before deep-link, and needs the
+        // "deep-link" feature: when the browser opens mosim:// while the app
+        // runs, Windows spawns a second process — the feature forwards its
+        // URL into the deep-link plugin of THIS instance (which then emits
+        // deep-link://new-url). Without it the URL is silently dropped.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // Bring the app back into view when the sign-in redirect lands.
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let handle = app.handle().clone();
 
             // Forward mosim://auth?token=<jwt> deep links to the frontend.
-            // The Tauri deep-link plugin emits "deep-link://new-url" with a
+            // The deep-link plugin emits "deep-link://new-url" with a
             // JSON-encoded array of URL strings as the payload.
             app.listen("deep-link://new-url", move |event| {
                 if let Ok(urls) = serde_json::from_str::<Vec<String>>(event.payload()) {
                     for url_str in urls {
-                        if let Ok(url) = url::Url::parse(&url_str) {
-                            if url.scheme() == "mosim" && url.host_str() == Some("auth") {
-                                if let Some(token) = url
-                                    .query_pairs()
-                                    .find(|(k, _)| k == "token")
-                                    .map(|(_, v)| v.into_owned())
-                                {
-                                    let _ = handle.emit("mosim:auth-token", &token);
-                                }
-                            }
+                        if let Some(token) = extract_token(&url_str) {
+                            let _ = handle.emit("mosim:auth-token", &token);
                         }
                     }
                 }
@@ -47,6 +73,7 @@ pub fn run() {
             commands::open_path,
             commands::scan_repo,
             commands::read_script,
+            take_pending_auth_token,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri application");

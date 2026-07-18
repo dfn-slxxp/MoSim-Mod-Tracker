@@ -295,7 +295,21 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Web: relative `/api/...`, cookie JWT (30 day). Desktop: absolute URLs + Bearer token
   in localStorage `mosim_token`; deep link `mosim://auth?token=...`
 - `tauri-plugin-single-instance` MUST be registered before `tauri-plugin-deep-link`
-  in the main app, or Windows opens a second window instead of signing in
+  AND needs `features = ["deep-link"]` — the feature forwards the second
+  instance's mosim:// argv into the running instance's deep-link plugin
+  (deep-link://new-url event). Callback also unminimizes/focuses the window.
+- Cold start (browser launches the app with the URL in argv): lib.rs stashes the
+  token in PendingToken state; frontend collects via take_pending_auth_token
+  command in http.ts _initAsync.
+
+### Windows install facts (verified on a real machine)
+- Tauri NSIS (currentUser) installs to `%LOCALAPPDATA%\MoSim Mod Tracker\`
+- The app binary is `mosim-mod-tracker.exe` (cargo crate name, NOT productName)
+- Uninstaller is `uninstall.exe`
+- Uninstall registry key: `HKCU\...\Uninstall\MoSim Mod Tracker`;
+  `InstallLocation` value is QUOTED, `DisplayIcon` points straight at the exe
+- Installer CSP needs `img-src ... data:` — Vite inlines images under 4KB as
+  data: URIs (avatar.png is ~3.1KB) and the default CSP blocks them
 
 ### Server / Deploy
 - Droplet path: `/apps/mosim-tracker-server`; systemd service `mosim-tracker`;

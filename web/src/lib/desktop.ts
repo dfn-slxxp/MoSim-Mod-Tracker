@@ -23,6 +23,11 @@ export async function getServerUrl(): Promise<string> {
   return inv<string>('get_server_url');
 }
 
+/** Auth token captured from a cold-start deep link, if any (one-shot). */
+export async function takePendingAuthToken(): Promise<string | null> {
+  return inv<string | null>('take_pending_auth_token');
+}
+
 
 export async function openInBrowser(url: string): Promise<void> {
   return inv('open_path', { pathOrUrl: url });

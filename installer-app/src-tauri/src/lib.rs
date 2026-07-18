@@ -28,46 +28,65 @@ fn asset_suffix() -> &'static str {
 
 // ── Windows ───────────────────────────────────────────────────────────────────
 
+/// The app binary keeps the cargo crate name; older builds may have used the
+/// product name. Check both, newest convention first.
+#[cfg(target_os = "windows")]
+const WIN_EXE_NAMES: [&str; 2] = ["mosim-mod-tracker.exe", "MoSim Mod Tracker.exe"];
+
 /// All paths where the main app exe might live, ordered by likelihood.
+/// Verified on a real install: Tauri NSIS (currentUser) puts the app in
+/// %LOCALAPPDATA%\MoSim Mod Tracker\mosim-mod-tracker.exe
 #[cfg(target_os = "windows")]
 fn win_exe_candidates() -> Vec<std::path::PathBuf> {
     let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
-    vec![
-        // Tauri default (currentUser NSIS install)
-        std::path::Path::new(&local).join("Programs").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-        std::path::Path::new(&local).join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-        // Elevated / perMachine installs land in Program Files
-        std::path::Path::new(r"C:\Program Files").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-        std::path::Path::new(r"C:\Program Files (x86)").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-    ]
+    let roots = [
+        std::path::Path::new(&local).join("MoSim Mod Tracker"),
+        std::path::Path::new(&local).join("Programs").join("MoSim Mod Tracker"),
+        std::path::Path::new(r"C:\Program Files").join("MoSim Mod Tracker"),
+        std::path::Path::new(r"C:\Program Files (x86)").join("MoSim Mod Tracker"),
+    ];
+    let mut out = Vec::new();
+    for root in &roots {
+        for name in &WIN_EXE_NAMES {
+            out.push(root.join(name));
+        }
+    }
+    out
 }
 
-/// Last-resort registry lookup: reads InstallLocation from the NSIS uninstall key.
+/// Read a single REG_SZ value; strips the surrounding quotes NSIS writes.
+#[cfg(target_os = "windows")]
+fn reg_read(key: &str, value: &str) -> Option<String> {
+    let out = std::process::Command::new("reg")
+        .args(["query", key, "/v", value])
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for line in stdout.lines() {
+        if let Some(p) = line.trim().split("REG_SZ").nth(1) {
+            return Some(p.trim().trim_matches('"').to_string());
+        }
+    }
+    None
+}
+
+/// Last-resort registry lookup via the NSIS uninstall key. DisplayIcon points
+/// straight at the exe; InstallLocation gives the directory.
 #[cfg(target_os = "windows")]
 fn win_find_via_registry() -> Option<String> {
-    let key_names = [
-        "MoSim Mod Tracker",
-        "com.mosim.mod-tracker",
-        "MoSim Mod Tracker_is1",
-    ];
     for hive in &["HKCU", "HKLM"] {
-        for name in &key_names {
-            let key = format!(r"{hive}\Software\Microsoft\Windows\CurrentVersion\Uninstall\{name}");
-            if let Ok(out) = std::process::Command::new("reg")
-                .args(["query", &key, "/v", "InstallLocation"])
-                .output()
-            {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                for line in stdout.lines() {
-                    let t = line.trim();
-                    if t.contains("InstallLocation") {
-                        if let Some(p) = t.split("REG_SZ").nth(1) {
-                            let exe = std::path::Path::new(p.trim()).join("MoSim Mod Tracker.exe");
-                            if exe.exists() {
-                                return Some(exe.to_string_lossy().into_owned());
-                            }
-                        }
-                    }
+        let key = format!(r"{hive}\Software\Microsoft\Windows\CurrentVersion\Uninstall\MoSim Mod Tracker");
+        if let Some(icon) = reg_read(&key, "DisplayIcon") {
+            let exe = std::path::PathBuf::from(icon.split(',').next().unwrap_or(&icon).trim());
+            if exe.exists() && exe.extension().is_some_and(|e| e == "exe") {
+                return Some(exe.to_string_lossy().into_owned());
+            }
+        }
+        if let Some(dir) = reg_read(&key, "InstallLocation") {
+            for name in &WIN_EXE_NAMES {
+                let exe = std::path::Path::new(&dir).join(name);
+                if exe.exists() {
+                    return Some(exe.to_string_lossy().into_owned());
                 }
             }
         }
@@ -282,16 +301,20 @@ fn check_existing() -> Option<String> {
 async fn platform_uninstall(exe_path: &str) -> Result<(), String> {
     let exe = std::path::Path::new(exe_path);
     let dir = exe.parent().ok_or("Cannot determine install dir")?;
-    let uninstaller = dir.join("Uninstall MoSim Mod Tracker.exe");
-    if uninstaller.exists() {
+    // Tauri NSIS names it uninstall.exe; older builds may differ.
+    let uninstaller = ["uninstall.exe", "Uninstall MoSim Mod Tracker.exe"]
+        .iter()
+        .map(|n| dir.join(n))
+        .find(|p| p.exists());
+    if let Some(uninstaller) = uninstaller {
         tokio::process::Command::new(&uninstaller)
             .arg("/S")
             .status()
             .await
             .map_err(|e| format!("Uninstaller failed: {e}"))?;
         // Wait for the uninstaller to finish removing files
-        for _ in 0..10 {
-            if !dir.exists() { break; }
+        for _ in 0..20 {
+            if !exe.exists() { break; }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     } else {

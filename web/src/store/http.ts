@@ -21,7 +21,7 @@ import type {
 import { normalizeRobot } from '../types';
 import type { Backend, StoreState } from './backend';
 import { sortByOrder } from './backend';
-import { isTauri, getServerUrl, tauriListen, openInBrowser } from '../lib/desktop';
+import { isTauri, getServerUrl, tauriListen, openInBrowser, takePendingAuthToken } from '../lib/desktop';
 import { loadRemoteSteps } from '../steps';
 
 export class HTTPBackend implements Backend {
@@ -104,6 +104,16 @@ export class HTTPBackend implements Backend {
       });
       if (this._disposed) { unlisten(); return; }
       this._unlistenAuth = unlisten;
+
+      // Cold start: the browser may have launched the app with the deep link
+      // before this listener existed — Rust stashes the token for us.
+      try {
+        const pending = await takePendingAuthToken();
+        if (pending) {
+          this._token = pending;
+          localStorage.setItem('mosim_token', pending);
+        }
+      } catch { /* older backend without the command */ }
     }
     // Pull admin-edited steps before first data render so progress math uses
     // the live step set (falls back silently to bundled steps.json).
