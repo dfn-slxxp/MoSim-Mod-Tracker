@@ -17,20 +17,20 @@ set -euo pipefail
 # Your GitHub repo URL.
 #   Public repo:         https://github.com/dfn-slxxp/mosim-mod-tracker.git
 #   Private (token):     https://YOUR_TOKEN@github.com/dfn-slxxp/mosim-mod-tracker.git
-REPO_URL="https://github.com/dfn-slxxp/mosim-mod-tracker.git"
+REPO_URL="https://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@github.com/dfn-slxxp/MoSim-Mod-Tracker.git"
 
 # The subdomain the app will be served on (must have an A record → this server's IP)
-DOMAIN="mods.yoursite.com"
+DOMAIN="mods.sebastianw.tech"
 
 # Google OAuth credentials — get these from:
 #   console.cloud.google.com → APIs & Services → Credentials
 #   → Create OAuth 2.0 Client ID (Web application type)
 #   → Add redirect URI: https://DOMAIN/api/auth/callback
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
+GOOGLE_CLIENT_ID="583506908565-746d3vhccebk557ugp9369t7n2lsfgij.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="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"
 
 # Where the repo will live on the server
-INSTALL_DIR="/opt/mosim-tracker"
+INSTALL_DIR="/apps/mosim-tracker-server"
 
 # Internal port the Node server listens on (nginx proxies to this)
 SERVICE_PORT="8787"
