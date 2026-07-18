@@ -262,6 +262,7 @@ Triggered by any `v*.*.*` tag push.
 - Web: relative `/api/...` URLs, cookie JWT (30 day)
 - Desktop: absolute `${serverUrl}/api/...`, Bearer token in localStorage `mosim_token`
 - Deep link `mosim://auth?token=...` for desktop OAuth callback
+- `tauri-plugin-single-instance` is required before `tauri-plugin-deep-link` in `lib.rs`. Without it, Windows launches a new app instance for the `mosim://` URL instead of routing to the running one, causing sign-in to open a new window that never resolves
 
 ### Data Storage (server)
 - SQLite, 4 tables: `robots`, `modpacks`, `repos`, `scripts`

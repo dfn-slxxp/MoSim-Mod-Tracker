@@ -7,6 +7,10 @@ use tauri::{Emitter, Listener};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        // Single-instance must come before deep-link: on Windows, without it
+        // the OS launches a fresh process for mosim:// URLs instead of routing
+        // the deep link to the already-running instance.
+        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let handle = app.handle().clone();

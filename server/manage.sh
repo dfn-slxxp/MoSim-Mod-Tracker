@@ -17,7 +17,7 @@ set -euo pipefail
 # Your GitHub repo URL.
 #   Public repo:         https://github.com/dfn-slxxp/mosim-mod-tracker.git
 #   Private (token):     https://YOUR_TOKEN@github.com/dfn-slxxp/mosim-mod-tracker.git
-REPO_URL="https://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@github.com/dfn-slxxp/MoSim-Mod-Tracker.git"
+REPO_URL="https://github.com/dfn-slxxp/MoSim-Mod-Tracker.git"
 
 # The subdomain the app will be served on (must have an A record → this server's IP)
 DOMAIN="mods.sebastianw.tech"
@@ -26,8 +26,8 @@ DOMAIN="mods.sebastianw.tech"
 #   console.cloud.google.com → APIs & Services → Credentials
 #   → Create OAuth 2.0 Client ID (Web application type)
 #   → Add redirect URI: https://DOMAIN/api/auth/callback
-GOOGLE_CLIENT_ID="583506908565-746d3vhccebk557ugp9369t7n2lsfgij.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="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"
+GOOGLE_CLIENT_ID=""    # fill in only for a fresh `setup` run on a new droplet
+GOOGLE_CLIENT_SECRET=""  # (existing deployments read creds from server/.env on the droplet)
 
 # Where the repo will live on the server
 INSTALL_DIR="/apps/mosim-tracker-server"
@@ -47,8 +47,8 @@ hr()   { echo -e "${BOLD}──────────────────�
 # ─────────────────────────────────────────────────────────────────────────────
 cmd_setup() {
   [[ $EUID -ne 0 ]] && die "setup must be run as root (sudo bash manage.sh setup)"
-  [[ -z "$GOOGLE_CLIENT_ID"     ]] && die "GOOGLE_CLIENT_ID is not set. Edit the variables at the top of manage.sh first."
-  [[ -z "$GOOGLE_CLIENT_SECRET" ]] && die "GOOGLE_CLIENT_SECRET is not set. Edit the variables at the top of manage.sh first."
+  [[ -z "$GOOGLE_CLIENT_ID"     ]] && die "GOOGLE_CLIENT_ID is not set. Edit the variables at the top of manage.sh before running setup."
+  [[ -z "$GOOGLE_CLIENT_SECRET" ]] && die "GOOGLE_CLIENT_SECRET is not set. Edit the variables at the top of manage.sh before running setup."
 
   hr
   log "Installing system packages"
