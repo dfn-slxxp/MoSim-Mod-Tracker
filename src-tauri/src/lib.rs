@@ -1,7 +1,7 @@
 mod commands;
 mod config;
 
-use tauri::Manager;
+use tauri::{Emitter, Listener};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
