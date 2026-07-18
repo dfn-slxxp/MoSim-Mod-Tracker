@@ -271,3 +271,34 @@ html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 }
 .btn-primary:hover { background: #6d28d9; }
 .btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { background: #a78bfa; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  margin-top: 8px;
+  padding: 10px 32px;
+  background: transparent;
+  color: #7c3aed;
+  border: 2px solid #c4b5fd;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.btn-secondary:hover { background: #ede9fe; border-color: #a78bfa; }
+.btn-secondary:active { transform: scale(0.97); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.card-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.5;
+  max-width: 360px;
+  margin-top: -4px;
+}

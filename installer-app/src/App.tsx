@@ -30,9 +30,17 @@ export default function App() {
   const [total, setTotal] = useState(0);
   const [exePath, setExePath] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [existingPath, setExistingPath] = useState<string | null>(null);
+  const [checkDone, setCheckDone] = useState(false);
+  const [uninstalling, setUninstalling] = useState(false);
   const unlistenRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    invoke<string | null>('check_existing')
+      .then((path) => setExistingPath(path ?? null))
+      .catch(() => {})
+      .finally(() => setCheckDone(true));
+
     let cancelled = false;
     listen<ProgressPayload>('install-progress', (e) => {
       if (cancelled) return;
@@ -69,6 +77,21 @@ export default function App() {
     }
   }
 
+  async function cleanInstall() {
+    if (!existingPath) { startInstall(); return; }
+    setUninstalling(true);
+    try {
+      await invoke('uninstall_existing', { exePath: existingPath });
+    } catch (e) {
+      setErrorMsg(String(e));
+      setPhase('error');
+      return;
+    } finally {
+      setUninstalling(false);
+    }
+    startInstall();
+  }
+
   async function launchApp() {
     try {
       await invoke('launch_app', { exePath });
@@ -81,6 +104,7 @@ export default function App() {
 
   const pct = total > 0 ? Math.round((downloaded / total) * 100) : 0;
   const step = stepIndex(phase);
+  const hasExisting = checkDone && existingPath !== null;
 
   return (
     <div className="root">
@@ -110,15 +134,53 @@ export default function App() {
         <div className="card">
           {phase === 'welcome' && (
             <div className="card-content">
-              <img src={avatarUrl} alt="" className="card-avatar" />
-              <h1 className="card-heading">Install MoSim Mod Tracker</h1>
-              <p className="card-sub">
-                Downloads and configures the latest release automatically.<br />
-                Connects to <strong>mods.sebastianw.tech</strong>.
-              </p>
-              <button className="btn-primary" onClick={startInstall}>
-                Install Now
-              </button>
+              {!checkDone ? (
+                <>
+                  <div className="spinner-ring" />
+                  <p className="card-sub" style={{ marginTop: 8 }}>Checking for existing installation…</p>
+                </>
+              ) : hasExisting ? (
+                <>
+                  <img src={avatarUrl} alt="" className="card-avatar" />
+                  <h1 className="card-heading">Previous version found</h1>
+                  <p className="card-sub">
+                    An existing installation was detected.<br />
+                    Choose how you'd like to proceed.
+                  </p>
+                  <div className="btn-row">
+                    <button
+                      className="btn-primary"
+                      onClick={cleanInstall}
+                      disabled={uninstalling}
+                    >
+                      {uninstalling ? 'Removing…' : 'Clean Install'}
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={startInstall}
+                      disabled={uninstalling}
+                    >
+                      Update
+                    </button>
+                  </div>
+                  <p className="card-hint">
+                    <strong>Clean Install</strong> removes the old version first.&nbsp;
+                    <strong>Update</strong> installs over it.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <img src={avatarUrl} alt="" className="card-avatar" />
+                  <h1 className="card-heading">Install MoSim Mod Tracker</h1>
+                  <p className="card-sub">
+                    Downloads and configures the latest release automatically.<br />
+                    Connects to <strong>mods.sebastianw.tech</strong>.
+                  </p>
+                  <button className="btn-primary" onClick={startInstall}>
+                    Install Now
+                  </button>
+                </>
+              )}
             </div>
           )}
 

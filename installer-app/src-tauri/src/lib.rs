@@ -198,6 +198,81 @@ async fn platform_launch(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ── Existing-install detection & uninstall ────────────────────────────────────
+
+#[cfg(target_os = "windows")]
+fn existing_install_exe() -> Option<String> {
+    let local = std::env::var("LOCALAPPDATA").ok()?;
+    let candidates = [
+        std::path::Path::new(&local).join("Programs").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+        std::path::Path::new(&local).join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+    ];
+    candidates.iter().find(|p| p.exists()).map(|p| p.to_string_lossy().into_owned())
+}
+
+#[cfg(target_os = "macos")]
+fn existing_install_exe() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let app = std::path::Path::new(&home).join("Applications").join("MoSim Mod Tracker.app");
+    app.exists().then(|| app.to_string_lossy().into_owned())
+}
+
+#[cfg(target_os = "linux")]
+fn existing_install_exe() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let app = std::path::Path::new(&home)
+        .join(".local").join("share").join("mosim").join("MoSim-Mod-Tracker.AppImage");
+    app.exists().then(|| app.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn check_existing() -> Option<String> {
+    existing_install_exe()
+}
+
+#[cfg(target_os = "windows")]
+async fn platform_uninstall(exe_path: &str) -> Result<(), String> {
+    let exe = std::path::Path::new(exe_path);
+    let dir = exe.parent().ok_or("Cannot determine install dir")?;
+    let uninstaller = dir.join("Uninstall MoSim Mod Tracker.exe");
+    if uninstaller.exists() {
+        tokio::process::Command::new(&uninstaller)
+            .arg("/S")
+            .status()
+            .await
+            .map_err(|e| format!("Uninstaller failed: {e}"))?;
+        // Wait for the uninstaller to finish removing files
+        for _ in 0..10 {
+            if !dir.exists() { break; }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    } else {
+        tokio::fs::remove_dir_all(dir)
+            .await
+            .map_err(|e| format!("Cannot remove install dir: {e}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+async fn platform_uninstall(exe_path: &str) -> Result<(), String> {
+    tokio::fs::remove_dir_all(exe_path)
+        .await
+        .map_err(|e| format!("Cannot remove app bundle: {e}"))
+}
+
+#[cfg(target_os = "linux")]
+async fn platform_uninstall(exe_path: &str) -> Result<(), String> {
+    tokio::fs::remove_file(exe_path)
+        .await
+        .map_err(|e| format!("Cannot remove AppImage: {e}"))
+}
+
+#[tauri::command]
+async fn uninstall_existing(exe_path: String) -> Result<(), String> {
+    platform_uninstall(&exe_path).await
+}
+
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -302,6 +377,8 @@ pub fn run() {
             start_install,
             launch_app,
             close_window,
+            check_existing,
+            uninstall_existing,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
