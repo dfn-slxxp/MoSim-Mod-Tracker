@@ -28,6 +28,53 @@ fn asset_suffix() -> &'static str {
 
 // ── Windows ───────────────────────────────────────────────────────────────────
 
+/// All paths where the main app exe might live, ordered by likelihood.
+#[cfg(target_os = "windows")]
+fn win_exe_candidates() -> Vec<std::path::PathBuf> {
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    vec![
+        // Tauri default (currentUser NSIS install)
+        std::path::Path::new(&local).join("Programs").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+        std::path::Path::new(&local).join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+        // Elevated / perMachine installs land in Program Files
+        std::path::Path::new(r"C:\Program Files").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+        std::path::Path::new(r"C:\Program Files (x86)").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+    ]
+}
+
+/// Last-resort registry lookup: reads InstallLocation from the NSIS uninstall key.
+#[cfg(target_os = "windows")]
+fn win_find_via_registry() -> Option<String> {
+    let key_names = [
+        "MoSim Mod Tracker_is1",
+        "com.mosim.mod-tracker_is1",
+        "com.mosim.mod-tracker",
+    ];
+    for hive in &["HKCU", "HKLM"] {
+        for name in &key_names {
+            let key = format!(r"{hive}\Software\Microsoft\Windows\CurrentVersion\Uninstall\{name}");
+            if let Ok(out) = std::process::Command::new("reg")
+                .args(["query", &key, "/v", "InstallLocation"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                for line in stdout.lines() {
+                    let t = line.trim();
+                    if t.contains("InstallLocation") {
+                        if let Some(p) = t.split("REG_SZ").nth(1) {
+                            let exe = std::path::Path::new(p.trim()).join("MoSim Mod Tracker.exe");
+                            if exe.exists() {
+                                return Some(exe.to_string_lossy().into_owned());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[cfg(target_os = "windows")]
 async fn platform_install(temp_path: &std::path::Path) -> Result<String, String> {
     let status = tokio::process::Command::new(temp_path)
@@ -40,18 +87,11 @@ async fn platform_install(temp_path: &std::path::Path) -> Result<String, String>
         return Err(format!("Installer exited with code {:?}", status.code()));
     }
 
-    let local_app_data =
-        std::env::var("LOCALAPPDATA").map_err(|_| "LOCALAPPDATA not set".to_string())?;
+    let candidates = win_exe_candidates();
 
-    // NSIS /S can be async — poll until the exe appears (up to ~20s)
-    let candidates = [
-        std::path::Path::new(&local_app_data)
-            .join("Programs").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-        std::path::Path::new(&local_app_data)
-            .join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-    ];
-
-    for _ in 0..20 {
+    // NSIS /S can complete async (e.g. when UAC elevation is involved).
+    // Poll all known paths for up to 30 s before giving up.
+    for _ in 0..30 {
         for path in &candidates {
             if path.exists() {
                 return Ok(path.to_string_lossy().to_string());
@@ -60,7 +100,16 @@ async fn platform_install(temp_path: &std::path::Path) -> Result<String, String>
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
-    Ok(candidates[0].to_string_lossy().to_string())
+    // Final fallback: check registry (covers unusual install locations)
+    if let Some(p) = win_find_via_registry() {
+        return Ok(p);
+    }
+
+    Err(
+        "Installation finished but the app could not be located.\n\
+         Try launching MoSim Mod Tracker from the Start menu."
+            .to_string(),
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -202,12 +251,11 @@ async fn platform_launch(path: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn existing_install_exe() -> Option<String> {
-    let local = std::env::var("LOCALAPPDATA").ok()?;
-    let candidates = [
-        std::path::Path::new(&local).join("Programs").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-        std::path::Path::new(&local).join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
-    ];
-    candidates.iter().find(|p| p.exists()).map(|p| p.to_string_lossy().into_owned())
+    win_exe_candidates()
+        .into_iter()
+        .find(|p| p.exists())
+        .map(|p| p.to_string_lossy().into_owned())
+        .or_else(win_find_via_registry)
 }
 
 #[cfg(target_os = "macos")]
