@@ -33,12 +33,17 @@ pub fn run() {
     tauri::Builder::default()
         .manage(PendingToken(std::sync::Mutex::new(startup_token)))
         .plugin(tauri_plugin_shell::init())
-        // Single-instance must come before deep-link, and needs the
-        // "deep-link" feature: when the browser opens mosim:// while the app
-        // runs, Windows spawns a second process — the feature forwards its
-        // URL into the deep-link plugin of THIS instance (which then emits
-        // deep-link://new-url). Without it the URL is silently dropped.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        // Single-instance must come before deep-link. When the browser opens
+        // mosim:// while the app runs, Windows spawns a second process whose
+        // argv carries the URL; this callback runs in the FIRST instance with
+        // that argv. Extract the token here directly — do not rely on the
+        // deep-link plugin re-emitting it (that path proved unreliable).
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            for arg in &argv {
+                if let Some(token) = extract_token(arg) {
+                    let _ = app.emit("mosim:auth-token", &token);
+                }
+            }
             // Bring the app back into view when the sign-in redirect lands.
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.unminimize();

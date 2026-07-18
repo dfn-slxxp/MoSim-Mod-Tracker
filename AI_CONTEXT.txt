@@ -294,10 +294,12 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 ### Auth Pattern
 - Web: relative `/api/...`, cookie JWT (30 day). Desktop: absolute URLs + Bearer token
   in localStorage `mosim_token`; deep link `mosim://auth?token=...`
-- `tauri-plugin-single-instance` MUST be registered before `tauri-plugin-deep-link`
-  AND needs `features = ["deep-link"]` — the feature forwards the second
-  instance's mosim:// argv into the running instance's deep-link plugin
-  (deep-link://new-url event). Callback also unminimizes/focuses the window.
+- `tauri-plugin-single-instance` MUST be registered before `tauri-plugin-deep-link`.
+  The WARM sign-in path (app already running) is handled DIRECTLY in the
+  single-instance callback: it parses argv for mosim:// URLs and emits
+  mosim:auth-token itself, then unminimizes/focuses the window. Do NOT rely on
+  the plugin's deep-link feature re-emitting deep-link://new-url — that path
+  proved unreliable in practice (v1.0.1 bug: sign-in only worked cold).
 - Cold start (browser launches the app with the URL in argv): lib.rs stashes the
   token in PendingToken state; frontend collects via take_pending_auth_token
   command in http.ts _initAsync.
