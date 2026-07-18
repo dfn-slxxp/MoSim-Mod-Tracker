@@ -285,15 +285,15 @@ def main():
 
     side = draw_side_panel(164, 314)
     side.save(OUT / 'wizard-side.bmp')
-    print(f'  ✓  wizard-side.bmp  (164×314)')
+    print(f'  OK wizard-side.bmp  (164x314)')
 
     small = draw_small_logo(55, 58)
     small.save(OUT / 'wizard-small.bmp')
-    print(f'  ✓  wizard-small.bmp  (55×58)')
+    print(f'  OK wizard-small.bmp  (55x58)')
 
     icon_base = draw_icon(512)
     icon_base.save(OUT / 'icon.png')
-    print(f'  ✓  icon.png  (512×512)')
+    print(f'  OK icon.png  (512x512)')
 
     # Multi-size ICO
     sizes = [16, 24, 32, 48, 64, 128, 256]
@@ -304,11 +304,11 @@ def main():
         append_images=ico_images[1:],
         sizes=[(s, s) for s in sizes],
     )
-    print(f'  ✓  icon.ico  ({", ".join(str(s) for s in sizes)}px)')
+    print(f'  OK icon.ico  ({", ".join(str(s) for s in sizes)}px)')
 
     dmg = draw_dmg_bg(600, 400)
     dmg.save(OUT / 'dmg-bg.png')
-    print(f'  ✓  dmg-bg.png  (600×400)')
+    print(f'  OK dmg-bg.png  (600x400)')
 
     print(f'\nAll assets written to {OUT.resolve()}')
     print('Next: pyinstaller app/mosim-tracker.spec')
