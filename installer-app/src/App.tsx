@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import avatarUrl from '../../web/src/assets/avatar.png';
+import avatarUrl from './avatar.png';
 
 type Phase = 'welcome' | 'downloading' | 'installing' | 'done' | 'error';
 

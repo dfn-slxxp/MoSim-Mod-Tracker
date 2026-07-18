@@ -42,20 +42,25 @@ async fn platform_install(temp_path: &std::path::Path) -> Result<String, String>
 
     let local_app_data =
         std::env::var("LOCALAPPDATA").map_err(|_| "LOCALAPPDATA not set".to_string())?;
-    let install_dir = std::path::Path::new(&local_app_data)
-        .join("Programs")
-        .join("MoSim Mod Tracker");
 
-    std::fs::write(
-        install_dir.join("mosim.conf"),
-        "MOSIM_URL=https://mods.sebastianw.tech\n",
-    )
-    .map_err(|e| format!("Cannot write mosim.conf: {e}"))?;
+    // NSIS /S can be async — poll until the exe appears (up to ~20s)
+    let candidates = [
+        std::path::Path::new(&local_app_data)
+            .join("Programs").join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+        std::path::Path::new(&local_app_data)
+            .join("MoSim Mod Tracker").join("MoSim Mod Tracker.exe"),
+    ];
 
-    Ok(install_dir
-        .join("MoSim Mod Tracker.exe")
-        .to_string_lossy()
-        .to_string())
+    for _ in 0..20 {
+        for path in &candidates {
+            if path.exists() {
+                return Ok(path.to_string_lossy().to_string());
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    Ok(candidates[0].to_string_lossy().to_string())
 }
 
 #[cfg(target_os = "windows")]
