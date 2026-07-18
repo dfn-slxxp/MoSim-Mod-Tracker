@@ -119,7 +119,7 @@ jobs:
           # ── Windows x64 ────────────────────────────────────────────────
           - platform: windows-latest
             rust_target: ''
-            tauri_args: '--bundles none'
+            tauri_args: ''
             artifact_cmd: |
               gh release upload $TAG "installer-app/src-tauri/target/release/mosim-setup.exe#MoSimSetup.exe" --clobber
             upload_name: MoSimSetup.exe
