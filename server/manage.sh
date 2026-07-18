@@ -210,13 +210,20 @@ _install_deps() {
   chown -R www-data:www-data "$INSTALL_DIR"
   local cache="$INSTALL_DIR/.npm-cache"
   mkdir -p "$cache" && chown www-data:www-data "$cache"
+
+  # Newer npm blocks package install scripts unless approved (allowScripts).
+  # better-sqlite3 needs its node-gyp build script, esbuild its postinstall.
+  # `|| true` keeps this compatible with older npm without the feature.
+  su -s /bin/bash www-data -c "cd $INSTALL_DIR/server && npm_config_cache=$cache npm install-scripts approve better-sqlite3" 2>/dev/null || true
+  su -s /bin/bash www-data -c "cd $INSTALL_DIR/web && npm_config_cache=$cache npm install-scripts approve esbuild" 2>/dev/null || true
+
   su -s /bin/bash www-data -c "npm_config_cache=$cache npm --prefix $INSTALL_DIR/server install --omit=dev"
   su -s /bin/bash www-data -c "npm_config_cache=$cache npm --prefix $INSTALL_DIR/web install"
 
-  # Verify the native module actually loads; rebuild from source if not.
+  # Verify the native module actually loads; rebuild if not.
   if ! su -s /bin/bash www-data -c "cd $INSTALL_DIR/server && node -e \"require('better-sqlite3')\"" 2>/dev/null; then
-    warn "better-sqlite3 native module broken — rebuilding from source"
-    su -s /bin/bash www-data -c "npm_config_cache=$cache npm --prefix $INSTALL_DIR/server rebuild better-sqlite3 --build-from-source --foreground-scripts"
+    warn "better-sqlite3 native module broken — rebuilding"
+    su -s /bin/bash www-data -c "cd $INSTALL_DIR/server && npm_config_cache=$cache npm rebuild better-sqlite3"
     su -s /bin/bash www-data -c "cd $INSTALL_DIR/server && node -e \"require('better-sqlite3')\"" \
       || die "better-sqlite3 still won't load — check node/npm versions (node $(node --version))"
   fi
