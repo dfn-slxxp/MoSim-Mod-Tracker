@@ -55,7 +55,7 @@ cmd_setup() {
   hr
   apt-get update -qq
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
-  apt-get install -y nodejs nginx certbot python3-certbot-nginx git openssl >/dev/null
+  apt-get install -y nodejs nginx certbot python3-certbot-nginx git openssl build-essential python3 >/dev/null
   log "Node $(node --version), nginx, certbot, git installed"
 
   hr
