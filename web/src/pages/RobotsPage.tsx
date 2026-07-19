@@ -148,7 +148,9 @@ export function RobotsPage() {
   const dir = sortDir === 'asc' ? 1 : -1;
   shown = [...shown].sort((a, b) => {
     switch (sortBy) {
-      case 'team':      return dir * (parseInt(a.team || '0') - parseInt(b.team || '0'));
+      // parseInt ignores rebuild suffixes ("9483a" -> 9483); tie-break on the
+      // full string so 9483a sorts before 9483b.
+      case 'team':      return dir * ((parseInt(a.team || '0') - parseInt(b.team || '0')) || a.team.localeCompare(b.team));
       case 'game':      return dir * a.game.localeCompare(b.game);
       case 'progress':  return dir * (robotProgress(a).pct - robotProgress(b).pct);
       case 'status':    return dir * (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));

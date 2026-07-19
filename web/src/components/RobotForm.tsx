@@ -89,7 +89,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       <div className="form-field-group">
         <input
           className="team-input"
-          placeholder="Team # (e.g. 9496)"
+          placeholder="Team # (e.g. 9496 or 9496b)"
           value={team}
           onChange={(e) => { setTeam(e.target.value); setTeamName(null); }}
           onBlur={(e) => lookupTeam(e.target.value)}
