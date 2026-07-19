@@ -83,7 +83,16 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className={`shell ${isDesktop ? 'is-desktop' : ''}`}>
       {isDesktop && (
-        <div className="app-titlebar" data-tauri-drag-region>
+        <div
+          className="app-titlebar"
+          data-tauri-drag-region
+          onMouseDown={(e) => {
+            // Buttons must stay clickable; empty titlebar space drags the window.
+            if (e.button !== 0) return;
+            if ((e.target as HTMLElement).closest('button, select, input')) return;
+            void window.desktop?.startDragging();
+          }}
+        >
           <img className="titlebar-mark" src={avatarUrl} alt="" data-tauri-drag-region />
           <span className="titlebar-name" data-tauri-drag-region>MoSim Mod Tracker</span>
           <PinButton />

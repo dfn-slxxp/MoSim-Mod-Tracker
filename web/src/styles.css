@@ -1530,10 +1530,11 @@ h3 {
   overflow-y: auto;
 }
 
-/* Pinned on top but not focused: fade the chrome so it reads as an overlay */
+/* Pinned on top but not focused: fade the chrome so it reads as an overlay.
+   85% keeps text readable over any background — panels stay fully opaque. */
 :root[data-pinned='true'][data-blurred='true'] .shell.is-desktop,
 :root[data-pinned='true'][data-blurred='true'] .compact-shell {
-  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
 }
 
 /* Titlebar hosts pin/compact/theme on desktop — restyle them as flat icons */

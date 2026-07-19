@@ -67,6 +67,13 @@ pub fn minimize_window(window: Window) {
     let _ = window.minimize();
 }
 
+/// Frontend-invoked drag: more reliable than data-tauri-drag-region, which
+/// depends on a core:window capability being granted to the webview.
+#[tauri::command]
+pub fn start_dragging(window: Window) {
+    let _ = window.start_dragging();
+}
+
 #[tauri::command]
 pub fn toggle_maximize(window: Window) {
     if window.is_maximized().unwrap_or(false) {

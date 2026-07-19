@@ -106,7 +106,15 @@ export function CompactPage() {
 
   return (
     <div className="compact-shell">
-      <div className="compact-titlebar" data-tauri-drag-region>
+      <div
+        className="compact-titlebar"
+        data-tauri-drag-region
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          if ((e.target as HTMLElement).closest('button, select, input')) return;
+          void window.desktop?.startDragging();
+        }}
+      >
         <span className="drag-region compact-brand" data-tauri-drag-region>MoSim Tracker</span>
         <button
           className={`titlebar-btn ${runMode ? 'active' : ''}`}

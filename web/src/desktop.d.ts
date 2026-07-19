@@ -13,6 +13,8 @@ export interface DesktopAPI {
   close(): Promise<void>;
   minimize(): Promise<void>;
   toggleMaximize(): Promise<void>;
+  /** Begin an OS window drag (call from mousedown on titlebar areas). */
+  startDragging(): Promise<void>;
 
   /** Scan a local repo folder for robot mod folders (+ git last-modified). */
   scanRepo(localPath: string): Promise<{ ok: boolean; error?: string; robots: ScannedRobot[] }>;

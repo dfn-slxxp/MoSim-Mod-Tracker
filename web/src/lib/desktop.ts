@@ -49,6 +49,7 @@ if (isTauri()) {
     close:       ()                               => inv('close_window'),
     minimize:    ()                               => inv('minimize_window'),
     toggleMaximize: ()                            => inv('toggle_maximize'),
+    startDragging: ()                             => inv('start_dragging'),
     scanRepo:    (localPath: string)              => inv('scan_repo', { localPath }),
     readScript:  (repoPath: string, relPath: string) => inv('read_script', { repoPath, relPath }),
     openPath:    (pathOrUrl: string)              => inv('open_path', { pathOrUrl }),
