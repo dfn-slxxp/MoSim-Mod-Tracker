@@ -100,7 +100,7 @@ function RobotRow({ robot }: { robot: Robot }) {
       <td className="col-progress" data-label="Progress">
         <div className="cell-progress">
           <ProgressBar pct={prog.pct} small />
-          <span className="muted">{prog.pct}%</span>
+          {prog.pct < 100 && <span className="muted">{prog.pct}%</span>}
         </div>
       </td>
       <td className="col-comments" data-label="Comments">

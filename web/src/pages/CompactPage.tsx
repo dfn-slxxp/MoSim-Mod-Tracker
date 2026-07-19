@@ -193,9 +193,11 @@ export function CompactPage() {
                 <>
                   <div className="compact-progress">
                     <ProgressBar pct={prog.pct} small />
-                    <span>
-                      {prog.done}/{prog.total} · {prog.pct}%
-                    </span>
+                    {prog.pct < 100 && (
+                      <span>
+                        {prog.done}/{prog.total} · {prog.pct}%
+                      </span>
+                    )}
                   </div>
                   <div className="compact-splits">
                     {runMode ? (

@@ -205,9 +205,11 @@ export function RobotDetailPage() {
 
       <div className="detail-progress">
         <ProgressBar pct={prog.pct} />
-        <span className="muted">
-          {prog.done}/{prog.total} sub-steps · {prog.stepsDone}/{STEPS.length} steps · {prog.pct}%
-        </span>
+        {prog.pct < 100 && (
+          <span className="muted">
+            {prog.done}/{prog.total} sub-steps · {prog.stepsDone}/{STEPS.length} steps · {prog.pct}%
+          </span>
+        )}
       </div>
 
       <div className="detail-columns">
