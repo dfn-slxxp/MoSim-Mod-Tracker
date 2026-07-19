@@ -33,6 +33,17 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
     setFetching(false);
   };
 
+  // Picking a modpack implies the robot is for that pack's game/year.
+  // The game dropdown follows automatically but stays manually overridable.
+  const syncGameToPack = (packId: string) => {
+    const pack = modpacks.find((m) => m.id === packId);
+    if (!pack?.game) return;
+    const match = GAMES.find(
+      (g) => g === pack.game || g.toLowerCase().includes(pack.game.toLowerCase())
+    );
+    if (match) setGame(match);
+  };
+
   const createModpack = async () => {
     if (!newPackName.trim()) return;
     setCreatingPack(true);
@@ -44,6 +55,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         private: false,
       });
       setModpackId(id);
+      setGame(newPackGame);
       setNewPackName('');
       setShowNewModpack(false);
     } catch (err) {
@@ -111,7 +123,13 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
 
       {/* Modpack dropdown + create new */}
       <div className="modpack-group">
-        <select value={modpackId} onChange={(e) => setModpackId(e.target.value)}>
+        <select
+          value={modpackId}
+          onChange={(e) => {
+            setModpackId(e.target.value);
+            syncGameToPack(e.target.value);
+          }}
+        >
           <option value="">No modpack</option>
           {modpacks.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
