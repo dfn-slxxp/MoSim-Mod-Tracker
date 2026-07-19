@@ -155,6 +155,37 @@ function unlinkAccount(sub, primaryUid) {
   return info.changes > 0;
 }
 
+/**
+ * Move ALL of one account's data onto another, so linked accounts share a
+ * combined list. Robot/modpack/repo/script ids are UUIDs (no collisions);
+ * moved rows are re-ordered to append after the target's existing items, and
+ * their ownerUid is rewritten. The source profile is dropped (its identity now
+ * lives in account_links). Runs in a single transaction.
+ */
+function mergeAccounts(fromUid, toUid) {
+  if (!fromUid || !toUid || fromUid === toUid) return;
+  const tables = ['robots', 'modpacks', 'repos', 'scripts'];
+  const tx = db.transaction(() => {
+    for (const table of tables) {
+      const maxRow = db.prepare(`SELECT MAX(ord) AS m FROM ${table} WHERE uid = ?`).get(toUid);
+      const offset = maxRow?.m ?? 0;
+      const rows = db.prepare(`SELECT id, data, ord FROM ${table} WHERE uid = ?`).all(fromUid);
+      for (const r of rows) {
+        const data = JSON.parse(r.data);
+        data.ownerUid = toUid;
+        const newOrd = offset + (r.ord ?? 0) + 1;
+        data.order = newOrd;
+        db.prepare(`UPDATE ${table} SET uid = ?, data = ?, ord = ? WHERE id = ?`)
+          .run(toUid, JSON.stringify(data), newOrd, r.id);
+      }
+    }
+    // Any accounts linked to the old account now point at the new primary.
+    db.prepare('UPDATE account_links SET primary_uid = ? WHERE primary_uid = ?').run(toUid, fromUid);
+    db.prepare('DELETE FROM profiles WHERE uid = ?').run(fromUid);
+  });
+  tx();
+}
+
 function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? JSON.parse(row.value) : null;
@@ -169,5 +200,5 @@ function setSetting(key, value) {
 module.exports = {
   db, getAll, insert, update, remove, getSetting, setSetting,
   getProfile, setProfile, allProfiles, allRobots,
-  resolveUid, linkAccount, linkedAccounts, unlinkAccount,
+  resolveUid, linkAccount, linkedAccounts, unlinkAccount, mergeAccounts,
 };

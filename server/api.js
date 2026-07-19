@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const {
   db, getAll, insert, update, remove, getSetting, setSetting,
   getProfile, setProfile, allProfiles, allRobots,
-  resolveUid, linkAccount, linkedAccounts, unlinkAccount,
+  resolveUid, linkAccount, linkedAccounts, unlinkAccount, mergeAccounts,
 } = require('./db');
 
 /** First token of a full name, used as the default display name. */
@@ -198,7 +198,12 @@ router.get('/auth/callback', async (req, res) => {
     // ── Link flow: associate this Google account with the signed-in account ──
     if (statePayload.link) {
       const primaryUid = resolveUid(statePayload.link);
-      if (googleSub !== primaryUid) linkAccount(googleSub, primaryUid, p.email);
+      if (googleSub !== primaryUid) {
+        // Combine any robots/data the linked account already had into the
+        // primary account, then record the mapping.
+        mergeAccounts(googleSub, primaryUid);
+        linkAccount(googleSub, primaryUid, p.email);
+      }
       return res.redirect(isDesktop ? 'mosim://auth?linked=1' : '/#/account?linked=1');
     }
 
