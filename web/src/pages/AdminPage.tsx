@@ -8,28 +8,31 @@
 //   2. Themes editor — build custom CSS-variable themes stored server-side,
 //      usable on all devices exactly like the built-in dark/light/cloud.
 // ---------------------------------------------------------------------------
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDialog } from '../components/Dialog';
 import { isTauri, getServerUrl } from '../lib/desktop';
 import { STEPS, Step, applySteps } from '../steps';
 import { useStore } from '../store/StoreContext';
 import { BUILTIN_THEMES, useTheme } from '../theme';
-import type { CustomTheme } from '../types';
+import type { AdminUser, CustomTheme } from '../types';
 
-// ── Small authenticated fetch helper (cookie on web, Bearer on desktop) ─────
-async function adminPut(path: string, body: unknown): Promise<void> {
+// ── Small authenticated fetch helpers (cookie on web, Bearer on desktop) ────
+async function adminReq(method: string, path: string, body?: unknown): Promise<unknown> {
   const base = isTauri() ? await getServerUrl() : '';
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['content-type'] = 'application/json';
   const token = localStorage.getItem('mosim_token');
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${base}${path}`, {
-    method: 'PUT',
+    method,
     credentials: 'include',
     headers,
-    body: JSON.stringify(body)
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  return res.json().catch(() => ({}));
 }
+const adminPut = (path: string, body: unknown) => adminReq('PUT', path, body).then(() => {});
 
 function slug(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'item';
@@ -314,6 +317,77 @@ function ThemesEditor() {
   );
 }
 
+// ── Community users editor ────────────────────────────────────────────────────
+
+function UsersEditor() {
+  const { alertDialog } = useDialog();
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => {
+    adminReq('GET', '/api/admin/users')
+      .then((r) => setUsers((r as { users: AdminUser[] }).users ?? []))
+      .catch(() => setUsers([]));
+  };
+  useEffect(load, []);
+
+  const toggle = async (u: AdminUser) => {
+    setBusy(u.uid);
+    try {
+      await adminPut(`/api/admin/users/${u.uid}/visibility`, { hidden: !u.hidden });
+      setUsers((prev) => prev?.map((x) => (x.uid === u.uid ? { ...x, hidden: !x.hidden } : x)) ?? null);
+    } catch (e) {
+      void alertDialog((e as Error).message, 'Could not update visibility');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-head">
+        <h2>Community directory</h2>
+        <button className="btn subtle" onClick={load}>Refresh</button>
+      </div>
+      <p className="muted small">
+        Everyone who has signed in. Hidden users never appear on the public home page, even with
+        public robots. Users with no public robots don’t appear regardless.
+      </p>
+      {users === null ? (
+        <div className="muted small">Loading…</div>
+      ) : users.length === 0 ? (
+        <div className="muted small">No users yet.</div>
+      ) : (
+        <div className="admin-users">
+          {users.map((u) => (
+            <div key={u.uid} className={`admin-user ${u.hidden ? 'hidden' : ''}`}>
+              {u.photo ? (
+                <img className="admin-user-photo" src={u.photo} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="admin-user-photo placeholder">{u.displayName.charAt(0).toUpperCase()}</div>
+              )}
+              <div className="admin-user-id">
+                <span className="admin-user-name">{u.displayName}</span>
+                <span className="muted small">{u.email}</span>
+              </div>
+              <span className="muted small admin-user-count">
+                {u.publicRobotCount} public · {u.robotCount} total
+              </span>
+              <button
+                className={`toggle-btn ${u.hidden ? '' : 'on'}`}
+                disabled={busy === u.uid}
+                onClick={() => toggle(u)}
+              >
+                {u.hidden ? '🚫 Hidden' : '✓ Visible'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function AdminPage() {
@@ -337,6 +411,7 @@ export function AdminPage() {
           is <code>/#/admin</code>.
         </p>
       </div>
+      <UsersEditor />
       <StepsEditor />
       <ThemesEditor />
     </div>

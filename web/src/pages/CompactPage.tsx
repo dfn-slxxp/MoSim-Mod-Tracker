@@ -138,7 +138,7 @@ export function CompactPage() {
               title="Expand to full view"
               onClick={async () => {
                 await window.desktop!.setExpanded(true);
-                navigate('/');
+                navigate('/robots');
               }}
             >
               ⛶
@@ -148,7 +148,7 @@ export function CompactPage() {
             </button>
           </>
         ) : (
-          <button className="titlebar-btn" title="Full view" onClick={() => navigate('/')}>
+          <button className="titlebar-btn" title="Full view" onClick={() => navigate('/robots')}>
             ⛶
           </button>
         )}
@@ -166,7 +166,7 @@ export function CompactPage() {
           {robots.length === 0 ? (
             <div className="empty compact-empty">
               No robots yet.
-              <button className="btn subtle" onClick={() => navigate('/')}>
+              <button className="btn subtle" onClick={() => navigate('/robots')}>
                 Open full view to add one
               </button>
             </div>

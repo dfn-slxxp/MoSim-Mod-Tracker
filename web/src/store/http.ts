@@ -234,6 +234,13 @@ export class HTTPBackend implements Backend {
     await this._refetch();
   }
 
+  // ── Profile ───────────────────────────────────────────────────────────────
+
+  async updateProfile(patch: { displayName: string; instagram: string; discord: string }): Promise<void> {
+    await this._put('/api/profile', patch);
+    await this._load(); // refresh user name + profile.completed
+  }
+
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   async signIn(): Promise<void> {

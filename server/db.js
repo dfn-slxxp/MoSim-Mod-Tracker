@@ -51,6 +51,13 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  -- One row per Google account that has ever signed in. data JSON:
+  -- { displayName, email, photo, instagram, discord, completed, hidden, createdAt }
+  CREATE TABLE IF NOT EXISTS profiles (
+    uid TEXT PRIMARY KEY,
+    data TEXT NOT NULL
+  );
 `);
 
 function getAll(table, uid) {
@@ -90,6 +97,28 @@ function remove(table, uid, id) {
   if (info.changes === 0) throw Object.assign(new Error('Not found'), { status: 404 });
 }
 
+function getProfile(uid) {
+  const row = db.prepare('SELECT data FROM profiles WHERE uid = ?').get(uid);
+  return row ? JSON.parse(row.data) : null;
+}
+
+function setProfile(uid, data) {
+  db.prepare(
+    'INSERT INTO profiles (uid, data) VALUES (?, ?) ON CONFLICT(uid) DO UPDATE SET data = excluded.data'
+  ).run(uid, JSON.stringify(data));
+}
+
+function allProfiles() {
+  return db.prepare('SELECT uid, data FROM profiles').all()
+    .map((r) => ({ uid: r.uid, ...JSON.parse(r.data) }));
+}
+
+/** Every robot row across all users (for public robot counts). */
+function allRobots() {
+  return db.prepare('SELECT uid, data FROM robots').all()
+    .map((r) => ({ uid: r.uid, ...JSON.parse(r.data) }));
+}
+
 function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? JSON.parse(row.value) : null;
@@ -101,4 +130,7 @@ function setSetting(key, value) {
   ).run(key, JSON.stringify(value));
 }
 
-module.exports = { db, getAll, insert, update, remove, getSetting, setSetting };
+module.exports = {
+  db, getAll, insert, update, remove, getSetting, setSetting,
+  getProfile, setProfile, allProfiles, allRobots,
+};

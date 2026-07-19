@@ -1407,6 +1407,371 @@ h3 {
   margin-left: auto;
 }
 
+/* ---------- home / landing ---------- */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  padding-bottom: 40px;
+}
+
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 28px 16px 8px;
+}
+
+.home-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  image-rendering: pixelated;
+}
+
+.home-title {
+  font-size: clamp(28px, 6vw, 44px);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.home-tagline {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+.home-cta {
+  margin-top: 8px;
+  font-size: 15px;
+  padding: 10px 22px;
+  text-decoration: none;
+}
+
+.home-section-title {
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: 22px;
+  text-wrap: balance;
+}
+
+.home-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.home-block {
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+.home-block h2 {
+  font-size: 17px;
+  margin-bottom: 8px;
+}
+
+.home-block p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.home-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.home-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 16px;
+  line-height: 1.5;
+}
+
+.home-step-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.community-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.community-card {
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.community-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-solid));
+  transform: translateY(-2px);
+}
+
+.community-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.community-photo {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.community-photo.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.community-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.community-name {
+  font-weight: 650;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.community-games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.game-chip {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-solid);
+  color: var(--muted);
+}
+
+.community-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.social-link {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 11px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.social-link.ig {
+  color: #fff;
+  background: linear-gradient(45deg, #f09433, #e6683c 30%, #dc2743 50%, #cc2366 75%, #bc1888);
+}
+
+.social-link.discord {
+  color: #fff;
+  background: #5865f2;
+}
+
+/* ---------- account + profile form ---------- */
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.account-photo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-email {
+  font-weight: 600;
+}
+
+.account-card {
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  max-width: 440px;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.brand-ig {
+  background: linear-gradient(45deg, #f09433, #dc2743 50%, #bc1888);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-discord {
+  color: #5865f2;
+}
+
+.handle-input {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.handle-prefix {
+  padding: 7px 4px 7px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-solid);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--muted);
+}
+
+.handle-input input {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  flex: 1;
+}
+
+.profile-setup-card {
+  width: min(420px, calc(100vw - 40px));
+}
+
+/* ---------- admin community users ---------- */
+.admin-users {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+}
+
+.admin-user.hidden {
+  opacity: 0.6;
+}
+
+.admin-user-photo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.admin-user-photo.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.admin-user-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-user-name {
+  font-weight: 600;
+}
+
+.admin-user-count {
+  white-space: nowrap;
+}
+
+/* auth name links to account */
+.auth-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 4px;
+}
+
+.auth-me:hover {
+  background: var(--panel-2);
+}
+
 /* Shown instead of the progress bar once a robot hits 100% */
 .complete-chip {
   display: inline-flex;

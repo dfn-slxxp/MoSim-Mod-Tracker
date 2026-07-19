@@ -2,7 +2,10 @@
 const { Router } = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const { db, getAll, insert, update, remove, getSetting, setSetting } = require('./db');
+const {
+  db, getAll, insert, update, remove, getSetting, setSetting,
+  getProfile, setProfile, allProfiles, allRobots,
+} = require('./db');
 
 const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -172,6 +175,20 @@ router.get('/auth/callback', async (req, res) => {
       photo: p.picture ?? null,
     };
 
+    // Ensure a profile row exists (community directory + account page).
+    // Never overwrite user-edited fields; refresh photo/email from Google.
+    const existing = getProfile(user.uid);
+    setProfile(user.uid, {
+      displayName: existing?.displayName ?? user.name,
+      email: user.email,
+      photo: user.photo,
+      instagram: existing?.instagram ?? '',
+      discord: existing?.discord ?? '',
+      completed: existing?.completed ?? false,
+      hidden: existing?.hidden ?? false,
+      createdAt: existing?.createdAt ?? Date.now(),
+    });
+
     if (isDesktop) {
       // Issue a JWT and send it back via the Tauri custom-protocol deep link.
       // The app's deep-link handler extracts the token and stores it locally.
@@ -199,7 +216,109 @@ router.post('/auth/logout', (_req, res) => {
 
 router.get('/me', requireAuth, (req, res) => {
   const { uid, name, email, photo } = req.user;
-  res.json({ uid, name, email, photo, admin: isAdmin(req.user) });
+  const profile = getProfile(uid);
+  res.json({
+    uid,
+    name: profile?.displayName || name,
+    email,
+    photo: profile?.photo ?? photo,
+    admin: isAdmin(req.user),
+    profile: {
+      displayName: profile?.displayName ?? name,
+      instagram: profile?.instagram ?? '',
+      discord: profile?.discord ?? '',
+      completed: profile?.completed ?? false,
+    },
+  });
+});
+
+// ── Profile (account page) ────────────────────────────────────────────────────
+
+router.put('/profile', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const existing = getProfile(uid) ?? {};
+  const displayName = String(req.body?.displayName ?? '').trim().slice(0, 40);
+  // Instagram: bare handle, strip @ and any URL prefix
+  const instagram = String(req.body?.instagram ?? '')
+    .trim()
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    .replace(/^@/, '')
+    .replace(/\/.*$/, '')
+    .slice(0, 30);
+  const discord = String(req.body?.discord ?? '').trim().replace(/^@/, '').slice(0, 40);
+  if (!displayName) return res.status(400).json({ error: 'Display name is required' });
+
+  setProfile(uid, {
+    ...existing,
+    displayName,
+    instagram,
+    discord,
+    email: existing.email ?? req.user.email,
+    photo: existing.photo ?? req.user.photo ?? null,
+    completed: true,
+    hidden: existing.hidden ?? false,
+    createdAt: existing.createdAt ?? Date.now(),
+  });
+  res.json({ ok: true });
+});
+
+// ── Public community directory (homepage) ─────────────────────────────────────
+// Users with at least one PUBLIC robot, unless an admin hid them.
+
+router.get('/community', (_req, res) => {
+  const robots = allRobots().filter((r) => !r.private && !r.modpackPrivate);
+  const counts = new Map();
+  const games = new Map();
+  for (const r of robots) {
+    counts.set(r.uid, (counts.get(r.uid) ?? 0) + 1);
+    if (r.game) {
+      if (!games.has(r.uid)) games.set(r.uid, new Set());
+      games.get(r.uid).add(r.game);
+    }
+  }
+  const users = allProfiles()
+    .filter((p) => !p.hidden && (counts.get(p.uid) ?? 0) > 0)
+    .map((p) => ({
+      uid: p.uid,
+      displayName: p.displayName ?? 'Modder',
+      photo: p.photo ?? null,
+      instagram: p.instagram ?? '',
+      discord: p.discord ?? '',
+      robotCount: counts.get(p.uid),
+      games: [...(games.get(p.uid) ?? [])].sort(),
+    }))
+    .sort((a, b) => b.robotCount - a.robotCount);
+  res.json({ users });
+});
+
+// ── Admin: community visibility ───────────────────────────────────────────────
+
+router.get('/admin/users', requireAdmin, (_req, res) => {
+  const robots = allRobots();
+  const total = new Map();
+  const pub = new Map();
+  for (const r of robots) {
+    total.set(r.uid, (total.get(r.uid) ?? 0) + 1);
+    if (!r.private && !r.modpackPrivate) pub.set(r.uid, (pub.get(r.uid) ?? 0) + 1);
+  }
+  res.json({
+    users: allProfiles().map((p) => ({
+      uid: p.uid,
+      displayName: p.displayName ?? '(no name)',
+      email: p.email ?? '',
+      photo: p.photo ?? null,
+      hidden: !!p.hidden,
+      robotCount: total.get(p.uid) ?? 0,
+      publicRobotCount: pub.get(p.uid) ?? 0,
+    })),
+  });
+});
+
+router.put('/admin/users/:uid/visibility', requireAdmin, (req, res) => {
+  const profile = getProfile(req.params.uid);
+  if (!profile) return res.status(404).json({ error: 'No such user' });
+  setProfile(req.params.uid, { ...profile, hidden: !!req.body?.hidden });
+  res.json({ ok: true });
 });
 
 // ── Global config: steps + themes ────────────────────────────────────────────

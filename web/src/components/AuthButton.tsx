@@ -1,4 +1,5 @@
-// Sign-in/sign-out button in the top bar.
+// Sign-in/sign-out control in the top bar. Signed in, the name links to Account.
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/StoreContext';
 
 export function AuthButton() {
@@ -7,8 +8,10 @@ export function AuthButton() {
   if (user) {
     return (
       <div className="auth">
-        {user.photo && <img className="avatar" src={user.photo} alt="" referrerPolicy="no-referrer" />}
-        <span className="auth-name" title={user.email}>{user.name}</span>
+        <Link className="auth-me" to="/account" title="Account settings">
+          {user.photo && <img className="avatar" src={user.photo} alt="" referrerPolicy="no-referrer" />}
+          <span className="auth-name">{user.name}</span>
+        </Link>
         <button className="btn subtle" onClick={() => api.signOut()}>Sign out</button>
       </div>
     );

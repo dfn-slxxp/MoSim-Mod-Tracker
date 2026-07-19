@@ -125,13 +125,45 @@ export interface Modpack {
   createdAt: number;
 }
 
+/** Editable public profile shown in the community directory. */
+export interface UserProfile {
+  displayName: string;
+  instagram: string; // bare handle, no @ or URL
+  discord: string;   // username
+  /** False until the user saves their profile once (drives the setup prompt). */
+  completed: boolean;
+}
+
 export interface UserInfo {
   uid: string;
-  name: string;
+  name: string; // displayName if set, else Google name
   email: string;
   photo: string | null;
   /** True when this email is on the server's ADMIN_EMAILS allowlist. */
   admin?: boolean;
+  profile?: UserProfile;
+}
+
+/** A public community member (GET /api/community) — users with public robots. */
+export interface CommunityUser {
+  uid: string;
+  displayName: string;
+  photo: string | null;
+  instagram: string;
+  discord: string;
+  robotCount: number;
+  games: string[];
+}
+
+/** Admin view of a user (GET /api/admin/users) — includes hidden flag. */
+export interface AdminUser {
+  uid: string;
+  displayName: string;
+  email: string;
+  photo: string | null;
+  hidden: boolean;
+  robotCount: number;
+  publicRobotCount: number;
 }
 
 /** A server-stored custom theme created in the admin dashboard. */

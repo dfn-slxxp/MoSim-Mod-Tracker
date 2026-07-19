@@ -62,6 +62,9 @@ export interface Backend {
   updateScript(id: string, patch: Partial<ScriptDoc>): Promise<void>;
   deleteScript(id: string): Promise<void>;
 
+  /** Save the signed-in user's public profile (display name + handles). */
+  updateProfile(patch: { displayName: string; instagram: string; discord: string }): Promise<void>;
+
   signIn(): Promise<void>;
   signOut(): Promise<void>;
 }

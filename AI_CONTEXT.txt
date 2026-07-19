@@ -117,6 +117,12 @@ MoSim Mod Tracker/
 │       │   ├── desktop.ts        ← window.desktop bridge; isTauri, getServerUrl…
 │       │   └── tba.ts            ← TBA API: getTbaKey, setTbaKey, fetchTeamName
 │       ├── pages/
+│       │   ├── HomePage.tsx      ← PUBLIC landing (/, /home on web). MoSim +
+│       │   │                        modding explainer + community directory
+│       │   │                        (GET /api/community: users with public robots)
+│       │   ├── AccountPage.tsx   ← /account: edit display name + Instagram/Discord
+│       │   │                        handles (PUT /api/profile). ProfileForm shared
+│       │   │                        with the first-time setup modal
 │       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort.
 │       │   │                        In Progress = status != planned OR progress > 0
 │       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Status UPGRADE
@@ -154,8 +160,10 @@ MoSim Mod Tracker/
 │   │                               (public); PUT /api/admin/steps|themes (admin only)
 │   ├── db.js                    ← better-sqlite3. Tables: robots, modpacks, repos,
 │   │                               scripts (uid-scoped JSON blobs) + settings (global
-│   │                               key/value: 'steps', 'themes'). getSetting/setSetting.
-│   │                               DB_PATH env overrides location (set on droplet)
+│   │                               key/value: 'steps','themes') + profiles (uid ->
+│   │                               {displayName,email,photo,instagram,discord,completed,
+│   │                               hidden,createdAt}). getProfile/setProfile/allProfiles/
+│   │                               allRobots. DB_PATH env overrides location (droplet)
 │   ├── manage.sh                ← Droplet ops: setup|deploy|restart|logs|status.
 │   │                               NO SECRETS in git (empty GOOGLE_* vars = deploy
 │   │                               skips .env rewrite; fill only for fresh setup).
@@ -285,6 +293,21 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   `admin` flag. `requireAdmin` wraps `requireAuth` + allowlist check.
 - Steps + themes live in the `settings` table (global, not uid-scoped).
 - GET /api/steps and /api/themes are public (not secret); writes admin-only.
+- Admin dashboard has a Users section: GET /api/admin/users (all users + robot
+  counts + hidden), PUT /api/admin/users/:uid/visibility {hidden}.
+
+### Profiles / Community
+- On every Google sign-in the auth callback upserts a `profiles` row (refreshes
+  email/photo, never clobbers user-edited displayName/instagram/discord).
+- `/api/me` includes `profile: {displayName, instagram, discord, completed}`.
+- PUT /api/profile sets those + completed=true (display name required; Instagram
+  stored as bare handle — @/URL stripped server-side).
+- GET /api/community (PUBLIC): users with >=1 PUBLIC robot (!private &&
+  !modpackPrivate) who aren't admin-hidden, with robotCount + games.
+- Frontend: HomePage is public (RequireAuth wraps only the app pages). Web `/`
+  → /home, desktop `/` → /robots. First-time users (completed=false) get the
+  ProfileSetup modal over any page until they save.
+- Instagram/Discord are HANDLE ENTRY only (not OAuth) — shown as profile links.
 
 ### Custom Themes
 - Injected client-side as `<style id="mosim-custom-themes">` with

@@ -6,8 +6,11 @@ import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import avatarUrl from './assets/avatar.png';
 import { AuthButton } from './components/AuthButton';
+import { ProfileForm } from './components/ProfileForm';
+import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
 import { CompactPage } from './pages/CompactPage';
+import { HomePage } from './pages/HomePage';
 import { ModpacksPage } from './pages/ModpacksPage';
 import { PlannedPage } from './pages/PlannedPage';
 import { ReposPage } from './pages/ReposPage';
@@ -75,10 +78,38 @@ function SignInGate() {
   );
 }
 
+/** First-time profile setup: modal shown once after sign-in until saved. */
+function ProfileSetup() {
+  return (
+    <div className="dialog-overlay">
+      <div className="dialog-card profile-setup-card" role="dialog" aria-modal="true">
+        <div className="brand" style={{ justifyContent: 'center', marginBottom: 6 }}>
+          <img className="brand-mark" src={avatarUrl} alt="" style={{ width: 40, height: 40 }} />
+        </div>
+        <h2 className="dialog-title" style={{ textAlign: 'center' }}>Welcome — set up your profile</h2>
+        <p className="dialog-message" style={{ textAlign: 'center' }}>
+          This is how you’ll appear in the community directory. You can change it any time on the
+          Account page.
+        </p>
+        <ProfileForm saveLabel="Save & continue" />
+      </div>
+    </div>
+  );
+}
+
+/** Wraps pages that require sign-in. Also drives the first-time profile setup. */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { ready, user } = useStore();
+  if (!ready) return <div className="loading">Loading…</div>;
+  if (!user) return <SignInGate />;
+  return <>{children}</>;
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
-  const { ready, error, user } = useStore();
+  const { error, user } = useStore();
   const navigate = useNavigate();
   const isDesktop = !!window.desktop;
+  const needsSetup = !!user && user.profile?.completed === false;
 
   return (
     <div className={`shell ${isDesktop ? 'is-desktop' : ''}`}>
@@ -120,7 +151,8 @@ function Shell({ children }: { children: React.ReactNode }) {
           <span className="brand-name">MoSim Mod Tracker</span>
         </div>
         <nav className="nav">
-          <NavLink to="/" end>Robots</NavLink>
+          <NavLink to="/home">Home</NavLink>
+          <NavLink to="/robots">Robots</NavLink>
           <NavLink to="/modpacks">Modpacks</NavLink>
           <NavLink to="/repos">Repos</NavLink>
           <NavLink to="/scripts">Scripts</NavLink>
@@ -134,20 +166,14 @@ function Shell({ children }: { children: React.ReactNode }) {
         <AuthButton />
       </header>
       {error && <div className="banner error">{error}</div>}
-      <main className="content">
-        {!ready ? (
-          <div className="loading">Loading…</div>
-        ) : !user ? (
-          <SignInGate />
-        ) : (
-          children
-        )}
-      </main>
+      <main className="content">{children}</main>
+      {needsSetup && <ProfileSetup />}
     </div>
   );
 }
 
 export default function App() {
+  const isDesktop = !!window.desktop;
   return (
     <Routes>
       <Route path="/compact" element={<CompactPage />} />
@@ -156,13 +182,17 @@ export default function App() {
         element={
           <Shell>
             <Routes>
-              <Route path="/" element={<RobotsPage />} />
-              <Route path="/robot/:id" element={<RobotDetailPage />} />
-              <Route path="/planned" element={<PlannedPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-              <Route path="/modpacks" element={<ModpacksPage />} />
-              <Route path="/repos" element={<ReposPage />} />
-              <Route path="/scripts" element={<ScriptsPage />} />
+              {/* Desktop opens straight to the tracker; web to the public home. */}
+              <Route path="/" element={<Navigate to={isDesktop ? '/robots' : '/home'} replace />} />
+              <Route path="/home" element={<HomePage />} />
+              <Route path="/robots" element={<RequireAuth><RobotsPage /></RequireAuth>} />
+              <Route path="/robot/:id" element={<RequireAuth><RobotDetailPage /></RequireAuth>} />
+              <Route path="/planned" element={<RequireAuth><PlannedPage /></RequireAuth>} />
+              <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
+              <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
+              <Route path="/modpacks" element={<RequireAuth><ModpacksPage /></RequireAuth>} />
+              <Route path="/repos" element={<RequireAuth><ReposPage /></RequireAuth>} />
+              <Route path="/scripts" element={<RequireAuth><ScriptsPage /></RequireAuth>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Shell>
