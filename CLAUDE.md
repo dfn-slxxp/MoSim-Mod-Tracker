@@ -98,15 +98,21 @@ MoSim Mod Tracker/
 │       │   ├── AuthButton.tsx     ← Sign in/out in topbar
 │       │   ├── PillSelect.tsx     ← Colored select for status/modtype
 │       │   ├── ProgressBar.tsx    ← Fill bar
-│       │   ├── RobotForm.tsx      ← Add-robot: team # (TBA lookup on blur), game
-│       │   │                         dropdown, modpack dropdown + inline "+ New"
-│       │   │                         modpack mini-form, TBA key config
+│       │   ├── RobotForm.tsx      ← Add-robot: team # (TBA lookup on blur; rebuild
+│       │   │                         suffixes like 9483a spliced via baseTeamNumber),
+│       │   │                         game (follows modpack), modpack + inline "+ New",
+│       │   │                         mod type dropdown, "Mark as complete" toggle
+│       │   │                         (pre-checks all steps, status released), TBA key
 │       │   ├── Splits.tsx         ← Accordion steps + Check all/Uncheck all.
 │       │   │                         Checking a step header CASCADES: all earlier
 │       │   │                         steps get checked too (uncheck never cascades)
-│       │   └── Dialog.tsx         ← DialogProvider + useDialog(): custom
-│       │                             confirmDialog/alertDialog replacing every
-│       │                             native confirm()/alert() in the app
+│       │   ├── Dialog.tsx         ← DialogProvider + useDialog(): custom
+│       │   │                         confirmDialog/alertDialog replacing every
+│       │   │                         native confirm()/alert() in the app
+│       │   └── Select.tsx         ← Fully custom dropdown replacing EVERY native
+│       │                             <select>: portal menu (never clipped), groups,
+│       │                             pill color classes, Escape/outside/scroll close.
+│       │                             PillSelect wraps it. Never add a raw <select>.
 │       ├── lib/
 │       │   ├── desktop.ts        ← window.desktop bridge; isTauri, getServerUrl…
 │       │   └── tba.ts            ← TBA API: getTbaKey, setTbaKey, fetchTeamName

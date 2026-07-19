@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { analyzeScript, providerConfigured } from '../ai/client';
 import { MOSIM_SYSTEM_PROMPT } from '../ai/reference';
 import { useDialog } from '../components/Dialog';
+import { Select } from '../components/Select';
 import { useStore } from '../store/StoreContext';
 import type { ScriptDoc } from '../types';
 
@@ -76,18 +77,14 @@ function ScriptRow({ script }: { script: ScriptDoc }) {
               <>
                 <label className="ai-field">
                   Robot
-                  <select
+                  <Select
                     value={script.robotId ?? ''}
-                    onChange={(e) => api.updateScript(script.id, { robotId: e.target.value || null })}
-                  >
-                    <option value="">—</option>
-                    {robots.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.team ? `${r.team} ` : ''}
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: '—' },
+                      ...robots.map((r) => ({ value: r.id, label: `${r.team ? `${r.team} ` : ''}${r.name}` })),
+                    ]}
+                    onChange={(v) => api.updateScript(script.id, { robotId: v || null })}
+                  />
                 </label>
                 <button
                   className="btn subtle"

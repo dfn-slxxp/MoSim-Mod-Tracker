@@ -5,6 +5,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
 import { RobotForm } from '../components/RobotForm';
+import { Select } from '../components/Select';
 import { useStore } from '../store/StoreContext';
 
 export function PlannedPage() {
@@ -36,18 +37,14 @@ export function PlannedPage() {
                 </span>
                 <span className="muted">{r.game}</span>
                 {canEdit ? (
-                  <select
+                  <Select
                     value={r.modpackId ?? ''}
-                    onChange={(e) => api.setRobotModpack(r.id, e.target.value || null)}
-                  >
-                    <option value="">No modpack</option>
-                    {modpacks.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                        {m.private ? ' 🔒' : ''}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: 'No modpack' },
+                      ...modpacks.map((m) => ({ value: m.id, label: `${m.name}${m.private ? ' 🔒' : ''}` })),
+                    ]}
+                    onChange={(v) => api.setRobotModpack(r.id, v || null)}
+                  />
                 ) : (
                   <span className="pack-chip">{pack ? pack.name : 'No modpack'}</span>
                 )}

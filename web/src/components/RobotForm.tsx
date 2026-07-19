@@ -1,8 +1,21 @@
 import { FormEvent, useState } from 'react';
 import { fetchTeamName, getTbaKey, setTbaKey } from '../lib/tba';
+import { STEPS } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { GAMES } from '../types';
+import { GAMES, MODTYPE_META, ModType, StepProgress } from '../types';
 import { useDialog } from './Dialog';
+import { Select } from './Select';
+
+const GAME_OPTIONS = GAMES.map((g) => ({ value: g, label: g }));
+
+const MODTYPE_OPTIONS = [
+  { value: '', label: 'Mod type: —' },
+  ...(Object.keys(MODTYPE_META) as Exclude<ModType, ''>[]).map((m) => ({
+    value: m,
+    label: MODTYPE_META[m].label,
+    className: MODTYPE_META[m].className,
+  })),
+];
 
 export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const { api, modpacks, canEdit } = useStore();
@@ -12,6 +25,8 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const [fetching, setFetching] = useState(false);
   const [game, setGame] = useState<string>(GAMES[0]);
   const [modpackId, setModpackId] = useState('');
+  const [modType, setModType] = useState<ModType>('');
+  const [markComplete, setMarkComplete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [keyDraft, setKeyDraft] = useState(getTbaKey());
@@ -70,21 +85,35 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
     if (!team.trim()) return;
     setBusy(true);
     try {
+      // "Mark as complete" pre-checks every sub-step (for robots finished
+      // before they were tracked) and files the robot as released.
+      const progress: Record<string, StepProgress> = {};
+      if (markComplete) {
+        for (const step of STEPS) {
+          progress[step.id] = {
+            subs: Object.fromEntries(step.subs.map((s) => [s.id, true])),
+            note: '',
+          };
+        }
+      }
+
       const id = await api.addRobot({
         name: teamName ?? `Team ${team.trim()}`,
         team: team.trim(),
         teamName: teamName ?? undefined,
         game,
-        status: 'planned',
-        modType: '',
+        status: markComplete ? 'released' : 'planned',
+        modType,
         modpackId: modpackId || null,
         repoId: null,
         private: false,
         notes: '',
-        progress: {}
+        progress
       });
       setTeam('');
       setTeamName(null);
+      setModType('');
+      setMarkComplete(false);
       onAdded?.(id);
     } catch (err) {
       void alertDialog((err as Error).message, 'Something went wrong');
@@ -94,6 +123,11 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   };
 
   const hasTbaKey = !!getTbaKey();
+
+  const modpackOptions = [
+    { value: '', label: 'No modpack' },
+    ...modpacks.map((m) => ({ value: m.id, label: m.name })),
+  ];
 
   return (
     <form className="add-form" onSubmit={submit}>
@@ -114,27 +148,16 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         )}
       </div>
 
-      {/* Game dropdown */}
-      <select className="game-select" value={game} onChange={(e) => setGame(e.target.value)}>
-        {GAMES.map((g) => (
-          <option key={g} value={g}>{g}</option>
-        ))}
-      </select>
+      {/* Game */}
+      <Select className="game-select" value={game} options={GAME_OPTIONS} onChange={setGame} />
 
-      {/* Modpack dropdown + create new */}
+      {/* Modpack + create new */}
       <div className="modpack-group">
-        <select
+        <Select
           value={modpackId}
-          onChange={(e) => {
-            setModpackId(e.target.value);
-            syncGameToPack(e.target.value);
-          }}
-        >
-          <option value="">No modpack</option>
-          {modpacks.map((m) => (
-            <option key={m.id} value={m.id}>{m.name}</option>
-          ))}
-        </select>
+          options={modpackOptions}
+          onChange={(v) => { setModpackId(v); syncGameToPack(v); }}
+        />
         <button
           type="button"
           className="btn subtle"
@@ -145,6 +168,17 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         </button>
       </div>
 
+      {/* Mod type + completed toggle */}
+      <Select value={modType} options={MODTYPE_OPTIONS} onChange={(v) => setModType(v as ModType)} />
+      <button
+        type="button"
+        className={`toggle-btn ${markComplete ? 'on' : ''}`}
+        title="Adds the robot with every step already checked (status: Released)"
+        onClick={() => setMarkComplete(!markComplete)}
+      >
+        {markComplete ? '✓ Already complete' : 'Mark as complete'}
+      </button>
+
       {/* Inline new-modpack mini-form */}
       {showNewModpack && (
         <div className="inline-modpack-form">
@@ -154,9 +188,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
             onChange={(e) => setNewPackName(e.target.value)}
             style={{ minWidth: 140 }}
           />
-          <select value={newPackGame} onChange={(e) => setNewPackGame(e.target.value)}>
-            {GAMES.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
+          <Select value={newPackGame} options={GAME_OPTIONS} onChange={setNewPackGame} />
           <button
             type="button"
             className="btn primary"

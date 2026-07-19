@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { ANTHROPIC_MODELS, GEMINI_MODELS, Provider, generateScript, settings } from '../ai/client';
 import { useStore } from '../store/StoreContext';
 import type { Repo, Robot } from '../types';
+import { Select } from './Select';
 
 export function AiScriptPanel({ robot }: { robot: Robot }) {
   const { repos, scripts } = useStore();
@@ -130,11 +131,15 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
           <div className="ai-row">
             <label>
               Provider
-              <select value={provider} onChange={(e) => setProviderState(e.target.value as Provider)}>
-                <option value="gemini">Gemini (Google AI Studio key · watches videos)</option>
-                <option value="anthropic">Claude (Anthropic key · text only)</option>
-                <option value="ollama">Local model via Ollama (free, trainable)</option>
-              </select>
+              <Select
+                value={provider}
+                options={[
+                  { value: 'gemini', label: 'Gemini (Google AI Studio key · watches videos)' },
+                  { value: 'anthropic', label: 'Claude (Anthropic key · text only)' },
+                  { value: 'ollama', label: 'Local model via Ollama (free, trainable)' },
+                ]}
+                onChange={(v) => setProviderState(v as Provider)}
+              />
             </label>
             {provider === 'gemini' && (
               <>
@@ -149,11 +154,11 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
                 </label>
                 <label>
                   Model
-                  <select value={geminiModel} onChange={(e) => setGeminiModelState(e.target.value)}>
-                    {GEMINI_MODELS.map((m) => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </select>
+                  <Select
+                    value={geminiModel}
+                    options={GEMINI_MODELS.map((m) => ({ value: m.id, label: m.label }))}
+                    onChange={setGeminiModelState}
+                  />
                 </label>
               </>
             )}
@@ -170,11 +175,11 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
                 </label>
                 <label>
                   Model
-                  <select value={model} onChange={(e) => setModelState(e.target.value)}>
-                    {ANTHROPIC_MODELS.map((m) => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </select>
+                  <Select
+                    value={model}
+                    options={ANTHROPIC_MODELS.map((m) => ({ value: m.id, label: m.label }))}
+                    onChange={setModelState}
+                  />
                 </label>
               </>
             )}

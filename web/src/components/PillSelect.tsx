@@ -1,8 +1,10 @@
 // ---------------------------------------------------------------------------
-// A <select> styled as a colored pill, like the status dropdowns in the
-// community tracker spreadsheet. The pill's color comes from a CSS class per
-// option (see the .st-* / .mt-* rules in styles.css).
+// A colored-pill dropdown, like the status column in the community tracker
+// spreadsheet. Thin wrapper over the custom Select; pill colors come from a
+// CSS class per option (see the .st-* / .mt-* rules in styles.css).
 // ---------------------------------------------------------------------------
+import { Select, SelectOption } from './Select';
+
 export interface PillOption {
   value: string;
   label: string;
@@ -23,22 +25,18 @@ export function PillSelect({
   /** Adds a gray "—" option representing "not set". */
   allowEmpty?: string;
 }) {
-  const current = options.find((o) => o.value === value);
+  const opts: SelectOption[] = [
+    ...(allowEmpty !== undefined ? [{ value: '', label: allowEmpty, className: 'pill-empty' }] : []),
+    ...options,
+  ];
   return (
-    <select
-      className={`pill ${current?.className ?? 'pill-empty'}`}
+    <Select
       value={value}
+      options={opts}
+      onChange={onChange}
       disabled={disabled}
-      // Prevent row-level click handlers (open robot page) from firing.
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {allowEmpty !== undefined && <option value="">{allowEmpty}</option>}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+      placeholder={allowEmpty ?? '—'}
+      className="dd-pill"
+    />
   );
 }

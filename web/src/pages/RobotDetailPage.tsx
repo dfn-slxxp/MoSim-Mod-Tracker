@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AiScriptPanel } from '../components/AiScriptPanel';
 import { useDialog } from '../components/Dialog';
 import { PillSelect } from '../components/PillSelect';
+import { Select } from '../components/Select';
 import { ProgressBar } from '../components/ProgressBar';
 import { Splits, WhatsLeft } from '../components/Splits';
 import { STEPS, robotProgress } from '../steps';
@@ -149,35 +150,27 @@ export function RobotDetailPage() {
         </label>
         <label>
           Modpack
-          <select
+          <Select
             value={robot.modpackId ?? ''}
             disabled={!canEdit}
-            onChange={(e) => api.setRobotModpack(robot.id, e.target.value || null)}
-          >
-            <option value="">No modpack</option>
-            {modpacks.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-                {m.private ? ' 🔒' : ''}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'No modpack' },
+              ...modpacks.map((m) => ({ value: m.id, label: `${m.name}${m.private ? ' 🔒' : ''}` })),
+            ]}
+            onChange={(v) => api.setRobotModpack(robot.id, v || null)}
+          />
         </label>
         <label>
           Repo
-          <select
+          <Select
             value={robot.repoId ?? ''}
             disabled={!canEdit}
-            onChange={(e) => api.updateRobot(robot.id, { repoId: e.target.value || null })}
-          >
-            <option value="">No repo</option>
-            {repos.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-                {r.private ? ' 🔒' : ''}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'No repo' },
+              ...repos.map((r) => ({ value: r.id, label: `${r.name}${r.private ? ' 🔒' : ''}` })),
+            ]}
+            onChange={(v) => api.updateRobot(robot.id, { repoId: v || null })}
+          />
         </label>
         <label className="inline-check">
           <input

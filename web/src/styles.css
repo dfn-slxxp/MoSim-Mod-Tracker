@@ -1407,6 +1407,141 @@ h3 {
   margin-left: auto;
 }
 
+/* ---------- custom dropdown (Select.tsx — replaces every native select) ----
+   Base colors live in :where() so pill color classes (.st-*, .mt-*) and
+   .compact-select can override them regardless of source order. */
+.dd-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 13px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  max-width: 100%;
+  transition: border-color 0.12s, box-shadow 0.12s, filter 0.12s;
+}
+
+:where(.dd-trigger) {
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel-2));
+  border: 1px solid var(--border-solid);
+  color: var(--text);
+}
+
+.dd-trigger:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-solid));
+}
+
+.dd-trigger.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.dd-trigger:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.dd-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dd-chev {
+  font-size: 9px;
+  opacity: 0.65;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.dd-trigger.open .dd-chev {
+  transform: rotate(180deg);
+}
+
+/* Pill variant (status / mod type) — colors come from .st-* / .mt-* classes */
+.dd-pill {
+  padding: 4px 10px 4px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+:where(.dd-pill) {
+  border-color: transparent;
+}
+
+.dd-pill:hover {
+  filter: brightness(1.08);
+}
+
+.dd-menu {
+  position: fixed;
+  z-index: 3000;
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  padding: 5px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: dialog-pop 0.12s ease-out;
+}
+
+.dd-group {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  padding: 6px 10px 3px;
+}
+
+.dd-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 11px;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+:where(.dd-option) {
+  background: transparent;
+  color: var(--text);
+}
+
+.dd-option:hover {
+  background: var(--panel-2);
+}
+
+.dd-option.selected {
+  background: var(--accent-dim);
+  font-weight: 600;
+}
+
+.dd-option-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dd-tick {
+  color: var(--accent);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
 /* ---------- custom dialogs (replaces native confirm/alert) ---------- */
 .dialog-overlay {
   position: fixed;
@@ -1785,7 +1920,8 @@ h3 {
     gap: 6px;
   }
   .add-form input,
-  .add-form select {
+  .add-form select,
+  .add-form .dd-trigger {
     font-size: 12.5px;
     width: 100%;
   }
@@ -1800,8 +1936,10 @@ h3 {
   .add-form > .btn.primary {
     grid-column: 1 / -1;
   }
-  .add-form .modpack-group select {
+  .add-form .modpack-group select,
+  .add-form .modpack-group .dd-trigger {
     width: auto;
+    flex: 1;
   }
   .tab-btn {
     padding: 6px 14px;
@@ -1814,9 +1952,10 @@ h3 {
     gap: 5px;
   }
   .filter-bar select,
+  .filter-bar .dd-trigger,
   .filter-bar .filter-search {
     font-size: 12px;
-    padding: 4px 24px 4px 10px;
+    padding: 4px 10px;
     width: 100%;
   }
   .filter-bar .filter-search {
@@ -1828,7 +1967,8 @@ h3 {
     margin-left: 0;
     justify-content: flex-end;
   }
-  .sort-controls select {
+  .sort-controls select,
+  .sort-controls .dd-trigger {
     width: auto;
   }
 }
@@ -2290,9 +2430,10 @@ h3 {
 }
 
 .filter-bar select,
+.filter-bar .dd-trigger,
 .filter-bar .filter-search {
   font-size: 12.5px;
-  padding: 5px 8px;
+  padding: 5px 12px;
 }
 
 .filter-bar .filter-search {

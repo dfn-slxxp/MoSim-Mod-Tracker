@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PillSelect } from '../components/PillSelect';
 import { ProgressBar } from '../components/ProgressBar';
 import { RobotForm } from '../components/RobotForm';
+import { Select } from '../components/Select';
 import { STEPS, robotProgress, stepProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
 import { GAMES, MODTYPE_META, ModType, Robot, RobotStatus, STATUS_META } from '../types';
@@ -188,30 +189,27 @@ export function RobotsPage() {
 
       {/* Filter + sort bar */}
       <div className="filter-bar">
-        <select value={filterGame} onChange={(e) => setFilterGame(e.target.value)}>
-          <option value="">All games</option>
-          {GAMES.map((g) => <option key={g} value={g}>{g}</option>)}
-        </select>
+        <Select
+          value={filterGame}
+          options={[{ value: '', label: 'All games' }, ...GAMES.map((g) => ({ value: g, label: g }))]}
+          onChange={setFilterGame}
+        />
 
-        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
-          <option value="">All years</option>
-          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
+        <Select
+          value={filterYear}
+          options={[{ value: '', label: 'All years' }, ...YEARS.map((y) => ({ value: y, label: y }))]}
+          onChange={setFilterYear}
+        />
 
         {tab === 'all' && (
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="">All statuses</option>
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <Select
+            value={filterStatus}
+            options={[{ value: '', label: 'All statuses' }, ...STATUS_OPTIONS]}
+            onChange={setFilterStatus}
+          />
         )}
 
-        <select value={filterProgress} onChange={(e) => setFilterProgress(e.target.value)}>
-          {PROGRESS_FILTERS.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
+        <Select value={filterProgress} options={PROGRESS_FILTERS} onChange={setFilterProgress} />
 
         <input
           className="filter-search"
@@ -221,13 +219,18 @@ export function RobotsPage() {
         />
 
         <div className="sort-controls">
-          <select title="Sort by" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
-            <option value="team">Team #</option>
-            <option value="game">Game</option>
-            <option value="progress">Progress</option>
-            <option value="status">Status</option>
-            <option value="createdAt">Date added</option>
-          </select>
+          <Select
+            title="Sort by"
+            value={sortBy}
+            options={[
+              { value: 'team', label: 'Team #' },
+              { value: 'game', label: 'Game' },
+              { value: 'progress', label: 'Progress' },
+              { value: 'status', label: 'Status' },
+              { value: 'createdAt', label: 'Date added' },
+            ]}
+            onChange={(v) => setSortBy(v as SortKey)}
+          />
           <button
             type="button"
             className="sort-dir-btn"

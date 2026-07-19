@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
+import { Select } from '../components/Select';
 import { useStore } from '../store/StoreContext';
 import { GAMES } from '../types';
 
@@ -41,11 +42,7 @@ export function ModpacksPage() {
       {canEdit && (
         <form className="add-form" onSubmit={submit}>
           <input placeholder="Pack name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <select value={game} onChange={(e) => setGame(e.target.value)}>
-            {GAMES.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
+          <Select value={game} options={GAMES.map((g) => ({ value: g, label: g }))} onChange={setGame} />
           <input
             placeholder="Description (optional)"
             value={description}

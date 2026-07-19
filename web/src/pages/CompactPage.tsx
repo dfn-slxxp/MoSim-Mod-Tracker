@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
 import { ProgressBar } from '../components/ProgressBar';
+import { Select } from '../components/Select';
 import { Splits } from '../components/Splits';
 import { STEPS, robotProgress, stepProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
@@ -171,32 +172,23 @@ export function CompactPage() {
             </div>
           ) : (
             <>
-              <select
+              <Select
                 className="compact-select"
                 value={robot?.id ?? ''}
-                onChange={(e) => setSelectedId(e.target.value)}
-              >
-                {active.length > 0 && (
-                  <optgroup label="In progress">
-                    {active.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.team ? `${r.team} ` : ''}
-                        {r.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {others.length > 0 && (
-                  <optgroup label="Other">
-                    {others.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.team ? `${r.team} ` : ''}
-                        {r.name} ({STATUS_META[r.status].label})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
+                options={[
+                  ...active.map((r) => ({
+                    value: r.id,
+                    label: `${r.team ? `${r.team} ` : ''}${r.name}`,
+                    group: 'In progress',
+                  })),
+                  ...others.map((r) => ({
+                    value: r.id,
+                    label: `${r.team ? `${r.team} ` : ''}${r.name} (${STATUS_META[r.status].label})`,
+                    group: 'Other',
+                  })),
+                ]}
+                onChange={setSelectedId}
+              />
               {robot && prog && (
                 <>
                   <div className="compact-progress">
