@@ -1705,6 +1705,53 @@ h3 {
   width: min(420px, calc(100vw - 40px));
 }
 
+.account-subhead {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.linked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.linked-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+
+.linked-email {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+
+.linked-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border-solid);
+  color: var(--muted);
+}
+
+.linked-tag.primary {
+  background: var(--accent-dim);
+  border-color: transparent;
+  color: var(--accent);
+}
+
 /* ---------- admin community users ---------- */
 .admin-users {
   display: flex;

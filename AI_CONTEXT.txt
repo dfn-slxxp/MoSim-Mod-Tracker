@@ -296,7 +296,23 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Admin dashboard has a Users section: GET /api/admin/users (all users + robot
   counts + hidden), PUT /api/admin/users/:uid/visibility {hidden}.
 
+### Account linking (multiple Google accounts)
+- `account_links` table maps a secondary Google sub -> primary uid. `resolveUid(sub)`
+  returns the primary (or sub itself). Every login resolves so req.user.uid is
+  always the primary; all data stays under one uid.
+- Link flow: POST /api/auth/link-start (authed) -> Google auth URL with
+  state.link=primaryUid + prompt=select_account; frontend opens it. Callback with
+  state.link records the mapping and redirects to /#/account?linked=1 (web) or
+  mosim://auth?linked=1 (desktop). Account page refetches on window focus.
+- Profile is refreshed ONLY on primary login (googleSub===uid) so a linked
+  secondary sign-in never overwrites the primary's name/photo/email.
+- /api/me returns `linked: [{sub,email}]` + `primaryEmail`; DELETE
+  /api/account/links/:sub unlinks. Admin check uses the signed-in email.
+- ADMIN_EMAILS default: waldman.sebastian@gmail.com, seb@sebastianw.tech.
+
 ### Profiles / Community
+- Default display name is the Google FIRST name (firstName()) for new profiles;
+  editable on the Account page.
 - On every Google sign-in the auth callback upserts a `profiles` row (refreshes
   email/photo, never clobbers user-edited displayName/instagram/discord).
 - `/api/me` includes `profile: {displayName, instagram, discord, completed}`.

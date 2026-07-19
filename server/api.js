@@ -5,7 +5,13 @@ const jwt = require('jsonwebtoken');
 const {
   db, getAll, insert, update, remove, getSetting, setSetting,
   getProfile, setProfile, allProfiles, allRobots,
+  resolveUid, linkAccount, linkedAccounts, unlinkAccount,
 } = require('./db');
+
+/** First token of a full name, used as the default display name. */
+function firstName(name) {
+  return String(name ?? '').trim().split(/\s+/)[0] || String(name ?? '').trim();
+}
 
 const CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -53,7 +59,7 @@ router.use((req, res, next) => {
 
 // Comma-separated allowlist of admin emails. Overridable via env without
 // code changes; defaults to the owner.
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? 'waldman.sebastian@gmail.com')
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? 'waldman.sebastian@gmail.com,seb@sebastianw.tech')
   .split(',')
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
@@ -157,6 +163,25 @@ router.get('/auth/login', (req, res) => {
   res.redirect(url);
 });
 
+// Begin linking ANOTHER Google account to the signed-in account. Authenticated
+// (cookie or Bearer) so the primary uid is trusted; returns the Google auth URL
+// for the frontend to open. `prompt: select_account` lets the user pick the
+// other account rather than reusing the current Google session.
+router.post('/auth/link-start', requireAuth, (req, res) => {
+  const state = jwt.sign(
+    { csrf: 1, link: req.user.uid, desktop: req.body?.desktop ? 1 : 0 },
+    JWT_SECRET,
+    { expiresIn: 600 }
+  );
+  const url = oauth.generateAuthUrl({
+    access_type: 'online',
+    scope: ['openid', 'email', 'profile'],
+    prompt: 'select_account',
+    state,
+  });
+  res.json({ url });
+});
+
 router.get('/auth/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
@@ -168,26 +193,39 @@ router.get('/auth/callback', async (req, res) => {
     const { tokens } = await oauth.getToken(String(code));
     const ticket = await oauth.verifyIdToken({ idToken: tokens.id_token, audience: CLIENT_ID });
     const p = ticket.getPayload();
+    const googleSub = p.sub;
+
+    // ── Link flow: associate this Google account with the signed-in account ──
+    if (statePayload.link) {
+      const primaryUid = resolveUid(statePayload.link);
+      if (googleSub !== primaryUid) linkAccount(googleSub, primaryUid, p.email);
+      return res.redirect(isDesktop ? 'mosim://auth?linked=1' : '/#/account?linked=1');
+    }
+
+    // ── Normal login: resolve to the primary account, then issue a session ──
+    const uid = resolveUid(googleSub);
     const user = {
-      uid:   p.sub,
+      uid,
       name:  p.name ?? p.email,
-      email: p.email,
+      email: p.email,   // the email actually signed in with (drives admin check)
       photo: p.picture ?? null,
     };
 
-    // Ensure a profile row exists (community directory + account page).
-    // Never overwrite user-edited fields; refresh photo/email from Google.
-    const existing = getProfile(user.uid);
-    setProfile(user.uid, {
-      displayName: existing?.displayName ?? user.name,
-      email: user.email,
-      photo: user.photo,
-      instagram: existing?.instagram ?? '',
-      discord: existing?.discord ?? '',
-      completed: existing?.completed ?? false,
-      hidden: existing?.hidden ?? false,
-      createdAt: existing?.createdAt ?? Date.now(),
-    });
+    // Refresh the profile ONLY when signing in with the primary account, so a
+    // linked secondary login never overwrites the primary's name/photo/email.
+    const existing = getProfile(uid);
+    if (googleSub === uid) {
+      setProfile(uid, {
+        displayName: existing?.displayName ?? firstName(p.name ?? p.email),
+        email: user.email,
+        photo: user.photo,
+        instagram: existing?.instagram ?? '',
+        discord: existing?.discord ?? '',
+        completed: existing?.completed ?? false,
+        hidden: existing?.hidden ?? false,
+        createdAt: existing?.createdAt ?? Date.now(),
+      });
+    }
 
     if (isDesktop) {
       // Issue a JWT and send it back via the Tauri custom-protocol deep link.
@@ -220,9 +258,11 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({
     uid,
     name: profile?.displayName || name,
-    email,
+    email,                                  // email currently signed in with
+    primaryEmail: profile?.email ?? email,  // the account's root email
     photo: profile?.photo ?? photo,
     admin: isAdmin(req.user),
+    linked: linkedAccounts(uid),            // [{ sub, email }] secondary accounts
     profile: {
       displayName: profile?.displayName ?? name,
       instagram: profile?.instagram ?? '',
@@ -230,6 +270,13 @@ router.get('/me', requireAuth, (req, res) => {
       completed: profile?.completed ?? false,
     },
   });
+});
+
+// Unlink a secondary Google account from this account.
+router.delete('/account/links/:sub', requireAuth, (req, res) => {
+  const ok = unlinkAccount(req.params.sub, req.user.uid);
+  if (!ok) return res.status(404).json({ error: 'No such linked account' });
+  res.json({ ok: true });
 });
 
 // ── Profile (account page) ────────────────────────────────────────────────────

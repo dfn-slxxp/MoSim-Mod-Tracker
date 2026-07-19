@@ -58,6 +58,16 @@ db.exec(`
     uid TEXT PRIMARY KEY,
     data TEXT NOT NULL
   );
+
+  -- Links a SECONDARY Google account (its sub) to a PRIMARY account, so signing
+  -- in with either email lands in the same account/data.
+  CREATE TABLE IF NOT EXISTS account_links (
+    google_sub  TEXT PRIMARY KEY,
+    primary_uid TEXT NOT NULL,
+    email       TEXT,
+    linked_at   INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS account_links_primary ON account_links(primary_uid);
 `);
 
 function getAll(table, uid) {
@@ -119,6 +129,32 @@ function allRobots() {
     .map((r) => ({ uid: r.uid, ...JSON.parse(r.data) }));
 }
 
+// ── Account linking ───────────────────────────────────────────────────────────
+
+/** Resolve a Google sub to its primary account uid (itself if unlinked). */
+function resolveUid(sub) {
+  const row = db.prepare('SELECT primary_uid FROM account_links WHERE google_sub = ?').get(sub);
+  return row?.primary_uid ?? sub;
+}
+
+function linkAccount(sub, primaryUid, email) {
+  db.prepare(
+    `INSERT INTO account_links (google_sub, primary_uid, email, linked_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(google_sub) DO UPDATE SET primary_uid = excluded.primary_uid, email = excluded.email`
+  ).run(sub, primaryUid, email ?? null, Date.now());
+}
+
+/** Secondary accounts linked TO this primary uid. */
+function linkedAccounts(primaryUid) {
+  return db.prepare('SELECT google_sub AS sub, email FROM account_links WHERE primary_uid = ?').all(primaryUid);
+}
+
+function unlinkAccount(sub, primaryUid) {
+  const info = db.prepare('DELETE FROM account_links WHERE google_sub = ? AND primary_uid = ?').run(sub, primaryUid);
+  return info.changes > 0;
+}
+
 function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? JSON.parse(row.value) : null;
@@ -133,4 +169,5 @@ function setSetting(key, value) {
 module.exports = {
   db, getAll, insert, update, remove, getSetting, setSetting,
   getProfile, setProfile, allProfiles, allRobots,
+  resolveUid, linkAccount, linkedAccounts, unlinkAccount,
 };

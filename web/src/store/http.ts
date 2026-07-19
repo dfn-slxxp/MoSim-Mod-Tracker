@@ -241,6 +241,22 @@ export class HTTPBackend implements Backend {
     await this._load(); // refresh user name + profile.completed
   }
 
+  async refreshUser(): Promise<void> {
+    await this._load();
+  }
+
+  async startLinkAccount(): Promise<void> {
+    const r = await this._post('/api/auth/link-start', { desktop: isTauri() }) as { url: string } | null;
+    if (!r?.url) throw new Error('Could not start account linking');
+    if (isTauri()) await openInBrowser(r.url);
+    else window.location.href = r.url;
+  }
+
+  async unlinkAccount(sub: string): Promise<void> {
+    await this._del(`/api/account/links/${encodeURIComponent(sub)}`);
+    await this._load();
+  }
+
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   async signIn(): Promise<void> {

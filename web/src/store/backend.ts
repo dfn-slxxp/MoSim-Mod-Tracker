@@ -64,6 +64,12 @@ export interface Backend {
 
   /** Save the signed-in user's public profile (display name + handles). */
   updateProfile(patch: { displayName: string; instagram: string; discord: string }): Promise<void>;
+  /** Re-fetch the current user (name, profile, linked accounts). */
+  refreshUser(): Promise<void>;
+  /** Begin linking another Google account to this one (opens Google sign-in). */
+  startLinkAccount(): Promise<void>;
+  /** Remove a linked secondary Google account by its Google sub. */
+  unlinkAccount(sub: string): Promise<void>;
 
   signIn(): Promise<void>;
   signOut(): Promise<void>;

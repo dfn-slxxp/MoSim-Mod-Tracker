@@ -134,13 +134,23 @@ export interface UserProfile {
   completed: boolean;
 }
 
+/** A secondary Google account linked to the primary account. */
+export interface LinkedAccount {
+  sub: string;
+  email: string;
+}
+
 export interface UserInfo {
   uid: string;
   name: string; // displayName if set, else Google name
-  email: string;
+  email: string; // email currently signed in with
+  /** The account's root email (may differ from `email` on a linked sign-in). */
+  primaryEmail?: string;
   photo: string | null;
   /** True when this email is on the server's ADMIN_EMAILS allowlist. */
   admin?: boolean;
+  /** Other Google accounts that also sign into this account. */
+  linked?: LinkedAccount[];
   profile?: UserProfile;
 }
 
