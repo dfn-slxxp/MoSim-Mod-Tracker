@@ -240,7 +240,8 @@ function ThemesEditor() {
       </div>
       <p className="muted small">
         Pick a primary and secondary color and a light/dark base — the rest of the palette
-        (surfaces, text, borders, status colors) is generated to match. The 3rd/4th accents are
+        (surfaces, text, borders, gradients, status colors) is generated to match, with
+        the same overall color presence as the built-in Cloud theme. The 3rd/4th accents are
         auto-derived from your primary + secondary pair so the palette stays cohesive. Themes sync
         to every device and appear on the theme button.
       </p>

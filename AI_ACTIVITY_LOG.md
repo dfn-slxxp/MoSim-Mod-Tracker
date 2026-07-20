@@ -213,3 +213,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** `AI_ACTIVITY_LOG.md`, `CLAUDE.md`, `AI_CONTEXT.txt`.
 
 **User-facing outcome:** Future completed fixes will be committed and pushed by default.
+
+### Custom theme color presence (Cloud parity)
+
+**User message:** Custom theme primary/secondary colors don't affect the overall page much; make them as impactful as built-in themes like Cloud.
+
+**Work and decisions:** Reworked `generateTheme()` in `web/src/lib/color.ts` to match Cloud-theme intensity: layered `bg-image` radial/linear gradients from the color pair, much higher surface/border/muted/titlebar saturation, colored light-mode shadows, larger light-mode radius, and smarter tint weighting so light off-white primaries (e.g. `#F8F7F4`) defer surface hue to the vivid secondary instead of skewing toward accidental warm casts. `accent-dim` now uses secondary when primary reads neutral so chips/washes stay visible. Updated admin helper copy in `web/src/pages/AdminPage.tsx`.
+
+**Verification:** Generated palette for `#F8F7F4` + `#0057FF` light now yields blue-tinted bg/border/muted/titlebar comparable to Cloud's purple palette structure.
+
+**Files changed:** `web/src/lib/color.ts`, `web/src/pages/AdminPage.tsx`, `CLAUDE.md`, `ai_context.txt`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Custom themes now tint the full page (background gradients, panels, borders, muted text, titlebar) as strongly as the built-in Cloud theme. Re-save themes in admin to regenerate stored vars, or change a color and save.

@@ -351,9 +351,11 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   (Undefined vars inherit the base `:root`/dark palette, so the generator emits a
   full set incl. panel-2 + all pill-* to stay cohesive.)
 - Editor takes only PRIMARY + SECONDARY color + a dark/light base; `lib/color.ts`
-  generateTheme(primary, secondary, mode) derives the whole palette (surfaces
-  tinted toward secondary hue, text/muted for contrast, accent=primary,
-  blue=secondary, semantic gold/red, status pills). CustomTheme stores
+  generateTheme(primary, secondary, mode) derives the whole palette with Cloud-theme-level
+  color presence: layered bg-image gradients, strongly hue-tinted surfaces/borders/muted
+  text, saturated titlebar, colored shadow (light), accent=primary, blue=secondary,
+  semantic gold/red, status pills. Light off-white primaries defer surface tinting to
+  secondary; accent-dim uses secondary when primary reads as neutral. CustomTheme stores
   primary/secondary/mode so the editor round-trips; vars regenerated on any change
   and before save. Verified: text/bg contrast 13–15 (AAA) across color pairs.
 - Theme choice persists per-device in localStorage `mosim-theme`; falls back to dark
@@ -495,3 +497,4 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
 - 2026-07-20: User preference set to push to `main`; pushed current HEAD to `origin/main` via `git push origin HEAD:main` (main advanced to `2d813e5`).
 - 2026-07-20: Fixed theme primary/secondary fidelity: custom theme `accent` and `blue` now use the exact user-entered primary/secondary values (no remap), while derived accents remain generated. Secondary influence was increased in neutral/border/titlebar derivation, and `accent-contrast` is generated so primary buttons stay readable across light/dark primary colors.
 - 2026-07-20: User preference updated: commit and push by default after completed code changes; continue pushing to `main`.
+- 2026-07-20: Boosted custom theme color presence in `web/src/lib/color.ts` to match built-in Cloud theme intensity: layered bg-image gradients, higher surface/border/muted/titlebar saturation, colored light-mode shadows, light off-white primaries defer surface tinting to secondary, and accent-dim uses secondary when primary reads neutral. Updated admin copy in `web/src/pages/AdminPage.tsx`.

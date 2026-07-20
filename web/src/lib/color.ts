@@ -85,6 +85,38 @@ export function hueOf(hex: string): number {
   return rgbToHsl(...hexToRgb(hex))[0];
 }
 
+/** How much a pick should influence surface hue (ignores light, near-neutral colors). */
+function tintWeight(s: number, l: number): number {
+  if (s < 14) return 0;
+  if (l > 88 && s < 35) return s / 200;
+  return s / 100;
+}
+
+/** Cloud-style layered background from the chosen pair. */
+function buildBgImage(
+  dark: boolean,
+  primary: string,
+  secondary: string,
+  tintHue: number,
+  secondaryHue: number,
+  surfaceSat: number
+): string {
+  const secA = dark ? 0.22 : 0.45;
+  const priA = dark ? 0.18 : 0.42;
+  const midA = dark ? 0.08 : 0.14;
+  const layers = [
+    `radial-gradient(ellipse at 10% 92%, ${withAlpha(secondary, secA)} 0%, transparent 44%)`,
+    `radial-gradient(ellipse at 90% 8%, ${withAlpha(primary, priA)} 0%, transparent 44%)`,
+    `radial-gradient(ellipse at 55% 50%, ${withAlpha(secondary, midA)} 0%, transparent 55%)`,
+  ];
+  if (!dark) {
+    layers.push(
+      `linear-gradient(150deg, ${hsl(tintHue, clamp(surfaceSat * 0.85, 28, 68), 97)} 0%, ${hsl(mixHue(tintHue, secondaryHue, 0.35), clamp(surfaceSat * 0.65, 22, 55), 96)} 100%)`
+    );
+  }
+  return layers.join(',\n    ');
+}
+
 /**
  * Build a full theme from two colors. `primary` and `secondary` are the direct
  * user inputs; additional accents (`gold`, `red`) are auto-derived from that pair.
@@ -98,20 +130,32 @@ export function generateTheme(
   const dark = mode === 'dark';
   const primaryInput = rgbToHex(...hexToRgb(primary));
   const secondaryInput = rgbToHex(...hexToRgb(secondary));
-  const [phRaw, psRaw] = rgbToHsl(...hexToRgb(primaryInput));
-  const [shRaw, ssRaw] = rgbToHsl(...hexToRgb(secondaryInput));
+  const [phRaw, psRaw, plRaw] = rgbToHsl(...hexToRgb(primaryInput));
+  const [shRaw, ssRaw, slRaw] = rgbToHsl(...hexToRgb(secondaryInput));
 
   // Keep primary/secondary as the literal inputs. Derived colors adapt to them.
   const accentContrast = relativeLuminance(primaryInput) > 0.38 ? '#111827' : '#ffffff';
 
-  // Neutrals and extra accents are derived from the primary+secondary pair.
+  const pTint = tintWeight(psRaw, plRaw);
+  const sTint = tintWeight(ssRaw, slRaw);
+  const tintTotal = pTint + sTint || 1;
   const pairHue = mixHue(phRaw, shRaw, 0.5);
   const pairDist = hueDist(phRaw, shRaw);
-  const neutralHue = mixHue(shRaw, phRaw, 0.2); // secondary-led neutrals
-  const neutralSatBase = dark
-    ? 7 + ssRaw * 0.14 + psRaw * 0.05
-    : 6 + ssRaw * 0.1 + psRaw * 0.04;
-  const nSat = clamp(neutralSatBase * (pairDist > 130 ? 1.08 : 0.95), 8, 24);
+  const maxChroma = Math.max(psRaw * (pTint > 0 ? 1 : 0), ssRaw * (sTint > 0 ? 1 : 0), 24);
+
+  // Surfaces follow saturated inputs; light off-whites/creams defer to the vivid color.
+  const tintHue = pTint < 0.15
+    ? shRaw
+    : sTint < 0.15
+      ? phRaw
+      : mixHue(phRaw, shRaw, sTint / tintTotal);
+
+  const surfaceSat = dark
+    ? clamp(14 + maxChroma * 0.48 + (pairDist > 90 ? 5 : 0), 14, 44)
+    : clamp(28 + maxChroma * 0.58 + (pairDist > 90 ? 8 : 0), 30, 74);
+  const borderSat = dark
+    ? clamp(surfaceSat + 8, 16, 52)
+    : clamp(surfaceSat + 24, 52, 92);
 
   // "Third" and "fourth" accents: keep semantic warm/error roles while fitting
   // the chosen palette by blending toward amber/red targets from the pair hue.
@@ -126,30 +170,46 @@ export function generateTheme(
       ? { bg: withAlpha(hsl(h, s, 55), 0.16), fg: hsl(h, Math.min(s, 65), 72) }
       : { bg: hsl(h, s, 92), fg: hsl(h, Math.min(s, 65), 32) };
   const planned = pill(265), claimed = pill(28), unity = pill(45),
-        semi = pill(140), released = pill(215), gray = pill(neutralHue, 12),
+        semi = pill(140), released = pill(215), gray = pill(tintHue, 18),
         official = pill(20);
 
   const neutrals = dark
     ? { bg: 9, titlebar: 6, panel: 14, panel2: 19, border: 27, muted: 60, text: 92 }
-    : { bg: 96, titlebar: 90, panel: 100, panel2: 93, border: 84, muted: 44, text: 17 };
+    : { bg: 97, titlebar: 28, panel: 100, panel2: 94, border: 88, muted: 52, text: 17 };
+
+  const titlebarHue = pTint < 0.15
+    ? shRaw
+    : sTint < 0.15
+      ? phRaw
+      : mixHue(shRaw, phRaw, pTint / tintTotal);
+  const titlebarSat = dark
+    ? clamp(surfaceSat + 20, 38, 72)
+    : clamp(surfaceSat + 22, 58, 82);
+
+  // When primary reads as neutral, use secondary for accent washes so chips/buttons tint visibly.
+  const dimSource = pTint < 0.15 ? secondaryInput : primaryInput;
 
   return {
-    bg: hsl(neutralHue, nSat, neutrals.bg),
-    'bg-image': 'none',
-    panel: hsl(neutralHue, dark ? nSat : nSat * 0.5, neutrals.panel),
-    'panel-2': hsl(neutralHue, nSat, neutrals.panel2),
-    'border-solid': hsl(mixHue(neutralHue, shRaw, 0.25), clamp(nSat + 2, 8, 26), neutrals.border),
-    text: hsl(neutralHue, dark ? 14 : 22, neutrals.text),
-    muted: hsl(neutralHue, 12, neutrals.muted),
-    titlebar: hsl(mixHue(shRaw, phRaw, 0.15), clamp(nSat + (dark ? 10 : 8), 12, 30), neutrals.titlebar),
+    bg: hsl(tintHue, surfaceSat, neutrals.bg),
+    'bg-image': buildBgImage(dark, primaryInput, secondaryInput, tintHue, shRaw, surfaceSat),
+    panel: dark
+      ? hsl(tintHue, surfaceSat, neutrals.panel)
+      : withAlpha('#ffffff', 0.82),
+    'panel-2': dark
+      ? hsl(tintHue, clamp(surfaceSat + 2, 14, 46), neutrals.panel2)
+      : withAlpha(hsl(tintHue, clamp(surfaceSat * 0.55, 22, 52), neutrals.panel2), 0.72),
+    'border-solid': hsl(tintHue, borderSat, neutrals.border),
+    text: hsl(tintHue, dark ? 16 : clamp(surfaceSat * 0.65, 36, 58), neutrals.text),
+    muted: hsl(tintHue, dark ? clamp(surfaceSat * 0.55, 14, 32) : clamp(surfaceSat * 0.58, 32, 48), neutrals.muted),
+    titlebar: hsl(titlebarHue, titlebarSat, neutrals.titlebar),
     accent: primaryInput,
     'accent-contrast': accentContrast,
-    'accent-dim': withAlpha(primaryInput, dark ? 0.26 : 0.2),
+    'accent-dim': withAlpha(dimSource, dark ? 0.28 : 0.14),
     blue: secondaryInput,
     gold,
     red,
-    shadow: dark ? 'none' : '0 1px 3px rgba(20, 30, 50, 0.08)',
-    radius: '12px',
+    shadow: dark ? 'none' : `0 2px 16px ${withAlpha(secondaryInput, 0.12)}`,
+    radius: dark ? '12px' : '16px',
     'pill-planned-bg': planned.bg, 'pill-planned-fg': planned.fg,
     'pill-claimed-bg': claimed.bg, 'pill-claimed-fg': claimed.fg,
     'pill-unity-bg': unity.bg, 'pill-unity-fg': unity.fg,
