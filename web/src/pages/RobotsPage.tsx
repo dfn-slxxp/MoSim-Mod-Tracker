@@ -9,7 +9,7 @@ import { useStore } from '../store/StoreContext';
 import { GAMES, MODTYPE_META, ModType, Robot, RobotStatus, STATUS_META } from '../types';
 
 type Tab = 'in-progress' | 'all';
-type SortKey = 'team' | 'game' | 'progress' | 'status' | 'createdAt';
+type SortKey = 'year' | 'team' | 'game' | 'progress' | 'status' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
 const STATUS_ORDER: RobotStatus[] = ['planned', 'in-unity', 'semi-functional', 'released'];
@@ -51,6 +51,16 @@ function matchesProgress(pct: number, filter: string): boolean {
     case 'done':   return pct === 100;
     default:       return true;
   }
+}
+
+function compareTeams(a: Robot, b: Robot): number {
+  // parseInt ignores rebuild suffixes ("9483a" -> 9483); tie-break on the
+  // full string so 9483a sorts before 9483b.
+  return (parseInt(a.team || '0') - parseInt(b.team || '0')) || a.team.localeCompare(b.team);
+}
+
+function gameYear(robot: Robot): number {
+  return parseInt(robot.game, 10) || 0;
 }
 
 function RobotRow({ robot }: { robot: Robot }) {
@@ -119,8 +129,8 @@ export function RobotsPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterProgress, setFilterProgress] = useState('');
   const [teamSearch, setTeamSearch] = useState('');
-  const [sortBy, setSortBy] = useState<SortKey>('team');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortBy, setSortBy] = useState<SortKey>('year');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const YEARS = [...new Set(GAMES.map((g) => g.split(':')[0].trim()))];
 
@@ -149,9 +159,11 @@ export function RobotsPage() {
   const dir = sortDir === 'asc' ? 1 : -1;
   shown = [...shown].sort((a, b) => {
     switch (sortBy) {
-      // parseInt ignores rebuild suffixes ("9483a" -> 9483); tie-break on the
-      // full string so 9483a sorts before 9483b.
-      case 'team':      return dir * ((parseInt(a.team || '0') - parseInt(b.team || '0')) || a.team.localeCompare(b.team));
+      // Team number remains ascending inside each year, including when the
+      // year direction is flipped. This makes the default newest-year-first
+      // ordering useful without requiring a second sort control.
+      case 'year':      return dir * (gameYear(a) - gameYear(b)) || compareTeams(a, b);
+      case 'team':      return dir * compareTeams(a, b);
       case 'game':      return dir * a.game.localeCompare(b.game);
       case 'progress':  return dir * (robotProgress(a).pct - robotProgress(b).pct);
       case 'status':    return dir * (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
@@ -223,6 +235,7 @@ export function RobotsPage() {
             title="Sort by"
             value={sortBy}
             options={[
+              { value: 'year', label: 'Year (then team #)' },
               { value: 'team', label: 'Team #' },
               { value: 'game', label: 'Game' },
               { value: 'progress', label: 'Progress' },

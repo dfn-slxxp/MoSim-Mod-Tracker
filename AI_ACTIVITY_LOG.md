@@ -108,3 +108,24 @@ and `AI_CONTEXT.txt`.
 **Work and decisions:** Commit the activity-log and synchronized handoff updates,
 apply the `v1.5.3` tag to that commit, then push `main` and the tag to `origin`.
 The release workflow is configured to run when a `v*.*.*` tag is pushed.
+
+### Default robots ordering
+
+**User message:** “by default the sorting of the robots in the robots tab should be
+by year first (recent on top), and within that by team number (website + app view)”
+
+**Work and decisions:** Both views use `web/src/pages/RobotsPage.tsx`. Change the
+default selected sort to Year descending and use ascending numeric team order (with
+the existing suffix-aware tie-break) within each year. Keep the user-selectable sort
+controls available for other views.
+
+**Verification:** `npm.cmd --prefix web run build` passed (TypeScript and Vite).
+The current uncommitted change set is `web/src/pages/RobotsPage.tsx` plus this log and
+the synchronized handoff files.
+
+### Commit and push default ordering
+
+**User message:** “commit and push”
+
+**Work and decisions:** Commit the verified default robots ordering and its portable
+handoff/activity-log updates to `main`, then push it to `origin`.

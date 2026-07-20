@@ -141,7 +141,8 @@ MoSim Mod Tracker/
 │       │   │                        handles (PUT /api/profile). ProfileForm shared
 │       │   │                        with the first-time setup modal
 │       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort.
-│       │   │                        In Progress = status != planned OR progress > 0
+│       │   │                        Default sort: newest game year first, then team #
+│       │   │                        ascending. In Progress = status != planned OR progress > 0
 │       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Status UPGRADE
 │       │   │                         auto-checks all sub-steps (keeps notes)
 │       │   ├── AdminPage.tsx     ← /#/admin (hidden). Gated by user.admin.
