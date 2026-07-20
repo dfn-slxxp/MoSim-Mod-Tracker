@@ -18,6 +18,7 @@ import { ReposPage } from './pages/ReposPage';
 import { RobotDetailPage } from './pages/RobotDetailPage';
 import { RobotsPage } from './pages/RobotsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
+import { UserProfilePage } from './pages/UserProfilePage';
 import { useStore } from './store/StoreContext';
 import { useTheme } from './theme';
 
@@ -263,6 +264,7 @@ export default function App() {
               {/* Desktop opens straight to the tracker; web to the public home. */}
               <Route path="/" element={<Navigate to={isDesktop ? '/robots' : '/home'} replace />} />
               <Route path="/home" element={<HomePage />} />
+              <Route path="/u/:uid" element={<UserProfilePage />} />
               <Route path="/robots" element={<RequireAuth><RobotsPage /></RequireAuth>} />
               <Route path="/robot/:id" element={<RequireAuth><RobotDetailPage /></RequireAuth>} />
               <Route path="/planned" element={<RequireAuth><PlannedPage /></RequireAuth>} />

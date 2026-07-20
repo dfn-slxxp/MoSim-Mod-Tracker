@@ -343,6 +343,41 @@ router.get('/community', (_req, res) => {
   res.json({ users });
 });
 
+// One community member's PUBLIC mods (clicking a user on the homepage).
+router.get('/community/:uid', (req, res) => {
+  const uid = req.params.uid;
+  const profile = getProfile(uid);
+  if (!profile || profile.hidden) return res.status(404).json({ error: 'User not found' });
+
+  const robots = allRobots()
+    .filter((r) => r.uid === uid && !r.private && !r.modpackPrivate)
+    .map((r) => ({
+      id: r.id,
+      team: r.team ?? '',
+      teamName: r.teamName ?? null,
+      name: r.name ?? '',
+      game: r.game ?? '',
+      status: r.status ?? 'planned',
+      modType: r.modType ?? '',
+      progress: r.progress ?? {},
+      createdAt: r.createdAt ?? 0,
+    }))
+    .sort((a, b) => a.createdAt - b.createdAt);
+
+  if (robots.length === 0) return res.status(404).json({ error: 'No public mods' });
+
+  res.json({
+    user: {
+      uid,
+      displayName: profile.displayName ?? 'Modder',
+      photo: profile.photo ?? null,
+      instagram: profile.instagram ?? '',
+      discord: profile.discord ?? '',
+    },
+    robots,
+  });
+});
+
 // ── Admin: community visibility ───────────────────────────────────────────────
 
 router.get('/admin/users', requireAdmin, (_req, res) => {

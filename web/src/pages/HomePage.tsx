@@ -4,6 +4,7 @@
 // hasn't been hidden by an admin. No auth required to view.
 // ---------------------------------------------------------------------------
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import avatarUrl from '../assets/avatar.png';
 import { isTauri, getServerUrl } from '../lib/desktop';
 import { useStore } from '../store/StoreContext';
@@ -16,7 +17,7 @@ function igHandle(v: string): string {
 function CommunityCard({ u }: { u: CommunityUser }) {
   const ig = igHandle(u.instagram);
   return (
-    <div className="community-card">
+    <Link className="community-card" to={`/u/${u.uid}`}>
       <div className="community-top">
         {u.photo ? (
           <img className="community-photo" src={u.photo} alt="" referrerPolicy="no-referrer" />
@@ -26,7 +27,7 @@ function CommunityCard({ u }: { u: CommunityUser }) {
         <div className="community-id">
           <span className="community-name">{u.displayName}</span>
           <span className="muted small">
-            {u.robotCount} robot{u.robotCount === 1 ? '' : 's'}
+            {u.robotCount} public mod{u.robotCount === 1 ? '' : 's'}
           </span>
         </div>
       </div>
@@ -40,14 +41,21 @@ function CommunityCard({ u }: { u: CommunityUser }) {
       {(ig || u.discord) && (
         <div className="community-links">
           {ig && (
-            <a className="social-link ig" href={`https://instagram.com/${ig}`} target="_blank" rel="noreferrer">
+            <a
+              className="social-link ig"
+              href={`https://instagram.com/${ig}`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
               Instagram
             </a>
           )}
           {u.discord && <span className="social-link discord" title="Discord username">@{u.discord}</span>}
         </div>
       )}
-    </div>
+      <span className="community-view">View mods →</span>
+    </Link>
   );
 }
 

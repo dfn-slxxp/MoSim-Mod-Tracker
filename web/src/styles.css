@@ -1635,11 +1635,63 @@ h3 {
   flex-direction: column;
   gap: 12px;
   transition: border-color 0.15s, transform 0.15s;
+  text-decoration: none;
+  color: inherit;
 }
 
 .community-card:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border-solid));
   transform: translateY(-2px);
+}
+
+.community-view {
+  margin-top: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.community-card:hover .community-view {
+  opacity: 1;
+}
+
+/* ---------- public user profile (/u/:uid) ---------- */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.profile-photo.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 28px;
+}
+
+.profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: 24px;
 }
 
 .community-top {

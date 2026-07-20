@@ -165,6 +165,31 @@ export interface CommunityUser {
   games: string[];
 }
 
+/** One of a user's public mods (GET /api/community/:uid). */
+export interface CommunityRobot {
+  id: string;
+  team: string;
+  teamName: string | null;
+  name: string;
+  game: string;
+  status: RobotStatus;
+  modType: ModType;
+  progress: Record<string, StepProgress>;
+  createdAt: number;
+}
+
+/** A public user profile + their public mods (GET /api/community/:uid). */
+export interface PublicProfile {
+  user: {
+    uid: string;
+    displayName: string;
+    photo: string | null;
+    instagram: string;
+    discord: string;
+  };
+  robots: CommunityRobot[];
+}
+
 /** Admin view of a user (GET /api/admin/users) — includes hidden flag. */
 export interface AdminUser {
   uid: string;
