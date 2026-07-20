@@ -59,6 +59,24 @@ SetSetpoint(XSetpoint sp) that copies targets into _target* fields, and an
 UpdateSetpoints() called at the end of FixedUpdate that pushes targets into
 joints/elevator.
 
+# Setpoint handling (important)
+- A setpoint that moves MULTIPLE mechanisms together into one named pose (e.g.
+  elevator height + arm/wrist angle + funnel/intake position for Stow, Intake,
+  L1/L2/L3/L4, Processor, Barge) belongs in a Setpoint ScriptableObject: one
+  [Tooltip]-ed float field per mechanism, one asset per pose. The script keeps a
+  serialized reference per pose, switches on CurrentSetpoint, and calls
+  SetSetpoint(theAssetForThatState) so all those mechanisms move in coordination.
+- A value that only nudges a SINGLE thing (e.g. climb angle, a shot delay, a
+  small offset) is a plain [SerializeField] private float in the main script —
+  do NOT give it its own ScriptableObject.
+- NEVER copy setpoint NUMBERS from a real robot's code. Real robots use their own
+  units (encoder ticks/rotations, meters, calibrated degrees relative to their
+  own zero) that do NOT match MoSim's units (elevator inches, joint degrees in
+  MoSim's frame). Reproduce the STRUCTURE — which mechanisms move for each pose,
+  and how they coordinate — but leave the actual numbers as tunable placeholders
+  (0 or a rough guess) marked // TODO tune in MoSim. The modder sets the real
+  values in the Unity inspector.
+
 # Your task
 Using the user's description of the robot, any reference video links (you
 cannot watch them — rely on the user's description of the mechanisms and

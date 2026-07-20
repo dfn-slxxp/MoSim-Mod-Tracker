@@ -85,9 +85,11 @@ function buildPrompt(input: GenerateInput): string {
     parts.push(
       `\n## The team's real robot source code (from ${input.sourceRepo!.url})\n` +
         `This is the actual FRC team's code. Study its subsystems, mechanisms, motors, sensors, ` +
-        `setpoints, gear ratios, and control logic, then recreate the robot's behavior as a single ` +
-        `MoSim C# robot script. Translate real-robot patterns into their MoSim equivalents; keep ` +
-        `mechanism structure and setpoints faithful to the source.`
+        `and control logic, then recreate the robot's behavior as a single MoSim C# robot script. ` +
+        `Reproduce WHICH mechanisms exist and how they coordinate per pose, but do NOT copy setpoint ` +
+        `numbers — the real code's units differ from MoSim's, so follow the Setpoint handling rules: ` +
+        `coordinated multi-mechanism poses become Setpoint ScriptableObjects, single tweakables become ` +
+        `plain float fields, and all setpoint values are left as // TODO tune-in-MoSim placeholders.`
     );
     for (const [path, content] of Object.entries(repoFiles)) {
       const lang = path.split('.').pop() ?? '';
