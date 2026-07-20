@@ -328,8 +328,14 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 ### Custom Themes
 - Injected client-side as `<style id="mosim-custom-themes">` with
   `:root[data-theme='<id>'] { --var: value; }` blocks — behaves exactly like built-ins.
-- Editor exposes curated var list (bg, panel, border-solid, text, muted, accent,
-  titlebar, gold, red, blue, radius); `accent-dim` derived from accent on save.
+  (Undefined vars inherit the base `:root`/dark palette, so the generator emits a
+  full set incl. panel-2 + all pill-* to stay cohesive.)
+- Editor takes only PRIMARY + SECONDARY color + a dark/light base; `lib/color.ts`
+  generateTheme(primary, secondary, mode) derives the whole palette (surfaces
+  tinted toward secondary hue, text/muted for contrast, accent=primary,
+  blue=secondary, semantic gold/red, status pills). CustomTheme stores
+  primary/secondary/mode so the editor round-trips; vars regenerated on any change
+  and before save. Verified: text/bg contrast 13–15 (AAA) across color pairs.
 - Theme choice persists per-device in localStorage `mosim-theme`; falls back to dark
   if a saved custom theme was deleted.
 - ThemeButton (App.tsx): LEFT-click cycles through allThemes; RIGHT-click opens a

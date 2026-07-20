@@ -183,6 +183,10 @@ export interface CustomTheme {
   icon: string;  // single emoji shown on the theme cycle button
   /** CSS variable overrides, keys WITHOUT the leading '--' (e.g. bg, panel, accent). */
   vars: Record<string, string>;
+  /** Source colors the palette was generated from (editor round-trips these). */
+  primary?: string;
+  secondary?: string;
+  mode?: 'dark' | 'light';
 }
 
 // `Omit<T, K>` = type T minus the listed fields. These are the shapes callers

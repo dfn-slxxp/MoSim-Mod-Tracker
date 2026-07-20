@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 import { useEffect, useState } from 'react';
 import { useDialog } from '../components/Dialog';
+import { generateTheme } from '../lib/color';
 import { isTauri, getServerUrl } from '../lib/desktop';
 import { STEPS, Step, applySteps } from '../steps';
 import { useStore } from '../store/StoreContext';
@@ -165,36 +166,8 @@ function StepsEditor() {
 
 // ── Themes editor ────────────────────────────────────────────────────────────
 
-/** Curated variable list exposed in the editor (label + whether it's a color). */
-const THEME_VARS: { key: string; label: string; color: boolean }[] = [
-  { key: 'bg', label: 'Background', color: true },
-  { key: 'panel', label: 'Panel', color: true },
-  { key: 'border-solid', label: 'Border', color: true },
-  { key: 'text', label: 'Text', color: true },
-  { key: 'muted', label: 'Muted text', color: true },
-  { key: 'accent', label: 'Accent', color: true },
-  { key: 'titlebar', label: 'Titlebar', color: true },
-  { key: 'gold', label: 'Gold', color: true },
-  { key: 'red', label: 'Red', color: true },
-  { key: 'blue', label: 'Blue', color: true },
-  { key: 'radius', label: 'Corner radius', color: false }
-];
-
-/** Base variable sets to start a new theme from (mirrors styles.css). */
-const BASES: Record<string, Record<string, string>> = {
-  dark: {
-    bg: '#0b0e14', panel: '#141a24', 'border-solid': '#263042', text: '#e6e9ef',
-    muted: '#8b95a7', accent: '#3fb950', titlebar: '#0a0d12',
-    gold: '#d4a72c', red: '#f85149', blue: '#58a6ff', radius: '8px',
-    'accent-dim': '#2ea04326', shadow: 'none', 'bg-image': 'none'
-  },
-  light: {
-    bg: '#f4f6f9', panel: '#ffffff', 'border-solid': '#d5dce6', text: '#1c2430',
-    muted: '#66707f', accent: '#218739', titlebar: '#e6eaf0',
-    gold: '#b58a17', red: '#d1332e', blue: '#2f6fd0', radius: '8px',
-    'accent-dim': '#21873916', shadow: '0 1px 3px rgba(20, 30, 50, 0.08)', 'bg-image': 'none'
-  }
-};
+/** Sensible starting colors for a new theme. */
+const DEFAULTS = { primary: '#3fb950', secondary: '#58a6ff' };
 
 function ThemesEditor() {
   const { confirmDialog } = useDialog();
@@ -211,16 +184,29 @@ function ThemesEditor() {
     });
   };
 
-  const addTheme = (base: 'dark' | 'light') => {
+  /** Regenerate a theme's palette from its two colors + mode. */
+  const regen = (t: CustomTheme): void => {
+    const primary = t.primary ?? DEFAULTS.primary;
+    const secondary = t.secondary ?? DEFAULTS.secondary;
+    const mode = t.mode ?? 'dark';
+    t.primary = primary; t.secondary = secondary; t.mode = mode;
+    t.vars = generateTheme(primary, secondary, mode);
+  };
+
+  const addTheme = () => {
     mutate((d) => {
       const taken = new Set([...BUILTIN_THEMES.map((t) => t.id), ...d.map((t) => t.id)]);
-      d.push({
+      const t: CustomTheme = {
         id: uniqueId('custom-theme', taken),
         label: 'My theme',
         icon: '🎨',
-        // Derived accent-dim etc. update automatically when accent changes on save.
-        vars: { ...BASES[base] }
-      });
+        primary: DEFAULTS.primary,
+        secondary: DEFAULTS.secondary,
+        mode: 'dark',
+        vars: {},
+      };
+      regen(t);
+      d.push(t);
     });
   };
 
@@ -228,12 +214,11 @@ function ThemesEditor() {
     setSaving(true);
     setMsg('');
     try {
-      // Keep accent-dim in sync with accent (used for subtle backgrounds).
-      const cleaned = themes.map((t) => ({
-        ...t,
-        id: t.id.startsWith('custom-') ? t.id : `custom-${slug(t.id)}`,
-        vars: { ...t.vars, 'accent-dim': `${t.vars.accent ?? '#3fb950'}26` }
-      }));
+      const cleaned = themes.map((t) => {
+        const out = { ...t, id: t.id.startsWith('custom-') ? t.id : `custom-${slug(t.id)}` };
+        regen(out); // ensure vars match the current colors before saving
+        return out;
+      });
       await adminPut('/api/admin/themes', { themes: cleaned });
       setCustomThemes(cleaned);
       setThemes(cleaned);
@@ -254,64 +239,91 @@ function ThemesEditor() {
         </button>
       </div>
       <p className="muted small">
-        Themes are stored on the server and appear in the theme cycle button on every device.
-        Start from a dark or light base, then adjust the colors.
+        Pick a primary and secondary color and a light/dark base — the rest of the palette
+        (surfaces, text, borders, status colors) is generated to match. Themes sync to every
+        device and appear on the theme button.
       </p>
       {msg && <div className="muted small admin-msg">{msg}</div>}
 
-      {themes.map((t, ti) => (
-        <div key={t.id} className="admin-theme">
-          <div className="admin-theme-head">
-            <input
-              className="admin-theme-icon"
-              value={t.icon}
-              maxLength={4}
-              onChange={(e) => mutate((d) => { d[ti].icon = e.target.value; })}
-            />
-            <input
-              value={t.label}
-              onChange={(e) => mutate((d) => { d[ti].label = e.target.value; })}
-            />
-            <button className="btn subtle" onClick={() => setTheme(t.id)}>Preview</button>
-            <button
-              className="btn danger subtle"
-              onClick={async () => {
-                if (await confirmDialog({ title: 'Delete theme', message: `Delete theme "${t.label}"?` }))
-                  mutate((d) => { d.splice(ti, 1); });
-              }}
-            >Delete</button>
-          </div>
-          <div className="admin-theme-vars">
-            {THEME_VARS.map((v) => (
-              <label key={v.key} className="admin-var">
-                {v.label}
-                {v.color ? (
-                  <span className="admin-color-pair">
-                    <input
-                      type="color"
-                      value={/^#[0-9a-fA-F]{6}$/.test(t.vars[v.key] ?? '') ? t.vars[v.key] : '#000000'}
-                      onChange={(e) => mutate((d) => { d[ti].vars[v.key] = e.target.value; })}
-                    />
-                    <input
-                      value={t.vars[v.key] ?? ''}
-                      onChange={(e) => mutate((d) => { d[ti].vars[v.key] = e.target.value; })}
-                    />
-                  </span>
-                ) : (
-                  <input
-                    value={t.vars[v.key] ?? ''}
-                    onChange={(e) => mutate((d) => { d[ti].vars[v.key] = e.target.value; })}
-                  />
-                )}
+      {themes.map((t, ti) => {
+        const primary = t.primary ?? DEFAULTS.primary;
+        const secondary = t.secondary ?? DEFAULTS.secondary;
+        const mode = t.mode ?? 'dark';
+        const vars = (t.vars && Object.keys(t.vars).length ? t.vars : generateTheme(primary, secondary, mode));
+        return (
+          <div key={t.id} className="admin-theme">
+            <div className="admin-theme-head">
+              <input
+                className="admin-theme-icon"
+                value={t.icon}
+                maxLength={4}
+                onChange={(e) => mutate((d) => { d[ti].icon = e.target.value; })}
+              />
+              <input
+                value={t.label}
+                onChange={(e) => mutate((d) => { d[ti].label = e.target.value; })}
+              />
+              <button className="btn subtle" onClick={() => { mutate((d) => regen(d[ti])); setTheme(t.id); }}>
+                Preview
+              </button>
+              <button
+                className="btn danger subtle"
+                onClick={async () => {
+                  if (await confirmDialog({ title: 'Delete theme', message: `Delete theme "${t.label}"?` }))
+                    mutate((d) => { d.splice(ti, 1); });
+                }}
+              >Delete</button>
+            </div>
+
+            <div className="theme-inputs">
+              <label className="admin-var">
+                Primary color
+                <span className="admin-color-pair">
+                  <input type="color" value={primary}
+                    onChange={(e) => mutate((d) => { d[ti].primary = e.target.value; regen(d[ti]); })} />
+                  <input value={primary}
+                    onChange={(e) => mutate((d) => { d[ti].primary = e.target.value; regen(d[ti]); })} />
+                </span>
               </label>
-            ))}
+              <label className="admin-var">
+                Secondary color
+                <span className="admin-color-pair">
+                  <input type="color" value={secondary}
+                    onChange={(e) => mutate((d) => { d[ti].secondary = e.target.value; regen(d[ti]); })} />
+                  <input value={secondary}
+                    onChange={(e) => mutate((d) => { d[ti].secondary = e.target.value; regen(d[ti]); })} />
+                </span>
+              </label>
+              <label className="admin-var">
+                Base
+                <div className="btn-row">
+                  <button type="button" className={`toggle-btn ${mode === 'dark' ? 'on' : ''}`}
+                    onClick={() => mutate((d) => { d[ti].mode = 'dark'; regen(d[ti]); })}>🌙 Dark</button>
+                  <button type="button" className={`toggle-btn ${mode === 'light' ? 'on' : ''}`}
+                    onClick={() => mutate((d) => { d[ti].mode = 'light'; regen(d[ti]); })}>☀️ Light</button>
+                </div>
+              </label>
+            </div>
+
+            {/* Live swatch preview of the generated palette */}
+            <div className="theme-preview" style={{ background: vars.bg, borderColor: vars['border-solid'] }}>
+              <div className="theme-preview-card" style={{ background: vars.panel, borderColor: vars['border-solid'] }}>
+                <span style={{ color: vars.text, fontWeight: 600 }}>{t.label || 'Preview'}</span>
+                <span style={{ color: vars.muted, fontSize: 12 }}>muted text</span>
+                <div className="theme-swatches">
+                  {['accent', 'blue', 'gold', 'red'].map((k) => (
+                    <span key={k} className="theme-swatch" style={{ background: vars[k] }} title={k} />
+                  ))}
+                  <span className="theme-chip" style={{ background: vars['pill-semi-bg'], color: vars['pill-semi-fg'] }}>Released</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       <div className="btn-row">
-        <button className="btn" onClick={() => addTheme('dark')}>+ New from dark base</button>
-        <button className="btn" onClick={() => addTheme('light')}>+ New from light base</button>
+        <button className="btn" onClick={addTheme}>+ New theme</button>
       </div>
     </section>
   );
