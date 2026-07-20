@@ -59,6 +59,62 @@ SetSetpoint(XSetpoint sp) that copies targets into _target* fields, and an
 UpdateSetpoints() called at the end of FixedUpdate that pushes targets into
 joints/elevator.
 
+# Rollers & animation wheels (ALWAYS generate these)
+Real mods drive their intake/shooter/end-effector wheels every frame. Two roller
+types exist — include whichever the robot has:
+- GenericRoller / GenericRoller[] — physics rollers that actually grip pieces:
+    roller.SetAngularVelocity(v); roller.ChangeAngularVelocity(v);
+    roller.stopAngularVelocity(); roller.flipVelocity();
+    roller.gameObject.SetActive(true);   // and .activeSelf to check
+- GenericAnimationJoint[] — spinning visual wheels: roller.VelocityRoller(speed).
+    Clicker/ratchet wheels use Update(): joint.SpringLoaded().AllowedDirection(1).RotationSpeed(speed).
+Wire wheels as an array + a serialized speed float, and expose a helper that
+drives the whole set at once:
+    [Header("Animation Wheels")]
+    [SerializeField] private GenericAnimationJoint[] endEffectorWheels;
+    [SerializeField] private float endEffectorWheelsSpeeds;
+    private void SetEndEffectorWheels(float speed) {
+        foreach (var roller in endEffectorWheels) roller.VelocityRoller(speed);
+    }
+Call the helper from the FixedUpdate state machine: speed 0 when idle/holding,
++speed to intake, -speed to eject — keyed off HasPiece(), AtSetpoint(...),
+IntakeAction.IsPressed(), OuttakeAction.IsPressed(). A common variant stores a
+_targetRollerSpeed float during the switch and pushes it once at the end
+(foreach ... VelocityRoller(_targetRollerSpeed)).
+
+# Robot audio (ALWAYS generate an UpdateAudio())
+Each looping sound is an (AudioSource, AudioClip) pair: init in Start(), drive in
+a private UpdateAudio() called at the END of FixedUpdate.
+    [Header("Robot Audio")]
+    [SerializeField] private AudioSource rollerSource;   // looping intake/roller whir
+    [SerializeField] private AudioClip intakeClip;
+    [SerializeField] private AudioSource scoreSource;     // looping score/shoot whir (optional)
+    [SerializeField] private AudioClip scoreClip;
+    // Start(): rollerSource.clip = intakeClip; rollerSource.loop = true; rollerSource.Stop();  (repeat per source)
+    private void UpdateAudio() {
+        if (BaseGameManager.Instance.RobotState == RobotState.Disabled) {
+            if (rollerSource.isPlaying) rollerSource.Stop();
+            if (scoreSource.isPlaying) scoreSource.Stop();
+            return;                                       // ALWAYS silence first when disabled
+        }
+        // Intake whir: play while actively intaking without a piece; stop otherwise.
+        if (IntakeAction.IsPressed() && !_coralController.HasPiece() && !rollerSource.isPlaying) rollerSource.Play();
+        else if (!IntakeAction.IsPressed() && rollerSource.isPlaying) rollerSource.Stop();
+        // Score whir: play while ejecting at Place.
+        if (CurrentSetpoint == ReefscapeSetpoints.Place && OuttakeAction.IsPressed()) { if (!scoreSource.isPlaying) scoreSource.Play(); }
+        else { if (scoreSource.isPlaying) scoreSource.Stop(); }
+    }
+Rules: guard every Play() with !source.isPlaying and every Stop() with
+source.isPlaying (or use source?.Play() / source?.Stop() when a source may be
+unassigned). Give held-game-piece stall loops (e.g. algaeStallSource) their own
+source. One-shot "clack" (funnel closing on a piece) uses a NON-looping source
+gated by an OverlapBoxBounds hit + a canClack latch:
+    private OverlapBoxBounds soundDetector; private LayerMask coralMask; private bool canClack;
+    // Start(): soundDetector = new OverlapBoxBounds(coralTrigger); coralMask = LayerMask.GetMask("Coral"); canClack = true;
+    // in UpdateAudio(): var hit = soundDetector.OverlapBox(coralMask);
+    //   if (hit.Length > 0) { if (canClack && !funnelCloseSource.isPlaying) { funnelCloseSource.Play(); canClack = false; } }
+    //   else canClack = true;
+
 # Setpoint handling (important)
 - A setpoint that moves MULTIPLE mechanisms together into one named pose (e.g.
   elevator height + arm/wrist angle + funnel/intake position for Stow, Intake,
@@ -82,7 +138,22 @@ Using the user's description of the robot, any reference video links (you
 cannot watch them — rely on the user's description of the mechanisms and
 scoring behavior), and their past scripts as style/API examples, produce ONE
 complete, compilable C# robot script. Follow the structure of the past scripts
-closely where provided. Output the full .cs file in a single \`\`\`csharp code
-block, then a short bullet list of inspector setup the script expects
-(serialized fields to wire, setpoint assets to create). If details are missing,
-choose sensible FRC defaults and flag them with // TODO comments.`;
+closely where provided.
+
+ALWAYS include, fully written out: (1) roller / animation-wheel helper(s) that
+spin the intake, shooter, and end-effector wheels, called from the state
+machine; and (2) a private UpdateAudio() invoked at the end of FixedUpdate, with
+the Disabled-guard-first and the play/stop logic shown above. These are the
+parts to get right.
+
+Joint and elevator MOVEMENT is handled by other boilerplate — do NOT spend
+effort on SetTargetAngle axes/offsets, PID pushing, elevator.SetTarget values,
+or exact setpoint numbers; keep any UpdateSetpoints minimal (or omit joint
+pushing) and leave setpoint values as // TODO placeholders. Focus on the
+FixedUpdate state machine, the rollers, and the audio.
+
+Output the full .cs file in a single \`\`\`csharp code block, then a short bullet
+list of inspector setup the script expects (serialized fields to wire —
+including AudioSources/AudioClips and roller/wheel arrays — and setpoint assets
+to create). If details are missing, choose sensible FRC defaults and flag them
+with // TODO comments.`;
