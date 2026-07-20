@@ -2,7 +2,8 @@
 // Top-level component: routing + the page shell (top bar, nav, banners).
 // /compact renders WITHOUT the shell — that's the LiveSplit-style overlay.
 // ---------------------------------------------------------------------------
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import avatarUrl from './assets/avatar.png';
 import { AuthButton } from './components/AuthButton';
@@ -39,17 +40,73 @@ function PinButton() {
 
 function ThemeButton() {
   const { theme, setTheme, allThemes } = useTheme();
+  const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const idx = Math.max(0, allThemes.findIndex((t) => t.id === theme));
   const next = allThemes[(idx + 1) % allThemes.length];
   const current = allThemes[idx];
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    // Anchor to the button's right edge so the menu doesn't run off-screen.
+    setMenu({ top: r.bottom + 6, left: Math.max(6, r.right - 190) });
+  };
+
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t) || btnRef.current?.contains(t)) return;
+      setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    const close = () => setMenu(null);
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [menu]);
+
   return (
-    <button
-      className="btn subtle theme-btn"
-      title={`Theme: ${current.label} (click for ${next.label})`}
-      onClick={() => setTheme(next.id)}
-    >
-      {current.icon}
-    </button>
+    <>
+      <button
+        ref={btnRef}
+        className="btn subtle theme-btn"
+        title={`Theme: ${current.label} — click to cycle (${next.label}), right-click to choose`}
+        onClick={() => setTheme(next.id)}
+        onContextMenu={(e) => { e.preventDefault(); menu ? setMenu(null) : openMenu(); }}
+      >
+        {current.icon}
+      </button>
+      {menu &&
+        createPortal(
+          <div ref={menuRef} className="dd-menu theme-menu" style={{ top: menu.top, left: menu.left, minWidth: 190 }}>
+            <div className="dd-group">Theme</div>
+            {allThemes.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`dd-option ${t.id === theme ? 'selected' : ''}`}
+                onClick={() => { setTheme(t.id); setMenu(null); }}
+              >
+                <span className="theme-menu-icon">{t.icon}</span>
+                <span className="dd-option-label">{t.label}</span>
+                {t.id === theme && <span className="dd-tick">✓</span>}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 

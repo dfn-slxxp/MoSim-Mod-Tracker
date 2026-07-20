@@ -1973,6 +1973,13 @@ h3 {
   flex-shrink: 0;
 }
 
+.theme-menu-icon {
+  font-size: 15px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 /* ---------- custom dialogs (replaces native confirm/alert) ---------- */
 .dialog-overlay {
   position: fixed;

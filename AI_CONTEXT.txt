@@ -332,6 +332,8 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   titlebar, gold, red, blue, radius); `accent-dim` derived from accent on save.
 - Theme choice persists per-device in localStorage `mosim-theme`; falls back to dark
   if a saved custom theme was deleted.
+- ThemeButton (App.tsx): LEFT-click cycles through allThemes; RIGHT-click opens a
+  portal menu (.theme-menu, reuses .dd-menu/.dd-option) to pick a theme by name.
 
 ### AI
 - Provider setting in localStorage. Gemini is listed first (video analysis).
