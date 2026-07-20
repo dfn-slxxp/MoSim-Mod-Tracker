@@ -356,6 +356,14 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - `analyzeScript(name, content)`: bullet-point description of a .cs script, used by
   ScriptsPage auto-describe on add + per-row re-run. Only script-evident behavior.
 - Anthropic: direct browser calls with `anthropic-dangerous-direct-browser-access`.
+- `ai/reference.ts` MOSIM_SYSTEM_PROMPT is distilled from ALL 8 public Reefscape
+  mods (MoSim-Reefscape-Public/Assets/Prefabs/Reefscape/Robots/Mods): real APIs for
+  input actions, base-class state, game-piece controllers, rollers/animation wheels,
+  audio (incl. one-shot clack + PlayOneShot), setpoint SOs / SingleEditableFloat /
+  inline structs / enums, auto-align, lights, sub-component MonoBehaviours. Requires
+  rollers + UpdateAudio() + state machine; de-emphasizes joint movement (handled
+  elsewhere) and setpoint numbers (units differ → // TODO placeholders). It's a
+  template literal — code fences are \`\`\`csharp (escaped), closing is a real backtick.
 
 ### TBA API
 - Key in localStorage `mosim_tba_key`; `lib/tba.ts`
