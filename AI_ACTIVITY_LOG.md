@@ -177,3 +177,39 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** `web/src/lib/color.ts`, `web/src/styles.css`, `web/src/pages/AdminPage.tsx`, `AI_ACTIVITY_LOG.md`, `CLAUDE.md`, `AI_CONTEXT.txt`.
 
 **User-facing outcome:** Branch now contains and publishes the requested theme-generation fixes.
+
+### Push destination preference
+
+**User message:** "push to main always"
+
+**Work and decisions:** Pushed current HEAD directly to `origin/main` (`git push origin HEAD:main`) and recorded the preference to push to `main` for future pushes.
+
+**Verification:** Remote updated `main` from `7a3ec97` to `2d813e5`.
+
+**Files changed:** `AI_ACTIVITY_LOG.md`, `CLAUDE.md`, `AI_CONTEXT.txt`.
+
+**User-facing outcome:** Latest theme-generator commit is now on `main`.
+
+### Primary/secondary fidelity fix
+
+**User message:** "the main color looks off and the secondary color doesnt look like its being used much. make sure main and secondary are actually main and secondary"
+
+**Work and decisions:** Updated `web/src/lib/color.ts` so `accent` and `blue` are now the literal user-entered primary/secondary values (no hue/lightness remapping), while derived colors continue to be generated from that pair. Increased secondary influence by making neutral hue/border/titlebar generation more secondary-led. Added `accent-contrast` generation from luminance for readable primary buttons. Updated `web/src/styles.css` to use `--accent-contrast` for `.btn.primary` text and to blend hover state with `--blue`, so both primary and secondary are visibly used.
+
+**Verification:** `npm --prefix web run build` passed.
+
+**Files changed:** `web/src/lib/color.ts`, `web/src/styles.css`, `AI_ACTIVITY_LOG.md`, `CLAUDE.md`, `AI_CONTEXT.txt`.
+
+**User-facing outcome:** Primary and secondary now behave as true primary/secondary theme colors across the UI, with derived colors built around them.
+
+### Commit-and-push default preference
+
+**User message:** "commit and push always"
+
+**Work and decisions:** Recorded a standing preference to commit and push after completed code changes, and to keep pushing to `main` per prior preference.
+
+**Verification:** Applied as workflow preference for this session.
+
+**Files changed:** `AI_ACTIVITY_LOG.md`, `CLAUDE.md`, `AI_CONTEXT.txt`.
+
+**User-facing outcome:** Future completed fixes will be committed and pushed by default.

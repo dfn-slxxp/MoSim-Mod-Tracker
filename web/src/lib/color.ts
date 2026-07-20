@@ -55,6 +55,14 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
 
 const hsl = (h: number, s: number, l: number) => rgbToHex(...hslToRgb(h, s, l));
 
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 function hueDelta(a: number, b: number): number {
   return ((((b - a) % 360) + 540) % 360) - 180;
 }
@@ -88,24 +96,22 @@ export function generateTheme(
   mode: 'dark' | 'light'
 ): Record<string, string> {
   const dark = mode === 'dark';
-  const [phRaw, psRaw, plRaw] = rgbToHsl(...hexToRgb(primary));
-  const [shRaw, ssRaw, slRaw] = rgbToHsl(...hexToRgb(secondary));
+  const primaryInput = rgbToHex(...hexToRgb(primary));
+  const secondaryInput = rgbToHex(...hexToRgb(secondary));
+  const [phRaw, psRaw] = rgbToHsl(...hexToRgb(primaryInput));
+  const [shRaw, ssRaw] = rgbToHsl(...hexToRgb(secondaryInput));
 
-  // Keep both accents visible enough for UI controls.
-  const pSat = clamp(psRaw, 45, 90);
-  const pLight = clamp(plRaw, dark ? 50 : 36, dark ? 72 : 56);
-  const sSat = clamp(ssRaw, 32, 86);
-  const sLight = clamp(slRaw, dark ? 50 : 34, dark ? 72 : 56);
-
-  const primarySafe = hsl(phRaw, pSat, pLight);
-  const secondarySafe = hsl(shRaw, sSat, sLight);
+  // Keep primary/secondary as the literal inputs. Derived colors adapt to them.
+  const accentContrast = relativeLuminance(primaryInput) > 0.38 ? '#111827' : '#ffffff';
 
   // Neutrals and extra accents are derived from the primary+secondary pair.
   const pairHue = mixHue(phRaw, shRaw, 0.5);
   const pairDist = hueDist(phRaw, shRaw);
-  const neutralHue = mixHue(pairHue, phRaw, 0.32);
-  const neutralSatBase = dark ? 8 + pSat * 0.1 + sSat * 0.07 : 6 + pSat * 0.07 + sSat * 0.05;
-  const nSat = clamp(neutralSatBase * (pairDist > 130 ? 1.06 : 0.96), 6, 20);
+  const neutralHue = mixHue(shRaw, phRaw, 0.2); // secondary-led neutrals
+  const neutralSatBase = dark
+    ? 7 + ssRaw * 0.14 + psRaw * 0.05
+    : 6 + ssRaw * 0.1 + psRaw * 0.04;
+  const nSat = clamp(neutralSatBase * (pairDist > 130 ? 1.08 : 0.95), 8, 24);
 
   // "Third" and "fourth" accents: keep semantic warm/error roles while fitting
   // the chosen palette by blending toward amber/red targets from the pair hue.
@@ -132,13 +138,14 @@ export function generateTheme(
     'bg-image': 'none',
     panel: hsl(neutralHue, dark ? nSat : nSat * 0.5, neutrals.panel),
     'panel-2': hsl(neutralHue, nSat, neutrals.panel2),
-    'border-solid': hsl(neutralHue, nSat, neutrals.border),
+    'border-solid': hsl(mixHue(neutralHue, shRaw, 0.25), clamp(nSat + 2, 8, 26), neutrals.border),
     text: hsl(neutralHue, dark ? 14 : 22, neutrals.text),
     muted: hsl(neutralHue, 12, neutrals.muted),
-    titlebar: hsl(mixHue(neutralHue, phRaw, 0.35), clamp(nSat + (dark ? 8 : 6), 10, 28), neutrals.titlebar),
-    accent: primarySafe,
-    'accent-dim': withAlpha(primarySafe, dark ? 0.24 : 0.18),
-    blue: secondarySafe,
+    titlebar: hsl(mixHue(shRaw, phRaw, 0.15), clamp(nSat + (dark ? 10 : 8), 12, 30), neutrals.titlebar),
+    accent: primaryInput,
+    'accent-contrast': accentContrast,
+    'accent-dim': withAlpha(primaryInput, dark ? 0.26 : 0.2),
+    blue: secondaryInput,
     gold,
     red,
     shadow: dark ? 'none' : '0 1px 3px rgba(20, 30, 50, 0.08)',
