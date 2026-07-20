@@ -339,6 +339,14 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Provider setting in localStorage. Gemini is listed first (video analysis).
 - Gemini: YouTube URLs sent as `fileData` parts → the model watches them.
   Endpoint: generativelanguage.googleapis.com v1beta generateContent, key in query.
+- AiScriptPanel has THREE input modes (any one drives generation): text
+  description, video links, and a GitHub repo URL of the team's REAL robot code.
+- `lib/github.ts` fetchRepoSource(url): parseRepoUrl → GitHub trees API (CORS ok)
+  → raw.githubusercontent.com per file (CORS ok, not counted vs the 60/hr API
+  limit). Filters to .java/.kt/.cpp/.h/.cs/.py, skips build/vendordeps/test/etc.,
+  prioritizes subsystems/Robot/commands/Constants, caps ~30 files / 150k chars.
+  Files go into GenerateInput.sourceRepo; buildPrompt asks the model to translate
+  the real code into a MoSim C# script. Public repos only.
 - `analyzeScript(name, content)`: bullet-point description of a .cs script, used by
   ScriptsPage auto-describe on add + per-row re-run. Only script-evident behavior.
 - Anthropic: direct browser calls with `anthropic-dangerous-direct-browser-access`.

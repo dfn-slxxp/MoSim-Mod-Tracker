@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 import { useMemo, useState } from 'react';
 import { ANTHROPIC_MODELS, GEMINI_MODELS, Provider, generateScript, settings } from '../ai/client';
+import { fetchRepoSource } from '../lib/github';
 import { useStore } from '../store/StoreContext';
 import type { Repo, Robot } from '../types';
 import { Select } from './Select';
@@ -29,9 +30,11 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
   const [geminiModel, setGeminiModelState] = useState(settings.getGeminiModel());
   const [description, setDescription] = useState('');
   const [videos, setVideos] = useState('');
+  const [sourceRepoUrl, setSourceRepoUrl] = useState('');
   const [excludedLibrary, setExcludedLibrary] = useState<Set<string>>(new Set());
   const [selectedRepoScripts, setSelectedRepoScripts] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
 
@@ -56,6 +59,7 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
     setBusy(true);
     setError('');
     setOutput('');
+    setStatus('');
     try {
       // Persist settings so they're remembered next time.
       settings.setProvider(provider);
@@ -80,6 +84,18 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
         }
       }
 
+      // 3) The team's real robot code from a GitHub repo (translation source).
+      let sourceRepo: { url: string; files: Record<string, string> } | undefined;
+      if (sourceRepoUrl.trim()) {
+        setStatus('Reading the team’s GitHub repo…');
+        const src = await fetchRepoSource(sourceRepoUrl.trim());
+        sourceRepo = { url: src.url, files: src.files };
+        setStatus(
+          `Loaded ${src.count} file${src.count === 1 ? '' : 's'} from the repo` +
+            `${src.truncated ? ' (largest/most-relevant only)' : ''}. Generating…`
+        );
+      }
+
       const text = await generateScript({
         robotName: robot.name,
         team: robot.team,
@@ -88,11 +104,14 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
           .split('\n')
           .map((v) => v.trim())
           .filter(Boolean),
-        exampleScripts: examples
+        exampleScripts: examples,
+        sourceRepo
       });
       setOutput(text);
+      setStatus('');
     } catch (e) {
       setError((e as Error).message);
+      setStatus('');
     } finally {
       setBusy(false);
     }
@@ -121,10 +140,12 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
       {open && (
         <div className="ai-body">
           <p className="muted small">
-            Describe what the robot does (mechanisms, setpoints, how it scores).{' '}
+            Describe what the robot does (mechanisms, setpoints, how it scores){' '}
+            <b>or</b> paste the team's real robot GitHub repo below and let the AI translate their
+            actual code.{' '}
             {provider === 'gemini'
               ? 'YouTube links are sent directly to Gemini for video analysis.'
-              : 'Video links are included as text reference — the description is what drives the script.'}
+              : 'Video links are included as text reference.'}
             {' '}Keys/settings stay on this device only.
           </p>
 
@@ -223,6 +244,22 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
             />
           </label>
 
+          <div className="ai-or">or</div>
+
+          <label className="ai-field">
+            Team's real robot code — GitHub repo URL
+            <input
+              placeholder="https://github.com/team9496/Reefscape-2025"
+              value={sourceRepoUrl}
+              onChange={(e) => setSourceRepoUrl(e.target.value)}
+            />
+            <span className="muted small">
+              The AI reads the team's actual robot code (subsystems, setpoints, mechanisms) and
+              translates it into a MoSim script — an alternative to describing it above. Public repos
+              only.
+            </span>
+          </label>
+
           <div className="ai-field">
             <span>
               Script library examples — {includedCount}/{scripts.length} included
@@ -271,7 +308,11 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
           )}
 
           <div className="ai-actions">
-            <button className="btn primary" disabled={busy || !description.trim()} onClick={run}>
+            <button
+              className="btn primary"
+              disabled={busy || (!description.trim() && !sourceRepoUrl.trim())}
+              onClick={run}
+            >
               {busy ? 'Generating…' : 'Generate script'}
             </button>
             {output && (
@@ -286,6 +327,7 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
             )}
           </div>
 
+          {busy && status && <div className="muted small">{status}</div>}
           {error && <div className="banner error rounded">{error}</div>}
           {output && <pre className="ai-output">{output}</pre>}
         </div>

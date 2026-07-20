@@ -65,6 +65,8 @@ export interface GenerateInput {
   videoLinks: string[];
   /** name -> file content of past scripts to use as examples. */
   exampleScripts: Record<string, string>;
+  /** A real FRC team's robot code to translate into MoSim (path -> content). */
+  sourceRepo?: { url: string; files: Record<string, string> };
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -75,7 +77,30 @@ function isYouTubeUrl(url: string): boolean {
 function buildPrompt(input: GenerateInput): string {
   const parts: string[] = [];
   parts.push(`Robot: ${input.team ? input.team + ' ' : ''}${input.robotName}`);
-  parts.push(`\n## Functionality description\n${input.description || '(none provided)'}`);
+
+  const repoFiles = input.sourceRepo?.files ?? {};
+  const hasRepo = Object.keys(repoFiles).length > 0;
+
+  if (hasRepo) {
+    parts.push(
+      `\n## The team's real robot source code (from ${input.sourceRepo!.url})\n` +
+        `This is the actual FRC team's code. Study its subsystems, mechanisms, motors, sensors, ` +
+        `setpoints, gear ratios, and control logic, then recreate the robot's behavior as a single ` +
+        `MoSim C# robot script. Translate real-robot patterns into their MoSim equivalents; keep ` +
+        `mechanism structure and setpoints faithful to the source.`
+    );
+    for (const [path, content] of Object.entries(repoFiles)) {
+      const lang = path.split('.').pop() ?? '';
+      parts.push(`\n### ${path}\n\`\`\`${lang}\n${content.slice(0, 40000)}\n\`\`\``);
+    }
+  }
+
+  if (input.description.trim()) {
+    parts.push(`\n## Functionality description\n${input.description}`);
+  } else if (!hasRepo) {
+    parts.push(`\n## Functionality description\n(none provided)`);
+  }
+
   if (input.videoLinks.length > 0) {
     parts.push(
       `\n## Reference match/reveal videos (for context only — the description above covers what they show)\n` +

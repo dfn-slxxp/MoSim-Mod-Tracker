@@ -1025,6 +1025,26 @@ h3 {
   gap: 8px;
 }
 
+/* "or" divider between the description/video and the repo-URL alternative */
+.ai-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.ai-or::before,
+.ai-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-solid);
+}
+
 .ai-output {
   background: var(--panel-2);
   border: 1px solid var(--border-solid);
