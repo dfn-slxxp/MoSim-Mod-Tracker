@@ -5,6 +5,7 @@
 - No sycophantic openers or closing fluff.
 - No emojis or em-dashes.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
+- After every substantive user message or completed work item, update this handoff and mirror the same update in `AI_CONTEXT.txt`, so Codex, Claude, and other AI tools share current project context.
 
 
 # MoSim Mod Tracker — AI Context File
@@ -424,6 +425,12 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Server data migration note: none needed for settings table (CREATE IF NOT EXISTS).
 - After changing steps via admin, other open clients pick it up on next reload only.
 - macOS/Linux installer builds are untested by the user (no hardware).
+- RobotFramework API review (2026-07-20): all 28 C# scripts in the external
+  `MoSim-Reefscape-Public/Assets/Scripts/RobotFramework` source were reviewed.
+  Script generation must use the real framework: `RobotBase` input actions,
+  `DriveController`/`AutoAlign`, `GenericJoint`/`GenericElevator`/`GenericRoller`,
+  and `RobotGamePieceController` named nodes and states. Avoid inventing custom
+  movement, physics, or game-piece APIs when a framework API exists.
 
 ---
 
