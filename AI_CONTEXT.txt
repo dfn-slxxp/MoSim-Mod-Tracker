@@ -431,6 +431,10 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   `DriveController`/`AutoAlign`, `GenericJoint`/`GenericElevator`/`GenericRoller`,
   and `RobotGamePieceController` named nodes and states. Avoid inventing custom
   movement, physics, or game-piece APIs when a framework API exists.
+- The verified API contract is embedded in `web/src/ai/reference.ts` under
+  “Verified RobotFramework API contract.” It captures the exact drive override
+  spelling, joint fluent calls and units, roller one-tick override behavior, and
+  game-piece intake/node/release methods. Keep it aligned with the framework source.
 
 ---
 

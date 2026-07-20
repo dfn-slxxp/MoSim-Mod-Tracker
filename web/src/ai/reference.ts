@@ -165,6 +165,49 @@ Rules & variants seen in real mods:
   climber.NotClimbing(), climber.RetractArm(), climber.PlayClick(), climber.WingsOpen()).
   Lights drive Renderer materials/shaders per robot state.
 
+# Verified RobotFramework API contract
+These are verified from \`Assets/Scripts/RobotFramework\`, not inferred. Use these
+exact names and semantics when the generated script directly drives framework
+components:
+- \`RobotBase\` maps \`TranslateAction\`, \`RotateAction\`, \`StowAction\`, \`IntakeAction\`,
+  \`OuttakeAction\` (the input action named \`Place\`), \`SwapCameraAction\`,
+  \`DriverStationMovementAction\`, \`RightStickModifierAction\`, \`RestartAction\`, and
+  \`PauseAction\`. Its Awake automatically adds rigidbody interpolation and joint-stack
+  stabilization. Game-specific bases may expose additional Reefscape actions.
+- Drive autonomous motion through the deliberately misspelled
+  \`DriveController.overideInput(Vector2 input, float rotation, DriveMode mode)\`.
+  Valid modes are \`DriveController.DriveMode.FieldOriented\` and \`.RobotRelative\`.
+  \`SetDriveMp(float)\` is a persistent drive-speed multiplier; \`SoftSteer(float)\`
+  contributes only for the current physics tick. \`AutoAlign\` is intended as a base
+  component: call its protected \`AlignPosition(...)\` from a derived aligner and use
+  \`getDistance()\` for completion checks. Do not implement competing Rigidbody drive.
+- \`GenericJoint\` targets use inches for linear distance and degrees for angle:
+  \`joint.SetLinearTarget(inches).withAxis(axis).useDifferentEncoderAxis(axis)
+  .useAutomaticStartingOffset().flipDirection();\` and
+  \`joint.SetTargetAngle(degrees).withAxis(axis).useCustomStartingOffset(degrees)
+  .noWrap(degrees).flipDirection();\`. The fluent methods configure the target; call
+  the target setter every FixedUpdate while commanding a mechanism. \`SetPid\` belongs
+  in Start and \`UpdatePid\` belongs in LateUpdate. \`lockAllAxis()\`,
+  \`freeLinearAxis(axis)\`, and \`freeAngularAxis(axis)\` control ConfigurableJoint axes.
+- \`GenericElevator.SetTarget(inches)\` commands cascade or continuous stages; use
+  \`GetElevatorHeight()\` for the current height. Do not duplicate its PID-stage math.
+  \`GenericRoller.SetAngularVelocity(v)\` persists. \`ChangeAngularVelocity(v)\`,
+  \`stopAngularVelocity()\`, and \`flipVelocity()\` are one-physics-frame overrides, so
+  they must be called continuously while desired. Visual wheels use
+  \`GenericAnimationJoint.VelocityRoller(speed).useAxis(JointAxis.X|Y|Z)\`; spring or
+  ratchet behavior uses \`SpringLoaded().WithAxis(...).AllowedDirection(...)
+  .RotationSpeed(...).HardStopPoint(...)\`.
+- For game pieces, do NOT directly reparent or add physics forces while a node owns
+  the piece. \`GamePieceIntake\` exposes \`requestIntake\`, \`pieceName\`, \`hasGamePiece\`,
+  \`securedGamePiece\`, \`ChangeTarget(transform)\`, and \`RemovePiece()\`. A node’s
+  \`RequestIntake(intake, true|false)\` switches an intake, \`SetTargetState(state)\`
+  moves the acquired piece through named states, and \`HasPiece()\` means
+  \`currentStateNum > 0\`. Release only through
+  \`ReleaseGamePieceWithForce(force, ForceMode.Impulse, whenAtTarget)\` or
+  \`ReleaseGamePieceWithContinuedForce(force, seconds, maxSpeed, whenAtTarget)\`.
+  Node state names are matched case-insensitively; every name must correspond to a
+  configured \`GamePieceState\` with a non-null \`stateTarget\`.
+
 # Joints & elevator (handled elsewhere — keep minimal)
 Movement is handled by other boilerplate: you do NOT need to get SetTargetAngle axes/
 offsets, PID pushing, elevator.SetTarget values, or exact setpoint numbers right. For
