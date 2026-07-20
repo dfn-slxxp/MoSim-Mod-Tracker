@@ -352,13 +352,14 @@ h3 {
 }
 
 .btn.primary {
-  background: #238636;
-  border-color: #2ea043;
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 78%, #000);
   color: #fff;
 }
 
 .btn.primary:hover {
-  background: #2ea043;
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
 }
 
 .btn.danger {
@@ -2570,17 +2571,6 @@ h3 {
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.65);
   box-shadow: 0 8px 40px rgba(109, 40, 217, 0.14);
-}
-
-/* Purple primary button */
-:root[data-theme='cloud'] .btn.primary {
-  background: #7c3aed;
-  border-color: #8b5cf6;
-}
-
-:root[data-theme='cloud'] .btn.primary:hover {
-  background: #6d28d9;
-  border-color: #7c3aed;
 }
 
 /* ---------- compact view ---------- */

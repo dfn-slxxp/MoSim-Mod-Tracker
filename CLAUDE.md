@@ -475,3 +475,20 @@ ssh root@DROPLET "bash /apps/mosim-tracker-server/server/manage.sh deploy"
 # Tag a release (delete + retag pattern)
 git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push origin v1.0.0
 ```
+
+---
+
+## Session Notes
+
+- 2026-07-20: Reviewed current context files (`CLAUDE.md`, `AI_CONTEXT.txt`,
+  `AI_ACTIVITY_LOG.md`) and sampled Claude-history files from
+  `C:\Users\Seb\.claude\projects\C--Users-Seb-Desktop-Merch-MerchSite`:
+  `memory/mosim-mod-tracker-project.md`, `memory/mosim-ai-context-files.md`,
+  and JSONL snippets from sessions `8ed9b53f`, `01310bed`, `09f3c293`,
+  `74c44d46`.
+- Confirmed that external Claude directory is a mixed store (MoSim + unrelated
+  sessions). Current repository code and this synced context file remain the
+  authoritative source.
+- 2026-07-20: Improved admin custom-theme auto generation in `web/src/lib/color.ts` so mismatched primary/secondary inputs are auto-harmonized toward complementary pairings with safer saturation/lightness ranges; updated admin copy in `web/src/pages/AdminPage.tsx` to reflect this behavior.
+- 2026-07-20: Adjusted custom theme generation to keep user-entered primary/secondary as the two base inputs while auto-deriving fitting third/fourth accents (`gold`,`red`) from the pair; increased primary presence by making `.btn.primary` use `var(--accent)` (removed hardcoded green/cloud overrides), strengthening `accent-dim`, and tinting titlebar more toward primary.
+- 2026-07-20: Committed and pushed the theme-generator follow-up: primary/secondary stay user-driven, third/fourth accents auto-derived from the pair, and primary visibility increased by switching `.btn.primary` to `var(--accent)` and strengthening accent-driven styling.

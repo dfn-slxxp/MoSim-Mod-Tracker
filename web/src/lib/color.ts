@@ -55,6 +55,18 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
 
 const hsl = (h: number, s: number, l: number) => rgbToHex(...hslToRgb(h, s, l));
 
+function hueDelta(a: number, b: number): number {
+  return ((((b - a) % 360) + 540) % 360) - 180;
+}
+
+function hueDist(a: number, b: number): number {
+  return Math.abs(hueDelta(a, b));
+}
+
+function mixHue(a: number, b: number, t: number): number {
+  return a + hueDelta(a, b) * clamp(t, 0, 1);
+}
+
 /** '#rrggbbaa' from a hex color + alpha (0-1). */
 export function withAlpha(hex: string, alpha: number): string {
   const a = clamp(Math.round(alpha * 255), 0, 255).toString(16).padStart(2, '0');
@@ -66,9 +78,9 @@ export function hueOf(hex: string): number {
 }
 
 /**
- * Build a full theme from two colors. `primary` drives accents/highlights,
- * `secondary` drives focus/links and tints the neutral surfaces. `mode` picks a
- * dark or light neutral ramp. Returns CSS-var values keyed WITHOUT the '--'.
+ * Build a full theme from two colors. `primary` and `secondary` are the direct
+ * user inputs; additional accents (`gold`, `red`) are auto-derived from that pair.
+ * `mode` picks a dark or light neutral ramp.
  */
 export function generateTheme(
   primary: string,
@@ -76,9 +88,31 @@ export function generateTheme(
   mode: 'dark' | 'light'
 ): Record<string, string> {
   const dark = mode === 'dark';
-  const [sh, ss] = rgbToHsl(...hexToRgb(secondary));
-  const nHue = sh;                       // neutrals tinted toward the secondary hue
-  const nSat = clamp(ss * 0.35, 6, 20);  // subtle, never muddy
+  const [phRaw, psRaw, plRaw] = rgbToHsl(...hexToRgb(primary));
+  const [shRaw, ssRaw, slRaw] = rgbToHsl(...hexToRgb(secondary));
+
+  // Keep both accents visible enough for UI controls.
+  const pSat = clamp(psRaw, 45, 90);
+  const pLight = clamp(plRaw, dark ? 50 : 36, dark ? 72 : 56);
+  const sSat = clamp(ssRaw, 32, 86);
+  const sLight = clamp(slRaw, dark ? 50 : 34, dark ? 72 : 56);
+
+  const primarySafe = hsl(phRaw, pSat, pLight);
+  const secondarySafe = hsl(shRaw, sSat, sLight);
+
+  // Neutrals and extra accents are derived from the primary+secondary pair.
+  const pairHue = mixHue(phRaw, shRaw, 0.5);
+  const pairDist = hueDist(phRaw, shRaw);
+  const neutralHue = mixHue(pairHue, phRaw, 0.32);
+  const neutralSatBase = dark ? 8 + pSat * 0.1 + sSat * 0.07 : 6 + pSat * 0.07 + sSat * 0.05;
+  const nSat = clamp(neutralSatBase * (pairDist > 130 ? 1.06 : 0.96), 6, 20);
+
+  // "Third" and "fourth" accents: keep semantic warm/error roles while fitting
+  // the chosen palette by blending toward amber/red targets from the pair hue.
+  const goldHue = mixHue(42, pairHue, 0.35);
+  const redHue = mixHue(4, pairHue, 0.28);
+  const gold = dark ? hsl(goldHue, 62, 58) : hsl(goldHue, 58, 42);
+  const red = dark ? hsl(redHue, 76, 64) : hsl(redHue, 70, 48);
 
   // Status pill hues are fixed & semantic; only their lightness/alpha flex.
   const pill = (h: number, s = 70) =>
@@ -86,7 +120,7 @@ export function generateTheme(
       ? { bg: withAlpha(hsl(h, s, 55), 0.16), fg: hsl(h, Math.min(s, 65), 72) }
       : { bg: hsl(h, s, 92), fg: hsl(h, Math.min(s, 65), 32) };
   const planned = pill(265), claimed = pill(28), unity = pill(45),
-        semi = pill(140), released = pill(215), gray = pill(nHue, 12),
+        semi = pill(140), released = pill(215), gray = pill(neutralHue, 12),
         official = pill(20);
 
   const neutrals = dark
@@ -94,19 +128,19 @@ export function generateTheme(
     : { bg: 96, titlebar: 90, panel: 100, panel2: 93, border: 84, muted: 44, text: 17 };
 
   return {
-    bg: hsl(nHue, nSat, neutrals.bg),
+    bg: hsl(neutralHue, nSat, neutrals.bg),
     'bg-image': 'none',
-    panel: hsl(nHue, dark ? nSat : nSat * 0.5, neutrals.panel),
-    'panel-2': hsl(nHue, nSat, neutrals.panel2),
-    'border-solid': hsl(nHue, nSat, neutrals.border),
-    text: hsl(nHue, dark ? 14 : 22, neutrals.text),
-    muted: hsl(nHue, 12, neutrals.muted),
-    titlebar: hsl(nHue, nSat, neutrals.titlebar),
-    accent: primary,
-    'accent-dim': withAlpha(primary, dark ? 0.18 : 0.14),
-    blue: secondary,
-    gold: dark ? hsl(42, 60, 55) : hsl(42, 65, 40),
-    red: dark ? hsl(2, 85, 64) : hsl(2, 72, 50),
+    panel: hsl(neutralHue, dark ? nSat : nSat * 0.5, neutrals.panel),
+    'panel-2': hsl(neutralHue, nSat, neutrals.panel2),
+    'border-solid': hsl(neutralHue, nSat, neutrals.border),
+    text: hsl(neutralHue, dark ? 14 : 22, neutrals.text),
+    muted: hsl(neutralHue, 12, neutrals.muted),
+    titlebar: hsl(mixHue(neutralHue, phRaw, 0.35), clamp(nSat + (dark ? 8 : 6), 10, 28), neutrals.titlebar),
+    accent: primarySafe,
+    'accent-dim': withAlpha(primarySafe, dark ? 0.24 : 0.18),
+    blue: secondarySafe,
+    gold,
+    red,
     shadow: dark ? 'none' : '0 1px 3px rgba(20, 30, 50, 0.08)',
     radius: '12px',
     'pill-planned-bg': planned.bg, 'pill-planned-fg': planned.fg,
