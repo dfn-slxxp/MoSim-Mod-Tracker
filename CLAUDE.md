@@ -6,6 +6,10 @@
 - No emojis or em-dashes.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
 - After every substantive user message or completed work item, update this handoff and mirror the same update in `AI_CONTEXT.txt`, so Codex, Claude, and other AI tools share current project context.
+- After every user message, append a portable, decision-focused entry to
+  `AI_ACTIVITY_LOG.md`: exact user request, visible work, important decisions,
+  verification, files changed, and user-facing result. It must not contain hidden
+  chain-of-thought, secrets, or credential values.
 
 
 # MoSim Mod Tracker — AI Context File
@@ -17,6 +21,17 @@
 ## Project Overview
 
 **MoSim Mod Tracker** is a personal LiveSplit-style progress tracker for making FRC robot mods in MoSim (a Unity-based FRC robot simulator). Users track which team robots they are modding, step through a configurable workflow, and share their progress publicly.
+
+### Local Claude history (optional context)
+
+Previous Claude conversations are stored under
+`C:\Users\Seb\.claude\projects\C--Users-Seb-Desktop-Merch-MerchSite` despite the
+folder name. It is a mixed store: the MoSim Mod Tracker history includes the initial
+build/Tauri migration/deployment work (notably sessions `8ed9b53f`, `01310bed`, and
+`09f3c293`), while other files cover an unrelated MerchSite and standalone turret
+experiments. Identify a conversation from its content, not the enclosing folder name.
+Older history includes superseded Firebase, Electron, and early installer details;
+the current repository code and this handoff file are authoritative.
 
 **Architecture:** Tauri 2.x desktop app + web-accessible backend.
 
@@ -50,6 +65,7 @@
 MoSim Mod Tracker/
 ├── CLAUDE.md                    ← THIS FILE (AI context; mirror edits into ai_context.txt)
 ├── ai_context.txt               ← Plain-text mirror of this file for other AI tools
+├── AI_ACTIVITY_LOG.md            ← Append-only cross-AI session/work log; see its rules
 ├── package.json                 ← Root npm: Tauri CLI dev dependency
 ├── steps.json                   ← BUNDLED DEFAULT workflow. Admin-edited copy on the
 │                                   server (settings table) wins when present.
@@ -260,6 +276,8 @@ Add new seasons here (types.ts). Year extracted as `game.split(':')[0].trim()`.
 ## CI/CD — release.yml (two-release structure)
 
 Triggered by `v*.*.*` tag push. Creates TWO releases per version:
+
+Latest workflow tag requested: `v1.5.3` (2026-07-20).
 
 **`v1.0.0-bin` (prerelease, "internal")** — created by Job 1 (publish-tauri via
 tauri-action). Contains the raw app binaries (NSIS exe, DMGs, AppImage). Marked
