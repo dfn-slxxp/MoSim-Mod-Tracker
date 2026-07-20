@@ -225,3 +225,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** `web/src/lib/color.ts`, `web/src/pages/AdminPage.tsx`, `CLAUDE.md`, `ai_context.txt`, `AI_ACTIVITY_LOG.md`.
 
 **User-facing outcome:** Custom themes now tint the full page (background gradients, panels, borders, muted text, titlebar) as strongly as the built-in Cloud theme. Re-save themes in admin to regenerate stored vars, or change a color and save.
+
+### Theme vs color mode + scrollable dropdowns
+
+**User message:** Make dark and light mode independent of the theme (separate theme selector and dark/light switch). Make custom dropdowns scrollable without JS closing them on scroll.
+
+**Work and decisions:** Split `theme.tsx` into palette (`data-theme`: default, cloud, custom-*) and brightness (`data-color-mode`: dark/light) with separate localStorage keys; migrated legacy saves where dark/light were theme ids. Added `ColorModeButton` (🌙/☀️) beside `ThemeButton` in titlebar/topbar. Restructured `styles.css` selectors; added cloud dark variant. `injectCustomThemes()` now emits CSS for both color modes per custom theme. Admin theme editor preview brightness toggles global color mode. Fixed `Select.tsx` and theme menu scroll handlers to ignore scroll events whose target is inside the open menu; added `overscroll-behavior: contain` on `.dd-menu`.
+
+**Verification:** `npm run build` in `web/` succeeded (tsc + vite).
+
+**Files changed:** `web/src/theme.tsx`, `web/src/App.tsx`, `web/src/components/Select.tsx`, `web/src/styles.css`, `web/src/pages/AdminPage.tsx`, `CLAUDE.md`, `ai_context.txt`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Theme picker cycles Default/Cloud/custom palettes; moon/sun button toggles dark vs light independently. Long dropdown lists can be scrolled without the menu closing.

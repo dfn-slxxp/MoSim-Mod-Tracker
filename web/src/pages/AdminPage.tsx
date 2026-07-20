@@ -171,7 +171,7 @@ const DEFAULTS = { primary: '#3fb950', secondary: '#58a6ff' };
 
 function ThemesEditor() {
   const { confirmDialog } = useDialog();
-  const { customThemes, setCustomThemes, setTheme } = useTheme();
+  const { customThemes, setCustomThemes, setTheme, colorMode, setColorMode } = useTheme();
   const [themes, setThemes] = useState<CustomTheme[]>(() => JSON.parse(JSON.stringify(customThemes)));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -184,12 +184,11 @@ function ThemesEditor() {
     });
   };
 
-  /** Regenerate a theme's palette from its two colors + mode. */
-  const regen = (t: CustomTheme): void => {
+  /** Regenerate preview vars from the editor colors + a color mode. */
+  const regen = (t: CustomTheme, mode: 'dark' | 'light' = colorMode): void => {
     const primary = t.primary ?? DEFAULTS.primary;
     const secondary = t.secondary ?? DEFAULTS.secondary;
-    const mode = t.mode ?? 'dark';
-    t.primary = primary; t.secondary = secondary; t.mode = mode;
+    t.primary = primary; t.secondary = secondary;
     t.vars = generateTheme(primary, secondary, mode);
   };
 
@@ -202,7 +201,7 @@ function ThemesEditor() {
         icon: '🎨',
         primary: DEFAULTS.primary,
         secondary: DEFAULTS.secondary,
-        mode: 'dark',
+        mode: colorMode,
         vars: {},
       };
       regen(t);
@@ -216,7 +215,7 @@ function ThemesEditor() {
     try {
       const cleaned = themes.map((t) => {
         const out = { ...t, id: t.id.startsWith('custom-') ? t.id : `custom-${slug(t.id)}` };
-        regen(out); // ensure vars match the current colors before saving
+        regen(out, colorMode); // snapshot for legacy clients; runtime inject regenerates both modes
         return out;
       });
       await adminPut('/api/admin/themes', { themes: cleaned });
@@ -239,19 +238,19 @@ function ThemesEditor() {
         </button>
       </div>
       <p className="muted small">
-        Pick a primary and secondary color and a light/dark base — the rest of the palette
-        (surfaces, text, borders, gradients, status colors) is generated to match, with
-        the same overall color presence as the built-in Cloud theme. The 3rd/4th accents are
-        auto-derived from your primary + secondary pair so the palette stays cohesive. Themes sync
-        to every device and appear on the theme button.
+        Pick a primary and secondary color — the rest of the palette (surfaces, text, borders,
+        gradients, status colors) is generated for both dark and light mode. Use the 🌙/☀️ button
+        in the titlebar to preview each brightness. Themes sync to every device and appear on the
+        theme button.
       </p>
       {msg && <div className="muted small admin-msg">{msg}</div>}
 
       {themes.map((t, ti) => {
         const primary = t.primary ?? DEFAULTS.primary;
         const secondary = t.secondary ?? DEFAULTS.secondary;
-        const mode = t.mode ?? 'dark';
-        const vars = (t.vars && Object.keys(t.vars).length ? t.vars : generateTheme(primary, secondary, mode));
+        const vars = t.vars && Object.keys(t.vars).length
+          ? t.vars
+          : generateTheme(primary, secondary, colorMode);
         return (
           <div key={t.id} className="admin-theme">
             <div className="admin-theme-head">
@@ -297,12 +296,12 @@ function ThemesEditor() {
                 </span>
               </label>
               <label className="admin-var">
-                Base
+                Preview brightness
                 <div className="btn-row">
-                  <button type="button" className={`toggle-btn ${mode === 'dark' ? 'on' : ''}`}
-                    onClick={() => mutate((d) => { d[ti].mode = 'dark'; regen(d[ti]); })}>🌙 Dark</button>
-                  <button type="button" className={`toggle-btn ${mode === 'light' ? 'on' : ''}`}
-                    onClick={() => mutate((d) => { d[ti].mode = 'light'; regen(d[ti]); })}>☀️ Light</button>
+                  <button type="button" className={`toggle-btn ${colorMode === 'dark' ? 'on' : ''}`}
+                    onClick={() => { setColorMode('dark'); mutate((d) => regen(d[ti], 'dark')); }}>🌙 Dark</button>
+                  <button type="button" className={`toggle-btn ${colorMode === 'light' ? 'on' : ''}`}
+                    onClick={() => { setColorMode('light'); mutate((d) => regen(d[ti], 'light')); }}>☀️ Light</button>
                 </div>
               </label>
             </div>

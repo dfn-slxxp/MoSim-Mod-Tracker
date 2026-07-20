@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
 // Fully custom dropdown replacing native <select> everywhere: the native
 // popup list is OS-drawn (square, unthemable), so we render our own rounded
-// menu in a portal. Closes on outside click, Escape, scroll, or resize.
+// menu in a portal. Closes on outside click, Escape, page scroll, or resize —
+// but not when scrolling inside the menu itself.
 // ---------------------------------------------------------------------------
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -64,16 +65,21 @@ export function Select({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    const onMove = () => setOpen(false); // reposition-on-scroll is jittery; just close
+    const onResize = () => setOpen(false);
+    const onScroll = (e: Event) => {
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
-    window.addEventListener('resize', onMove);
-    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('mousedown', onDown);
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', onMove);
-      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 

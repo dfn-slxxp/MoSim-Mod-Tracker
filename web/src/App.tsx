@@ -38,6 +38,20 @@ function PinButton() {
   );
 }
 
+function ColorModeButton() {
+  const { colorMode, toggleColorMode } = useTheme();
+  const dark = colorMode === 'dark';
+  return (
+    <button
+      className="btn subtle theme-btn"
+      title={dark ? 'Dark mode (click for light)' : 'Light mode (click for dark)'}
+      onClick={toggleColorMode}
+    >
+      {dark ? '🌙' : '☀️'}
+    </button>
+  );
+}
+
 function ThemeButton() {
   const { theme, setTheme, allThemes } = useTheme();
   const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
@@ -63,16 +77,21 @@ function ThemeButton() {
       setMenu(null);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
-    const close = () => setMenu(null);
+    const onResize = () => setMenu(null);
+    const onScroll = (e: Event) => {
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      setMenu(null);
+    };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     return () => {
       window.removeEventListener('mousedown', onDown);
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
     };
   }, [menu]);
 
@@ -194,6 +213,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           >
             ▣
           </button>
+          <ColorModeButton />
           <ThemeButton />
           <div className="win-controls">
             <button className="win-btn" title="Minimize" onClick={() => window.desktop?.minimize()}>─</button>
@@ -217,6 +237,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </nav>
         {!isDesktop && (
           <div className="topbar-actions">
+            <ColorModeButton />
             <ThemeButton />
           </div>
         )}

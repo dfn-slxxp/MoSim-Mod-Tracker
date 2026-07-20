@@ -1,12 +1,13 @@
 /* ---------------------------------------------------------------------------
-   Global styles. Theming works via CSS variables: the [data-theme='...']
-   attribute on <html> (set by theme.tsx) picks which variable set applies,
-   and every rule below only ever references the variables.
+   Global styles. Theming works via CSS variables on <html> (set by theme.tsx):
+   `data-theme` picks the palette (default, cloud, custom) and `data-color-mode`
+   picks dark vs light brightness. Every rule below only references variables.
    --------------------------------------------------------------------------- */
 
-/* ---------- theme: dark (default) ---------- */
+/* ---------- palette: default — dark ---------- */
 :root,
-:root[data-theme='dark'] {
+:root[data-theme='default'][data-color-mode='dark'],
+:root:not([data-theme])[data-color-mode='dark'] {
   --bg: #0b0e14;
   --bg-image: none;
   --panel: #141a24;
@@ -41,8 +42,9 @@
   --pill-official-fg: #f0883e;
 }
 
-/* ---------- theme: light ---------- */
-:root[data-theme='light'] {
+/* ---------- palette: default — light ---------- */
+:root[data-theme='default'][data-color-mode='light'],
+:root:not([data-theme])[data-color-mode='light'] {
   --bg: #f4f6f9;
   --bg-image: none;
   --panel: #ffffff;
@@ -76,8 +78,8 @@
   --pill-official-fg: #b05316;
 }
 
-/* ---------- theme: cloud (purple-indigo dream, MSI-Center-ish) ---------- */
-:root[data-theme='cloud'] {
+/* ---------- palette: cloud — light (purple-indigo dream, MSI-Center-ish) ---------- */
+:root[data-theme='cloud'][data-color-mode='light'] {
   --bg: #f7f5ff;
   --bg-image:
     radial-gradient(ellipse at 10% 92%, rgba(167, 139, 250, 0.45) 0%, transparent 44%),
@@ -113,6 +115,44 @@
   --pill-gray-fg: #5b4fa0;
   --pill-official-bg: #fee2e2;
   --pill-official-fg: #b91c1c;
+}
+
+/* ---------- palette: cloud — dark (purple-tinted night) ---------- */
+:root[data-theme='cloud'][data-color-mode='dark'] {
+  --bg: #0c0818;
+  --bg-image:
+    radial-gradient(ellipse at 10% 92%, rgba(124, 58, 237, 0.22) 0%, transparent 44%),
+    radial-gradient(ellipse at 90% 8%,  rgba(79, 70, 229, 0.18) 0%, transparent 44%),
+    radial-gradient(ellipse at 55% 50%, rgba(109, 40, 217, 0.08) 0%, transparent 55%);
+  --panel: #161024;
+  --panel-2: #1c1530;
+  --border-solid: #322654;
+  --text: #ece8ff;
+  --muted: #9b8ec4;
+  --accent: #a78bfa;
+  --accent-contrast: #111827;
+  --accent-dim: rgba(167, 139, 250, 0.16);
+  --gold: #d4a72c;
+  --red: #f87171;
+  --blue: #818cf8;
+  --titlebar: #2e1065;
+  --shadow: none;
+  --radius: 12px;
+  --radius-sm: 9px;
+  --pill-planned-bg: #6e40c926;
+  --pill-planned-fg: #c4b5fd;
+  --pill-claimed-bg: #f0883e26;
+  --pill-claimed-fg: #fdba74;
+  --pill-unity-bg: #d4a72c26;
+  --pill-unity-fg: #fcd34d;
+  --pill-semi-bg: #3fb95026;
+  --pill-semi-fg: #86efac;
+  --pill-released-bg: #58a6ff26;
+  --pill-released-fg: #93c5fd;
+  --pill-gray-bg: #8b95a726;
+  --pill-gray-fg: #a5aebe;
+  --pill-official-bg: #db6d2826;
+  --pill-official-fg: #f0883e;
 }
 
 * {
@@ -1981,6 +2021,8 @@ h3 {
   padding: 5px;
   max-height: 280px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 2px;

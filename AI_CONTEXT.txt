@@ -99,11 +99,12 @@ MoSim Mod Tracker/
 │       │                           /api/steps on startup and splices in-place;
 │       │                           applySteps() used by admin editor. totalSubs()
 │       │                           recomputes (no static TOTAL_SUBS anymore).
-│       ├── styles.css           ← All CSS. Themes = CSS vars on :root[data-theme='x'].
+│       ├── styles.css           ← All CSS. Palettes via :root[data-theme='x']
+│       │                           + brightness via :root[data-color-mode='dark|light'].
 │       │                           Custom themes injected as a <style> tag at runtime.
-│       ├── theme.tsx            ← BUILTIN_THEMES (dark/light/cloud) + custom themes
-│       │                           fetched from /api/themes; injectCustomThemes();
-│       │                           useTheme() exposes allThemes/customThemes/setCustomThemes
+│       ├── theme.tsx            ← BUILTIN_THEMES (default/cloud) + custom themes;
+│       │                           separate colorMode (dark/light); injectCustomThemes()
+│       │                           emits both modes per custom theme; useTheme()
 │       ├── assets/avatar.png    ← Pixel-art avatar (app logo)
 │       ├── ai/
 │       │   ├── client.ts        ← 3 providers: gemini (watches YouTube via fileData),
@@ -347,21 +348,18 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 
 ### Custom Themes
 - Injected client-side as `<style id="mosim-custom-themes">` with
-  `:root[data-theme='<id>'] { --var: value; }` blocks — behaves exactly like built-ins.
-  (Undefined vars inherit the base `:root`/dark palette, so the generator emits a
-  full set incl. panel-2 + all pill-* to stay cohesive.)
-- Editor takes only PRIMARY + SECONDARY color + a dark/light base; `lib/color.ts`
-  generateTheme(primary, secondary, mode) derives the whole palette with Cloud-theme-level
-  color presence: layered bg-image gradients, strongly hue-tinted surfaces/borders/muted
-  text, saturated titlebar, colored shadow (light), accent=primary, blue=secondary,
-  semantic gold/red, status pills. Light off-white primaries defer surface tinting to
-  secondary; accent-dim uses secondary when primary reads as neutral. CustomTheme stores
-  primary/secondary/mode so the editor round-trips; vars regenerated on any change
-  and before save. Verified: text/bg contrast 13–15 (AAA) across color pairs.
-- Theme choice persists per-device in localStorage `mosim-theme`; falls back to dark
+  `:root[data-theme='<id>'][data-color-mode='dark|light'] { --var: value; }` blocks
+  for both brightness modes (regenerated from primary/secondary at inject time).
+- Editor takes PRIMARY + SECONDARY color; `lib/color.ts` generateTheme(primary,
+  secondary, mode) derives the whole palette with Cloud-theme-level color presence.
+  CustomTheme stores primary/secondary; vars are runtime-generated for each color mode.
+- Palette choice persists in localStorage `mosim-theme` (default | cloud | custom-*);
+  brightness persists in `mosim-color-mode` (dark | light). Legacy saves where
+  dark/light were theme ids migrate to default + color mode. Falls back to default
   if a saved custom theme was deleted.
-- ThemeButton (App.tsx): LEFT-click cycles through allThemes; RIGHT-click opens a
-  portal menu (.theme-menu, reuses .dd-menu/.dd-option) to pick a theme by name.
+- App.tsx titlebar: ColorModeButton (🌙/☀️ toggle) + ThemeButton (LEFT-click cycles
+  allThemes; RIGHT-click portal menu). Select.tsx dropdowns scroll inside the menu
+  without closing (page scroll still closes).
 
 ### AI
 - Provider setting in localStorage. Gemini is listed first (video analysis).
@@ -497,4 +495,6 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
 - 2026-07-20: User preference set to push to `main`; pushed current HEAD to `origin/main` via `git push origin HEAD:main` (main advanced to `2d813e5`).
 - 2026-07-20: Fixed theme primary/secondary fidelity: custom theme `accent` and `blue` now use the exact user-entered primary/secondary values (no remap), while derived accents remain generated. Secondary influence was increased in neutral/border/titlebar derivation, and `accent-contrast` is generated so primary buttons stay readable across light/dark primary colors.
 - 2026-07-20: User preference updated: commit and push by default after completed code changes; continue pushing to `main`.
-- 2026-07-20: Boosted custom theme color presence in `web/src/lib/color.ts` to match built-in Cloud theme intensity: layered bg-image gradients, higher surface/border/muted/titlebar saturation, colored light-mode shadows, light off-white primaries defer surface tinting to secondary, and accent-dim uses secondary when primary reads neutral. Updated admin copy in `web/src/pages/AdminPage.tsx`.
+- 2026-07-20: Split theme palette from color mode: `data-theme` (default/cloud/custom)
+  + `data-color-mode` (dark/light) with separate titlebar controls; custom themes
+  inject both modes; dropdown menus stay open while scrolling inside them.
