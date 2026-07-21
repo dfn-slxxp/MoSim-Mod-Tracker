@@ -20,6 +20,7 @@ import { RobotsPage } from './pages/RobotsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { UserProfilePage } from './pages/UserProfilePage';
 import { useStore } from './store/StoreContext';
+import { useAuthProviders } from './lib/useAuthProviders';
 import { useTheme } from './theme';
 
 /** Desktop-only: toggle always-on-top. Grayscale = unpinned, accent = pinned. */
@@ -133,6 +134,7 @@ function ThemeButton() {
 /** Full-page sign-in prompt shown when the app is ready but no user is signed in. */
 function SignInGate() {
   const { api } = useStore();
+  const providers = useAuthProviders();
   return (
     <div className="signin-gate">
       <div className="signin-card">
@@ -141,15 +143,33 @@ function SignInGate() {
           <span className="brand-name">MoSim Mod Tracker</span>
         </div>
         <p className="muted" style={{ margin: '0 0 20px', textAlign: 'center' }}>
-          Sign in with your Google account to access your mod tracker.
+          Sign in to access your mod tracker.
         </p>
         <button
           className="btn primary"
           style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => api.signIn()}
+          onClick={() => api.signIn('google')}
         >
           Sign in with Google
         </button>
+        {providers.github && (
+          <button
+            className="btn"
+            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+            onClick={() => api.signIn('github')}
+          >
+            Sign in with GitHub
+          </button>
+        )}
+        {providers.discord && (
+          <button
+            className="btn"
+            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+            onClick={() => api.signIn('discord')}
+          >
+            Sign in with Discord
+          </button>
+        )}
       </div>
     </div>
   );

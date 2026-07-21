@@ -134,23 +134,38 @@ export interface UserProfile {
   completed: boolean;
 }
 
-/** A secondary Google account linked to the primary account. */
+/** Sign-in providers supported by the server. */
+export type AuthProvider = 'google' | 'github' | 'discord';
+
+/** Which providers the server has credentials for (GET /api/auth/providers). */
+export interface AuthProviderAvailability {
+  google: boolean;
+  github: boolean;
+  discord: boolean;
+}
+
+/** A secondary sign-in account linked to the primary account. */
 export interface LinkedAccount {
   sub: string;
+  /** Email, or a provider handle when the account has no email (e.g. GitHub). */
   email: string;
+  provider?: AuthProvider;
 }
 
 export interface UserInfo {
   uid: string;
-  name: string; // displayName if set, else Google name
-  email: string; // email currently signed in with
+  name: string; // displayName if set, else provider name
+  /** Email signed in with; null for accounts whose provider gave no email. */
+  email: string | null;
   /** The account's root email (may differ from `email` on a linked sign-in). */
   primaryEmail?: string;
   photo: string | null;
   /** True when this email is on the server's ADMIN_EMAILS allowlist. */
   admin?: boolean;
-  /** Other Google accounts that also sign into this account. */
+  /** Other accounts (any provider) that also sign into this account. */
   linked?: LinkedAccount[];
+  /** The primary account's sign-in provider. */
+  provider?: AuthProvider;
   profile?: UserProfile;
 }
 

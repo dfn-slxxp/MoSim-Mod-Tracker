@@ -237,3 +237,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** `web/src/theme.tsx`, `web/src/App.tsx`, `web/src/components/Select.tsx`, `web/src/styles.css`, `web/src/pages/AdminPage.tsx`, `CLAUDE.md`, `ai_context.txt`, `AI_ACTIVITY_LOG.md`.
 
 **User-facing outcome:** Theme picker cycles Default/Cloud/custom palettes; moon/sun button toggles dark vs light independently. Long dropdown lists can be scrolled without the menu closing.
+
+### GitHub + Discord sign-in and account connecting
+
+**User message:** Add GitHub, Steam, and Discord login options plus the ability to connect them to accounts, and a free AI option in the script generator. Mid-task the user narrowed scope: no Steam login, no free AI provider. Confirmed the OAuth app credentials are already in the droplet .env; asked to implement, commit, and push.
+
+**Work and decisions:** Generalized the hand-rolled Google OAuth in `server/api.js` to three providers with no new dependencies and no DB migration. New identity subjects are prefixed (`github:<id>`, `discord:<id>`); bare Google subs stay as-is, so `account_links`, `resolveUid`, and `mergeAccounts` work unchanged. Extracted the shared callback tail into `finishAuth()` (link-merge vs login+session, desktop deep link vs cookie). Added `GET /api/auth/providers` (public availability flags), `provider` param on `/api/auth/login` and `/api/auth/link-start`, and callbacks `/api/auth/callback/github` (scope `read:user user:email`, prefers primary verified email from /user/emails) and `/api/auth/callback/discord` (scope `identify email`, email only when verified, CDN avatar). Providers are enabled only when `GITHUB_/DISCORD_CLIENT_ID+SECRET` env pairs exist; redirect URIs derive from `OAUTH_REDIRECT_URI` + `/github|/discord`. Decision: never auto-merge accounts by matching email (account-takeover risk); linking stays explicit. Frontend: `AuthProvider` types, `authProviders()`/`signIn(provider)`/`startLinkAccount(provider)` on the Backend interface and HTTPBackend, `useAuthProviders()` hook (defaults Google-only, refetches when store is ready for the desktop server URL), provider buttons on the SignInGate and topbar AuthButton, and Connect Google/GitHub/Discord buttons plus provider tags on the Account page. `DEPLOY.md` gained an optional-providers section.
+
+**Verification:** `node --check server/api.js` passed; `npm run build` in `web/` (tsc + vite) passed.
+
+**Files changed:** `server/api.js`, `server/DEPLOY.md`, `web/src/types.ts`, `web/src/store/backend.ts`, `web/src/store/http.ts`, `web/src/lib/useAuthProviders.ts` (new), `web/src/components/AuthButton.tsx`, `web/src/App.tsx`, `web/src/pages/AccountPage.tsx`, `CLAUDE.md`, `AI_CONTEXT.txt`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** The sign-in page and topbar offer Google, GitHub, and Discord (GitHub/Discord appear only when the server has their credentials). The Account page can connect any of the three providers as additional sign-ins; linked rows show which provider each account is. Deploy on the droplet to go live; the .env creds are already in place.

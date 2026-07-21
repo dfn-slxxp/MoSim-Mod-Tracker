@@ -38,7 +38,7 @@ the current repository code and this handoff file are authoritative.
 - **Desktop (Tauri):** Rust backend, React/TypeScript frontend served via Vite. Runs as a native Windows/macOS/Linux app.
 - **Web:** Same React frontend, served by an Express server with SQLite. Accessible at `https://mods.sebastianw.tech`.
 - **Backend domain hardcoded** to `https://mods.sebastianw.tech` in `src-tauri/src/config.rs` (`DEFAULT_SERVER`).
-- **Auth:** Google OAuth. Web uses httpOnly cookie JWT. Desktop uses deep-link `mosim://auth?token=...` → stores Bearer token in `localStorage`.
+- **Auth:** Google OAuth (required) + optional GitHub and Discord OAuth (enabled per-provider when their env creds exist; GET /api/auth/providers drives the login buttons). Web uses httpOnly cookie JWT. Desktop uses deep-link `mosim://auth?token=...` → stores Bearer token in `localStorage`.
 - **Admin:** email allowlist (`ADMIN_EMAILS` env, default `waldman.sebastian@gmail.com`). Admins get a hidden `/#/admin` dashboard: workflow-steps editor + custom themes editor. Both are stored server-side and apply to every device.
 
 ---
@@ -317,18 +317,37 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Admin dashboard has a Users section: GET /api/admin/users (all users + robot
   counts + hidden), PUT /api/admin/users/:uid/visibility {hidden}.
 
-### Account linking (multiple Google accounts)
-- `account_links` table maps a secondary Google sub -> primary uid. `resolveUid(sub)`
-  returns the primary (or sub itself). Every login resolves so req.user.uid is
-  always the primary; all data stays under one uid.
-- Link flow: POST /api/auth/link-start (authed) -> Google auth URL with
-  state.link=primaryUid + prompt=select_account; frontend opens it. Callback with
-  state.link records the mapping and redirects to /#/account?linked=1 (web) or
+### Account linking (multiple providers: Google, GitHub, Discord)
+- Identity subjects: bare Google sub (legacy) or prefixed `github:<id>` /
+  `discord:<id>`. `providerOf(sub)` in api.js derives the provider from the
+  prefix. `account_links` maps a secondary subject -> primary uid (column is
+  still named google_sub; it stores any subject). `resolveUid(sub)` returns the
+  primary (or sub itself). Every login resolves so req.user.uid is always the
+  primary; all data stays under one uid.
+- All three providers share one callback tail: `finishAuth(res, statePayload,
+  ident)` (link-merge or login+session). Google callback at /api/auth/callback;
+  GitHub at /api/auth/callback/github (scope read:user user:email, /user +
+  /user/emails, primary verified email preferred); Discord at
+  /api/auth/callback/discord (scope identify email, /users/@me, email only if
+  verified, CDN avatar URL). Both use global fetch (Node 18+).
+- GitHub/Discord are optional: enabled only when GITHUB_/DISCORD_CLIENT_ID+SECRET
+  env vars exist. Their redirect URIs are derived: OAUTH_REDIRECT_URI + /github
+  or /discord. GET /api/auth/providers (public) reports availability; the UI
+  (SignInGate, AuthButton, AccountPage) only shows configured providers via
+  useAuthProviders() (web/src/lib/useAuthProviders.ts).
+- Login: GET /api/auth/login?provider=github|discord (no provider = Google).
+  Link flow: POST /api/auth/link-start {provider} (authed) -> provider auth URL
+  with state.link=primaryUid; frontend opens it. Callback with state.link
+  merges + records the mapping and redirects to /#/account?linked=1 (web) or
   mosim://auth?linked=1 (desktop). Account page refetches on window focus.
-- Profile is refreshed ONLY on primary login (googleSub===uid) so a linked
-  secondary sign-in never overwrites the primary's name/photo/email.
-- /api/me returns `linked: [{sub,email}]` + `primaryEmail`; DELETE
-  /api/account/links/:sub unlinks. Admin check uses the signed-in email.
+- Profile is refreshed ONLY on primary login (subject===uid) so a linked
+  secondary sign-in never overwrites the primary's name/photo/email. A GitHub
+  or Discord first sign-in creates a fresh account (name/avatar from provider;
+  email may be null).
+- /api/me returns `linked: [{sub,email,provider}]` + `primaryEmail` + `provider`
+  (primary's); DELETE /api/account/links/:sub unlinks. Admin check uses the
+  signed-in email. Accounts are NEVER auto-merged by matching email (account
+  takeover risk); linking is always explicit.
 - ADMIN_EMAILS default: waldman.sebastian@gmail.com, seb@sebastianw.tech.
 
 ### Profiles / Community
@@ -433,7 +452,8 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - manage.sh contains NO secrets. Creds live only in `server/.env` on the droplet
   (deploy preserves it when GOOGLE_* vars are empty).
 - Server-side auth env: GOOGLE_CLIENT_ID/SECRET, OAUTH_REDIRECT_URI, JWT_SECRET,
-  DB_PATH, optional ADMIN_EMAILS.
+  DB_PATH, optional ADMIN_EMAILS, optional GITHUB_CLIENT_ID/SECRET +
+  DISCORD_CLIENT_ID/SECRET (each pair enables that sign-in provider).
 - Droplet npm blocks install scripts (allowScripts): manage.sh approves
   better-sqlite3 + esbuild each deploy and verifies require('better-sqlite3').
 
@@ -498,3 +518,12 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
 - 2026-07-20: Split theme palette from color mode: `data-theme` (default/cloud/custom)
   + `data-color-mode` (dark/light) with separate titlebar controls; custom themes
   inject both modes; dropdown menus stay open while scrolling inside them.
+- 2026-07-21: Added GitHub + Discord sign-in and account connecting (user
+  dropped Steam and a free AI provider from the original request). Server:
+  provider-parameterized OAuth in api.js (authUrlFor, finishAuth, providerOf,
+  /api/auth/providers, /api/auth/callback/github|discord, prefixed subjects
+  github:/discord:). Frontend: AuthProvider types, authProviders()/signIn(p)/
+  startLinkAccount(p) in Backend + HTTPBackend, useAuthProviders hook,
+  provider buttons in SignInGate/AuthButton, Connect buttons + provider tags on
+  AccountPage. DEPLOY.md documents the optional env creds (already set on the
+  droplet per user). No DB migration needed.

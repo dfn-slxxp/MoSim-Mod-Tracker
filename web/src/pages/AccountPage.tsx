@@ -1,15 +1,18 @@
 // ---------------------------------------------------------------------------
 // Account page (/account) — edit your public profile, see how the community
-// directory sees you, and link additional Google accounts. Sign-in identity
-// (email, Google photo) is read-only.
+// directory sees you, and link additional sign-in accounts (Google, GitHub,
+// Discord). Sign-in identity (email, photo) is read-only.
 // ---------------------------------------------------------------------------
 import { useEffect } from 'react';
 import { useDialog } from '../components/Dialog';
 import { ProfileForm } from '../components/ProfileForm';
 import { useStore } from '../store/StoreContext';
+import { PROVIDER_LABELS, useAuthProviders } from '../lib/useAuthProviders';
+import type { AuthProvider } from '../types';
 
 export function AccountPage() {
   const { user, api } = useStore();
+  const providers = useAuthProviders();
   const { confirmDialog, alertDialog } = useDialog();
 
   // Linking happens in an external Google tab; refresh when we regain focus so
@@ -24,9 +27,9 @@ export function AccountPage() {
 
   const linked = user.linked ?? [];
 
-  const addAccount = async () => {
+  const addAccount = async (provider: AuthProvider) => {
     try {
-      await api.startLinkAccount();
+      await api.startLinkAccount(provider);
     } catch (e) {
       void alertDialog((e as Error).message, 'Could not link account');
     }
@@ -55,8 +58,10 @@ export function AccountPage() {
       <div className="account-identity">
         {user.photo && <img className="account-photo" src={user.photo} alt="" referrerPolicy="no-referrer" />}
         <div>
-          <div className="account-email">{user.primaryEmail ?? user.email}</div>
-          <div className="muted small">Signed in with Google · this can’t be changed here</div>
+          <div className="account-email">{user.primaryEmail ?? user.email ?? user.name}</div>
+          <div className="muted small">
+            Signed in with {PROVIDER_LABELS[user.provider ?? 'google']} · this can’t be changed here
+          </div>
         </div>
         <button className="btn subtle" style={{ marginLeft: 'auto' }} onClick={() => api.signOut()}>
           Sign out
@@ -71,18 +76,20 @@ export function AccountPage() {
       <div className="account-card" style={{ marginTop: 16 }}>
         <h2 className="account-subhead">Sign-in accounts</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Link more Google accounts so you can sign in with any of them and land here. Data always
-          stays on this one account.
+          Connect more accounts — Google, GitHub, or Discord — so you can sign in with any of them
+          and land here. Data always stays on this one account.
         </p>
 
         <div className="linked-list">
           <div className="linked-row">
-            <span className="linked-email">{user.primaryEmail ?? user.email}</span>
+            <span className="linked-email">{user.primaryEmail ?? user.email ?? user.name}</span>
+            <span className="linked-tag">{PROVIDER_LABELS[user.provider ?? 'google']}</span>
             <span className="linked-tag primary">Primary</span>
           </div>
           {linked.map((l) => (
             <div key={l.sub} className="linked-row">
               <span className="linked-email">{l.email || l.sub}</span>
+              <span className="linked-tag">{PROVIDER_LABELS[l.provider ?? 'google']}</span>
               {l.email === user.email && <span className="linked-tag">Current</span>}
               <button className="btn danger subtle" onClick={() => unlink(l.sub, l.email || 'this account')}>
                 Unlink
@@ -91,9 +98,15 @@ export function AccountPage() {
           ))}
         </div>
 
-        <button className="btn" style={{ marginTop: 12 }} onClick={addAccount}>
-          + Add Google account
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+          <button className="btn" onClick={() => addAccount('google')}>+ Connect Google</button>
+          {providers.github && (
+            <button className="btn" onClick={() => addAccount('github')}>+ Connect GitHub</button>
+          )}
+          {providers.discord && (
+            <button className="btn" onClick={() => addAccount('discord')}>+ Connect Discord</button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -30,6 +30,29 @@ if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI || !JWT_SECRET) {
 
 const oauth = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
+// ── Extra sign-in providers (optional) ───────────────────────────────────────
+// GitHub and Discord are enabled only when their credentials are present in
+// the environment. Their registered callback URLs are the Google one plus a
+// provider suffix, e.g. https://host/api/auth/callback/github.
+
+const GITHUB_CLIENT_ID      = process.env.GITHUB_CLIENT_ID;
+const GITHUB_CLIENT_SECRET  = process.env.GITHUB_CLIENT_SECRET;
+const DISCORD_CLIENT_ID     = process.env.DISCORD_CLIENT_ID;
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+
+const githubEnabled  = () => !!(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET);
+const discordEnabled = () => !!(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET);
+
+const GITHUB_REDIRECT_URI  = `${REDIRECT_URI}/github`;
+const DISCORD_REDIRECT_URI = `${REDIRECT_URI}/discord`;
+
+/** Which provider a stored subject belongs to (bare Google subs have no prefix). */
+function providerOf(sub) {
+  if (String(sub).startsWith('github:')) return 'github';
+  if (String(sub).startsWith('discord:')) return 'discord';
+  return 'google';
+}
+
 // ── CORS for the Tauri desktop client ────────────────────────────────────────
 // The Tauri webview origin is tauri://localhost (macOS) or
 // http://tauri.localhost (Windows / Linux). Regular browser clients hit the
@@ -144,10 +167,49 @@ function crud(table, { onDelete } = {}) {
   return r;
 }
 
-// ── Google OAuth ──────────────────────────────────────────────────────────────
+// ── OAuth (Google + GitHub + Discord) ─────────────────────────────────────────
+
+/** Build the provider's authorization URL for a signed state token. */
+function authUrlFor(provider, state, { linking = false } = {}) {
+  if (provider === 'github') {
+    if (!githubEnabled()) return null;
+    const q = new URLSearchParams({
+      client_id: GITHUB_CLIENT_ID,
+      redirect_uri: GITHUB_REDIRECT_URI,
+      scope: 'read:user user:email',
+      state,
+    });
+    return `https://github.com/login/oauth/authorize?${q}`;
+  }
+  if (provider === 'discord') {
+    if (!discordEnabled()) return null;
+    const q = new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      redirect_uri: DISCORD_REDIRECT_URI,
+      response_type: 'code',
+      scope: 'identify email',
+      state,
+    });
+    return `https://discord.com/oauth2/authorize?${q}`;
+  }
+  return oauth.generateAuthUrl({
+    access_type: 'online',
+    scope: ['openid', 'email', 'profile'],
+    // Linking: let the user pick another Google account rather than silently
+    // reusing the current Google session.
+    ...(linking ? { prompt: 'select_account' } : {}),
+    state,
+  });
+}
+
+// Which sign-in providers are configured. Public: drives the login buttons.
+router.get('/auth/providers', (_req, res) => {
+  res.json({ google: true, github: githubEnabled(), discord: discordEnabled() });
+});
 
 router.get('/auth/login', (req, res) => {
   const isDesktop = req.query.desktop === '1';
+  const provider = String(req.query.provider ?? 'google');
   // Encode the desktop flag in the CSRF state token so the callback knows
   // whether to set a cookie (web) or redirect to the custom deep link (Tauri).
   const state = jwt.sign(
@@ -155,32 +217,87 @@ router.get('/auth/login', (req, res) => {
     JWT_SECRET,
     { expiresIn: 600 }
   );
-  const url = oauth.generateAuthUrl({
-    access_type: 'online',
-    scope: ['openid', 'email', 'profile'],
-    state,
-  });
+  const url = authUrlFor(provider, state);
+  if (!url) return res.status(400).send(`Sign-in provider not available: ${provider}`);
   res.redirect(url);
 });
 
-// Begin linking ANOTHER Google account to the signed-in account. Authenticated
-// (cookie or Bearer) so the primary uid is trusted; returns the Google auth URL
-// for the frontend to open. `prompt: select_account` lets the user pick the
-// other account rather than reusing the current Google session.
+// Begin linking ANOTHER account (any provider) to the signed-in account.
+// Authenticated (cookie or Bearer) so the primary uid is trusted; returns the
+// provider's auth URL for the frontend to open.
 router.post('/auth/link-start', requireAuth, (req, res) => {
+  const provider = String(req.body?.provider ?? 'google');
   const state = jwt.sign(
     { csrf: 1, link: req.user.uid, desktop: req.body?.desktop ? 1 : 0 },
     JWT_SECRET,
     { expiresIn: 600 }
   );
-  const url = oauth.generateAuthUrl({
-    access_type: 'online',
-    scope: ['openid', 'email', 'profile'],
-    prompt: 'select_account',
-    state,
-  });
+  const url = authUrlFor(provider, state, { linking: true });
+  if (!url) return res.status(400).json({ error: `Sign-in provider not available: ${provider}` });
   res.json({ url });
 });
+
+/**
+ * Shared tail of every OAuth callback. `ident` describes the account that just
+ * authenticated: { subject, name, email, photo, handle }. `subject` is the
+ * stored identity key — the bare Google sub, or a prefixed id like
+ * 'github:123' / 'discord:456'. `handle` is a display fallback for providers
+ * where the email can be missing (GitHub).
+ */
+function finishAuth(res, statePayload, ident) {
+  const isDesktop = !!statePayload.desktop;
+
+  // ── Link flow: associate this account with the signed-in account ──
+  if (statePayload.link) {
+    const primaryUid = resolveUid(statePayload.link);
+    if (ident.subject !== primaryUid) {
+      // Combine any robots/data the linked account already had into the
+      // primary account, then record the mapping.
+      mergeAccounts(ident.subject, primaryUid);
+      linkAccount(ident.subject, primaryUid, ident.email || ident.handle || null);
+    }
+    return res.redirect(isDesktop ? 'mosim://auth?linked=1' : '/#/account?linked=1');
+  }
+
+  // ── Normal login: resolve to the primary account, then issue a session ──
+  const uid = resolveUid(ident.subject);
+  const user = {
+    uid,
+    name:  ident.name,
+    email: ident.email ?? null,  // the email actually signed in with (drives admin check)
+    photo: ident.photo ?? null,
+  };
+
+  // Refresh the profile ONLY when signing in with the primary account, so a
+  // linked secondary login never overwrites the primary's name/photo/email.
+  const existing = getProfile(uid);
+  if (ident.subject === uid) {
+    setProfile(uid, {
+      displayName: existing?.displayName ?? firstName(ident.name),
+      email: user.email,
+      photo: user.photo,
+      instagram: existing?.instagram ?? '',
+      discord: existing?.discord ?? '',
+      completed: existing?.completed ?? false,
+      hidden: existing?.hidden ?? false,
+      createdAt: existing?.createdAt ?? Date.now(),
+    });
+  }
+
+  if (isDesktop) {
+    // Issue a JWT and send it back via the Tauri custom-protocol deep link.
+    // The app's deep-link handler extracts the token and stores it locally.
+    const token = jwt.sign(
+      { uid: user.uid, name: user.name, email: user.email, photo: user.photo },
+      JWT_SECRET,
+      { expiresIn: JWT_TTL }
+    );
+    res.redirect(`mosim://auth?token=${encodeURIComponent(token)}`);
+  } else {
+    setSession(res, user);
+    res.redirect('/#/');
+  }
+}
 
 router.get('/auth/callback', async (req, res) => {
   try {
@@ -188,63 +305,122 @@ router.get('/auth/callback', async (req, res) => {
     if (!state || !code) return res.status(400).send('Missing OAuth parameters');
 
     const statePayload = jwt.verify(String(state), JWT_SECRET); // CSRF check
-    const isDesktop = !!statePayload.desktop;
 
     const { tokens } = await oauth.getToken(String(code));
     const ticket = await oauth.verifyIdToken({ idToken: tokens.id_token, audience: CLIENT_ID });
     const p = ticket.getPayload();
-    const googleSub = p.sub;
 
-    // ── Link flow: associate this Google account with the signed-in account ──
-    if (statePayload.link) {
-      const primaryUid = resolveUid(statePayload.link);
-      if (googleSub !== primaryUid) {
-        // Combine any robots/data the linked account already had into the
-        // primary account, then record the mapping.
-        mergeAccounts(googleSub, primaryUid);
-        linkAccount(googleSub, primaryUid, p.email);
-      }
-      return res.redirect(isDesktop ? 'mosim://auth?linked=1' : '/#/account?linked=1');
-    }
-
-    // ── Normal login: resolve to the primary account, then issue a session ──
-    const uid = resolveUid(googleSub);
-    const user = {
-      uid,
+    finishAuth(res, statePayload, {
+      subject: p.sub,
       name:  p.name ?? p.email,
-      email: p.email,   // the email actually signed in with (drives admin check)
+      email: p.email,
       photo: p.picture ?? null,
+      handle: p.email,
+    });
+  } catch (e) {
+    res.status(400).send('Sign-in failed: ' + e.message);
+  }
+});
+
+router.get('/auth/callback/github', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!state || !code) return res.status(400).send('Missing OAuth parameters');
+    if (!githubEnabled()) return res.status(400).send('GitHub sign-in is not configured');
+
+    const statePayload = jwt.verify(String(state), JWT_SECRET); // CSRF check
+
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams({
+        client_id: GITHUB_CLIENT_ID,
+        client_secret: GITHUB_CLIENT_SECRET,
+        code: String(code),
+        redirect_uri: GITHUB_REDIRECT_URI,
+      }),
+    });
+    const tokenBody = await tokenRes.json();
+    const accessToken = tokenBody?.access_token;
+    if (!accessToken) {
+      throw new Error(tokenBody?.error_description || 'GitHub token exchange failed');
+    }
+
+    const ghHeaders = {
+      authorization: `Bearer ${accessToken}`,
+      accept: 'application/vnd.github+json',
+      'user-agent': 'mosim-mod-tracker',
     };
+    const userRes = await fetch('https://api.github.com/user', { headers: ghHeaders });
+    if (!userRes.ok) throw new Error(`GitHub user lookup failed (${userRes.status})`);
+    const gh = await userRes.json();
 
-    // Refresh the profile ONLY when signing in with the primary account, so a
-    // linked secondary login never overwrites the primary's name/photo/email.
-    const existing = getProfile(uid);
-    if (googleSub === uid) {
-      setProfile(uid, {
-        displayName: existing?.displayName ?? firstName(p.name ?? p.email),
-        email: user.email,
-        photo: user.photo,
-        instagram: existing?.instagram ?? '',
-        discord: existing?.discord ?? '',
-        completed: existing?.completed ?? false,
-        hidden: existing?.hidden ?? false,
-        createdAt: existing?.createdAt ?? Date.now(),
-      });
+    // The public profile email is often unset; the /user/emails endpoint
+    // (user:email scope) has the real ones. Prefer the primary verified email.
+    let email = gh.email ?? null;
+    if (!email) {
+      const emailRes = await fetch('https://api.github.com/user/emails', { headers: ghHeaders });
+      if (emailRes.ok) {
+        const emails = await emailRes.json();
+        const best =
+          emails.find((e) => e.primary && e.verified) ??
+          emails.find((e) => e.verified) ??
+          emails[0];
+        email = best?.email ?? null;
+      }
     }
 
-    if (isDesktop) {
-      // Issue a JWT and send it back via the Tauri custom-protocol deep link.
-      // The app's deep-link handler extracts the token and stores it locally.
-      const token = jwt.sign(
-        { uid: user.uid, name: user.name, email: user.email, photo: user.photo },
-        JWT_SECRET,
-        { expiresIn: JWT_TTL }
-      );
-      res.redirect(`mosim://auth?token=${encodeURIComponent(token)}`);
-    } else {
-      setSession(res, user);
-      res.redirect('/#/');
+    finishAuth(res, statePayload, {
+      subject: `github:${gh.id}`,
+      name:  gh.name || gh.login,
+      email,
+      photo: gh.avatar_url ?? null,
+      handle: gh.login,
+    });
+  } catch (e) {
+    res.status(400).send('Sign-in failed: ' + e.message);
+  }
+});
+
+router.get('/auth/callback/discord', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!state || !code) return res.status(400).send('Missing OAuth parameters');
+    if (!discordEnabled()) return res.status(400).send('Discord sign-in is not configured');
+
+    const statePayload = jwt.verify(String(state), JWT_SECRET); // CSRF check
+
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: DISCORD_CLIENT_ID,
+        client_secret: DISCORD_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code: String(code),
+        redirect_uri: DISCORD_REDIRECT_URI,
+      }),
+    });
+    const tokenBody = await tokenRes.json();
+    const accessToken = tokenBody?.access_token;
+    if (!accessToken) {
+      throw new Error(tokenBody?.error_description || 'Discord token exchange failed');
     }
+
+    const userRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!userRes.ok) throw new Error(`Discord user lookup failed (${userRes.status})`);
+    const dc = await userRes.json();
+
+    finishAuth(res, statePayload, {
+      subject: `discord:${dc.id}`,
+      name:  dc.global_name || dc.username,
+      // Only trust verified emails for the admin allowlist check.
+      email: dc.verified ? (dc.email ?? null) : null,
+      photo: dc.avatar ? `https://cdn.discordapp.com/avatars/${dc.id}/${dc.avatar}.png` : null,
+      handle: dc.username,
+    });
   } catch (e) {
     res.status(400).send('Sign-in failed: ' + e.message);
   }
@@ -267,7 +443,9 @@ router.get('/me', requireAuth, (req, res) => {
     primaryEmail: profile?.email ?? email,  // the account's root email
     photo: profile?.photo ?? photo,
     admin: isAdmin(req.user),
-    linked: linkedAccounts(uid),            // [{ sub, email }] secondary accounts
+    // [{ sub, email, provider }] secondary sign-in accounts
+    linked: linkedAccounts(uid).map((l) => ({ ...l, provider: providerOf(l.sub) })),
+    provider: providerOf(uid),              // primary account's sign-in provider
     profile: {
       displayName: profile?.displayName ?? name,
       instagram: profile?.instagram ?? '',

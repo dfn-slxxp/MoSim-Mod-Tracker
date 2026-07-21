@@ -5,6 +5,8 @@
 // Which one is used is decided once in StoreContext.tsx.
 // ---------------------------------------------------------------------------
 import type {
+  AuthProvider,
+  AuthProviderAvailability,
   Modpack,
   NewModpack,
   NewRepo,
@@ -66,12 +68,14 @@ export interface Backend {
   updateProfile(patch: { displayName: string; instagram: string; discord: string }): Promise<void>;
   /** Re-fetch the current user (name, profile, linked accounts). */
   refreshUser(): Promise<void>;
-  /** Begin linking another Google account to this one (opens Google sign-in). */
-  startLinkAccount(): Promise<void>;
-  /** Remove a linked secondary Google account by its Google sub. */
+  /** Begin linking another account (any provider) to this one. */
+  startLinkAccount(provider?: AuthProvider): Promise<void>;
+  /** Remove a linked secondary account by its stored subject. */
   unlinkAccount(sub: string): Promise<void>;
+  /** Which sign-in providers the server has configured. */
+  authProviders(): Promise<AuthProviderAvailability>;
 
-  signIn(): Promise<void>;
+  signIn(provider?: AuthProvider): Promise<void>;
   signOut(): Promise<void>;
 }
 

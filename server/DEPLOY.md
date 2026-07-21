@@ -105,6 +105,31 @@ Your app is now live at `https://mods.yoursite.com`. Sign in with Google.
 
 ---
 
+## Optional — GitHub + Discord sign-in
+
+Both are optional: when their credentials are missing from `server/.env`, the
+buttons simply don't appear and Google keeps working alone.
+
+**GitHub:** github.com → Settings → Developer settings → OAuth Apps → New OAuth
+App. Callback URL: `https://mods.yoursite.com/api/auth/callback/github`.
+
+**Discord:** discord.com/developers/applications → New Application → OAuth2 →
+Add Redirect: `https://mods.yoursite.com/api/auth/callback/discord`.
+
+Then append to `server/.env` on the droplet and restart the service:
+
+```bash
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+```
+
+Scopes are requested at runtime (`read:user user:email` for GitHub,
+`identify email` for Discord) — nothing to configure in the provider UIs.
+
+---
+
 ## Deploying updates
 
 Push your changes to GitHub, then:

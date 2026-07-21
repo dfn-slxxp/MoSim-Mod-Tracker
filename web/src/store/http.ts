@@ -7,6 +7,8 @@
 //            is cached in localStorage between sessions.
 // ---------------------------------------------------------------------------
 import type {
+  AuthProvider,
+  AuthProviderAvailability,
   Modpack,
   NewModpack,
   NewRepo,
@@ -245,8 +247,8 @@ export class HTTPBackend implements Backend {
     await this._load();
   }
 
-  async startLinkAccount(): Promise<void> {
-    const r = await this._post('/api/auth/link-start', { desktop: isTauri() }) as { url: string } | null;
+  async startLinkAccount(provider: AuthProvider = 'google'): Promise<void> {
+    const r = await this._post('/api/auth/link-start', { desktop: isTauri(), provider }) as { url: string } | null;
     if (!r?.url) throw new Error('Could not start account linking');
     if (isTauri()) await openInBrowser(r.url);
     else window.location.href = r.url;
@@ -259,13 +261,21 @@ export class HTTPBackend implements Backend {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  async signIn(): Promise<void> {
+  async authProviders(): Promise<AuthProviderAvailability> {
+    try {
+      const r = await this._get('/api/auth/providers') as AuthProviderAvailability | null;
+      if (r) return r;
+    } catch { /* older server without the endpoint */ }
+    return { google: true, github: false, discord: false };
+  }
+
+  async signIn(provider: AuthProvider = 'google'): Promise<void> {
     if (isTauri()) {
       // Open the system browser — the OAuth callback will deep-link back with
       // mosim://auth?token=<jwt>, which Tauri catches and emits as an event.
-      await openInBrowser(`${this._serverUrl}/api/auth/login?desktop=1`);
+      await openInBrowser(`${this._serverUrl}/api/auth/login?desktop=1&provider=${provider}`);
     } else {
-      window.location.href = '/api/auth/login';
+      window.location.href = `/api/auth/login?provider=${provider}`;
     }
   }
 
