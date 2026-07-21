@@ -116,11 +116,12 @@ MoSim Mod Tracker/
 │       │   ├── AuthButton.tsx     ← Sign in/out in topbar
 │       │   ├── PillSelect.tsx     ← Colored select for status/modtype
 │       │   ├── ProgressBar.tsx    ← Fill bar
-│       │   ├── RobotForm.tsx      ← Add-robot: team # (TBA lookup on blur; rebuild
-│       │   │                         suffixes like 9483a spliced via baseTeamNumber),
-│       │   │                         game (follows modpack), modpack + inline "+ New",
+│       │   ├── RobotForm.tsx      ← Add-robot: team # (TBA lookup on blur via
+│       │   │                         the server proxy; rebuild suffixes like
+│       │   │                         9483a spliced via baseTeamNumber), game
+│       │   │                         (follows modpack), modpack + inline "+ New",
 │       │   │                         mod type dropdown, "Mark as complete" toggle
-│       │   │                         (pre-checks all steps, status released), TBA key
+│       │   │                         (pre-checks all steps, status released)
 │       │   ├── Splits.tsx         ← Accordion steps + Check all/Uncheck all.
 │       │   │                         Checking a step header CASCADES: all earlier
 │       │   │                         steps get checked too (uncheck never cascades)
@@ -405,8 +406,14 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   template literal — code fences are \`\`\`csharp (escaped), closing is a real backtick.
 
 ### TBA API
-- Key in localStorage `mosim_tba_key`; `lib/tba.ts`
-- GET thebluealliance.com/api/v3/team/frc{number}, header `X-TBA-Auth-Key`
+- ONE server-side key: `TBA_AUTH_KEY` env on the droplet (never in git). Users
+  no longer enter a key; the localStorage `mosim_tba_key` flow and RobotForm
+  key UI were removed.
+- Server: GET /api/tba/team/:number (requireAuth, digits only) proxies
+  thebluealliance.com/api/v3/team/frc{number} with `X-TBA-Auth-Key`, returns
+  {nickname, name}, 24h in-memory cache. 404 when the env key is missing.
+- Frontend `lib/tba.ts` fetchTeamName() calls the proxy (relative URL on web;
+  desktop uses getServerUrl() + Bearer token from localStorage `mosim_token`).
 
 ### Auth Pattern
 - Web: relative `/api/...`, cookie JWT (30 day). Desktop: absolute URLs + Bearer token
@@ -453,7 +460,8 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   (deploy preserves it when GOOGLE_* vars are empty).
 - Server-side auth env: GOOGLE_CLIENT_ID/SECRET, OAUTH_REDIRECT_URI, JWT_SECRET,
   DB_PATH, optional ADMIN_EMAILS, optional GITHUB_CLIENT_ID/SECRET +
-  DISCORD_CLIENT_ID/SECRET (each pair enables that sign-in provider).
+  DISCORD_CLIENT_ID/SECRET (each pair enables that sign-in provider), optional
+  TBA_AUTH_KEY (enables the server-side TBA team-name proxy).
 - Droplet npm blocks install scripts (allowScripts): manage.sh approves
   better-sqlite3 + esbuild each deploy and verifies require('better-sqlite3').
 
@@ -527,3 +535,6 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   provider buttons in SignInGate/AuthButton, Connect buttons + provider tags on
   AccountPage. DEPLOY.md documents the optional env creds (already set on the
   droplet per user). No DB migration needed.
+- 2026-07-21: Moved TBA to one server-side key: new authed proxy
+  GET /api/tba/team/:number (TBA_AUTH_KEY env, 24h cache), lib/tba.ts now calls
+  it, RobotForm per-user key UI removed. Key value lives only in droplet .env.

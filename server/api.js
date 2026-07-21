@@ -621,6 +621,42 @@ router.put('/admin/themes', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── TBA proxy ─────────────────────────────────────────────────────────────────
+// One server-side The Blue Alliance read key (TBA_AUTH_KEY env) so users never
+// enter their own. Authed to avoid being an open proxy; responses cached
+// in-memory (team names basically never change).
+
+const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
+const tbaCache = new Map(); // team number -> { at, status, body }
+const TBA_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+router.get('/tba/team/:number', requireAuth, async (req, res) => {
+  if (!TBA_AUTH_KEY) return res.status(404).json({ error: 'TBA lookup not configured' });
+  const num = /^\d+$/.test(req.params.number) ? req.params.number : null;
+  if (!num) return res.status(400).json({ error: 'Invalid team number' });
+
+  const hit = tbaCache.get(num);
+  if (hit && Date.now() - hit.at < TBA_CACHE_TTL) {
+    return res.status(hit.status).json(hit.body);
+  }
+  try {
+    const r = await fetch(`https://www.thebluealliance.com/api/v3/team/frc${num}`, {
+      headers: { 'X-TBA-Auth-Key': TBA_AUTH_KEY },
+    });
+    if (!r.ok) {
+      const body = { error: 'Team not found' };
+      tbaCache.set(num, { at: Date.now(), status: 404, body });
+      return res.status(404).json(body);
+    }
+    const t = await r.json();
+    const body = { nickname: t.nickname ?? null, name: t.name ?? null };
+    tbaCache.set(num, { at: Date.now(), status: 200, body });
+    res.json(body);
+  } catch (e) {
+    res.status(502).json({ error: 'TBA request failed: ' + e.message });
+  }
+});
+
 // ── Bulk data (one request to initialise the whole app) ───────────────────────
 
 router.get('/data', requireAuth, (req, res) => {

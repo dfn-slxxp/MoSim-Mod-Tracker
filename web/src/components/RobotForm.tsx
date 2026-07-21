@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { fetchTeamName, getTbaKey, setTbaKey } from '../lib/tba';
+import { fetchTeamName } from '../lib/tba';
 import { STEPS } from '../steps';
 import { useStore } from '../store/StoreContext';
 import { GAMES, MODTYPE_META, ModType, StepProgress } from '../types';
@@ -28,8 +28,6 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const [modType, setModType] = useState<ModType>('');
   const [markComplete, setMarkComplete] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keyDraft, setKeyDraft] = useState(getTbaKey());
 
   // Inline new modpack
   const [showNewModpack, setShowNewModpack] = useState(false);
@@ -122,8 +120,6 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
     }
   };
 
-  const hasTbaKey = !!getTbaKey();
-
   const modpackOptions = [
     { value: '', label: 'No modpack' },
     ...modpacks.map((m) => ({ value: m.id, label: m.name })),
@@ -143,7 +139,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         />
         {fetching && <span className="muted" style={{ fontSize: 12 }}>Looking up…</span>}
         {!fetching && teamName && <span className="team-name-tag">✓ {teamName}</span>}
-        {!fetching && !teamName && team.trim() && hasTbaKey && (
+        {!fetching && !teamName && team.trim() && (
           <span className="muted" style={{ fontSize: 12 }}>Team not found</span>
         )}
       </div>
@@ -210,49 +206,6 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       <button className="btn primary" disabled={busy} type="submit">
         Add robot
       </button>
-
-      {/* TBA key config */}
-      {!hasTbaKey && !showKeyInput && (
-        <button
-          type="button"
-          className="btn subtle"
-          style={{ fontSize: 12 }}
-          onClick={() => setShowKeyInput(true)}
-        >
-          Set TBA API key →
-        </button>
-      )}
-      {hasTbaKey && (
-        <span className="team-name-tag" style={{ cursor: 'pointer' }} onClick={() => setShowKeyInput(!showKeyInput)}>
-          TBA ✓
-        </span>
-      )}
-      {showKeyInput && (
-        <div className="tba-key-row">
-          <input
-            placeholder="TBA read API key"
-            value={keyDraft}
-            onChange={(e) => setKeyDraft(e.target.value)}
-            style={{ minWidth: 220 }}
-          />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => { setTbaKey(keyDraft); setShowKeyInput(false); }}
-          >
-            Save
-          </button>
-          <a
-            href="https://www.thebluealliance.com/account"
-            target="_blank"
-            rel="noreferrer"
-            className="muted"
-            style={{ fontSize: 12 }}
-          >
-            Get key ↗
-          </a>
-        </div>
-      )}
     </form>
   );
 }

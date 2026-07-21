@@ -130,6 +130,20 @@ Scopes are requested at runtime (`read:user user:email` for GitHub,
 
 ---
 
+## Optional — server-side TBA key
+
+One The Blue Alliance read key (thebluealliance.com/account) serves every user;
+nobody enters their own. Append to `server/.env` and restart:
+
+```bash
+TBA_AUTH_KEY=...
+```
+
+Without it, `/api/tba/team/:number` returns 404 and the add-robot form simply
+skips the team-name preview.
+
+---
+
 ## Deploying updates
 
 Push your changes to GitHub, then:

@@ -249,3 +249,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** `server/api.js`, `server/DEPLOY.md`, `web/src/types.ts`, `web/src/store/backend.ts`, `web/src/store/http.ts`, `web/src/lib/useAuthProviders.ts` (new), `web/src/components/AuthButton.tsx`, `web/src/App.tsx`, `web/src/pages/AccountPage.tsx`, `CLAUDE.md`, `AI_CONTEXT.txt`, `AI_ACTIVITY_LOG.md`.
 
 **User-facing outcome:** The sign-in page and topbar offer Google, GitHub, and Discord (GitHub/Discord appear only when the server has their credentials). The Account page can connect any of the three providers as additional sign-ins; linked rows show which provider each account is. Deploy on the droplet to go live; the .env creds are already in place.
+
+### Server-side TBA key
+
+**User message:** Use one TBA API key server-side so users don't have to enter it (key provided in chat).
+
+**Work and decisions:** Added an authenticated proxy `GET /api/tba/team/:number` in `server/api.js` that calls The Blue Alliance with a `TBA_AUTH_KEY` env var and returns `{nickname, name}` with a 24h in-memory cache (digits-only validation; requireAuth so it is not an open proxy; 404 when the env var is unset). Rewrote `web/src/lib/tba.ts` to call the proxy (relative URL on web with the session cookie; desktop uses `getServerUrl()` plus the Bearer token from localStorage). Removed the per-user key UI and localStorage key flow from `RobotForm.tsx` (`getTbaKey`/`setTbaKey`/`mosim_tba_key` are gone). Decision: per project rules the key value is NOT committed to git and is not recorded in this log; it belongs in `server/.env` on the droplet.
+
+**Verification:** `node --check server/api.js` passed; `npm run build` in `web/` (tsc + vite) passed; grep confirms no remaining references to the old key flow.
+
+**Files changed:** `server/api.js`, `server/DEPLOY.md`, `web/src/lib/tba.ts`, `web/src/components/RobotForm.tsx`, `CLAUDE.md`, `AI_CONTEXT.txt`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Team-name lookup in the add-robot form works for every signed-in user with no key entry; the "Set TBA API key" UI is gone. Requires `TBA_AUTH_KEY` in the droplet `.env` plus a deploy.

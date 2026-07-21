@@ -1,13 +1,8 @@
-const KEY_STORAGE = 'mosim_tba_key';
-
-export function getTbaKey(): string {
-  return localStorage.getItem(KEY_STORAGE) ?? '';
-}
-
-export function setTbaKey(key: string): void {
-  if (key.trim()) localStorage.setItem(KEY_STORAGE, key.trim());
-  else localStorage.removeItem(KEY_STORAGE);
-}
+// The Blue Alliance team lookup, proxied through the server (GET
+// /api/tba/team/:number) which holds the one shared TBA read key — users
+// never enter their own. Requires being signed in (cookie on web, Bearer
+// token on desktop).
+import { isTauri, getServerUrl } from './desktop';
 
 /**
  * Strip a rebuild suffix from a team number: "9483a" -> "9483".
@@ -18,16 +13,19 @@ export function baseTeamNumber(teamNumber: string): string {
   return (teamNumber.match(/^\d+/) ?? [''])[0];
 }
 
-/** Returns the team's nickname (short name) or null if lookup fails / no key. */
+/** Returns the team's nickname (short name) or null if the lookup fails. */
 export async function fetchTeamName(teamNumber: string): Promise<string | null> {
-  const key = getTbaKey();
   const num = baseTeamNumber(teamNumber.trim());
-  if (!key || !num) return null;
+  if (!num) return null;
   try {
-    const resp = await fetch(
-      `https://www.thebluealliance.com/api/v3/team/frc${num}`,
-      { headers: { 'X-TBA-Auth-Key': key } }
-    );
+    const base = isTauri() ? await getServerUrl() : '';
+    const headers: Record<string, string> = {};
+    const token = localStorage.getItem('mosim_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const resp = await fetch(`${base}/api/tba/team/${num}`, {
+      headers,
+      credentials: 'include',
+    });
     if (!resp.ok) return null;
     const data = await resp.json();
     return (data.nickname as string | null) ?? (data.name as string | null) ?? null;
