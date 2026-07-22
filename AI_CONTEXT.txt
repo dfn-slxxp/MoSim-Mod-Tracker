@@ -382,7 +382,13 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   without closing (page scroll still closes).
 
 ### AI
-- Provider setting in localStorage. Gemini is listed first (video analysis).
+- Providers (localStorage): openrouter (FREE), gemini, anthropic, ollama.
+- OpenRouter = the free hosted option: free ":free" models, one free key from
+  openrouter.ai/keys, OpenAI-compatible POST to openrouter.ai/api/v1/chat/completions
+  (Bearer key, x-title header; browser CORS OK). Free model IDs ROTATE often, so
+  the panel calls fetchFreeOpenRouterModels() (public /api/v1/models, filters
+  ":free", biggest-context first) to populate the dropdown live; OPENROUTER_MODELS
+  is only the offline fallback and self-corrects a stale saved model.
 - Gemini: YouTube URLs sent as `fileData` parts → the model watches them.
   Endpoint: generativelanguage.googleapis.com v1beta generateContent, key in query.
 - AiScriptPanel has THREE input modes (any one drives generation): text

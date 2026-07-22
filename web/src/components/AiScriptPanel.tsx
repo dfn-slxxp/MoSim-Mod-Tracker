@@ -5,8 +5,8 @@
 // + your description of the robot. Provider is either the Claude API or a
 // local Ollama model (including one you trained yourself — TRAINING.md).
 // ---------------------------------------------------------------------------
-import { useMemo, useState } from 'react';
-import { ANTHROPIC_MODELS, GEMINI_MODELS, Provider, generateScript, settings } from '../ai/client';
+import { useEffect, useMemo, useState } from 'react';
+import { ANTHROPIC_MODELS, GEMINI_MODELS, OPENROUTER_MODELS, Provider, fetchFreeOpenRouterModels, generateScript, settings } from '../ai/client';
 import { fetchRepoSource } from '../lib/github';
 import { useStore } from '../store/StoreContext';
 import type { Repo, Robot } from '../types';
@@ -28,6 +28,9 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
   const [ollamaModel, setOllamaModelState] = useState(settings.getOllamaModel());
   const [geminiKey, setGeminiKeyState] = useState(settings.getGeminiKey());
   const [geminiModel, setGeminiModelState] = useState(settings.getGeminiModel());
+  const [openRouterKey, setOpenRouterKeyState] = useState(settings.getOpenRouterKey());
+  const [openRouterModel, setOpenRouterModelState] = useState(settings.getOpenRouterModel());
+  const [orModels, setOrModels] = useState(OPENROUTER_MODELS);
   const [description, setDescription] = useState('');
   const [videos, setVideos] = useState('');
   const [sourceRepoUrl, setSourceRepoUrl] = useState('');
@@ -45,6 +48,21 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
     for (const r of repo.scan.robots) all.push(...r.scripts);
     return [...new Set(all)].sort();
   }, [repo]);
+
+  // Pull the LIVE free-model list once the panel is opened on OpenRouter, since
+  // OpenRouter rotates them. Self-correct if the saved model is no longer free.
+  useEffect(() => {
+    if (!open || provider !== 'openrouter') return;
+    let cancelled = false;
+    fetchFreeOpenRouterModels().then((list) => {
+      if (cancelled || list.length === 0) return;
+      setOrModels(list);
+      if (!list.some((m) => m.id === settings.getOpenRouterModel())) {
+        setOpenRouterModelState(list[0].id);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [open, provider]);
 
   const toggleLibrary = (id: string) => {
     setExcludedLibrary((prev) => {
@@ -69,6 +87,8 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
       settings.setOllamaModel(ollamaModel);
       settings.setGeminiKey(geminiKey);
       settings.setGeminiModel(geminiModel);
+      settings.setOpenRouterKey(openRouterKey);
+      settings.setOpenRouterModel(openRouterModel);
 
       // 1) All library scripts except the unticked ones.
       const examples: Record<string, string> = {};
@@ -147,6 +167,15 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
               ? 'YouTube links are sent directly to Gemini for video analysis.'
               : 'Video links are included as text reference.'}
             {' '}Keys/settings stay on this device only.
+            {provider === 'openrouter' && (
+              <>
+                {' '}
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+                  Get a free OpenRouter key ↗
+                </a>{' '}
+                (no card needed) — it unlocks the free models above.
+              </>
+            )}
           </p>
 
           <div className="ai-row">
@@ -155,6 +184,7 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
               <Select
                 value={provider}
                 options={[
+                  { value: 'openrouter', label: 'OpenRouter — Free (no payment)' },
                   { value: 'gemini', label: 'Gemini (Google AI Studio key · watches videos)' },
                   { value: 'anthropic', label: 'Claude (Anthropic key · text only)' },
                   { value: 'ollama', label: 'Local model via Ollama (free, trainable)' },
@@ -162,6 +192,27 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
                 onChange={(v) => setProviderState(v as Provider)}
               />
             </label>
+            {provider === 'openrouter' && (
+              <>
+                <label>
+                  OpenRouter key
+                  <input
+                    type="password"
+                    placeholder="sk-or-..."
+                    value={openRouterKey}
+                    onChange={(e) => setOpenRouterKeyState(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Free model
+                  <Select
+                    value={openRouterModel}
+                    options={orModels.map((m) => ({ value: m.id, label: m.label }))}
+                    onChange={setOpenRouterModelState}
+                  />
+                </label>
+              </>
+            )}
             {provider === 'gemini' && (
               <>
                 <label>
