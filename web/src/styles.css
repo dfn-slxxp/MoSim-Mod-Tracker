@@ -4,6 +4,40 @@
    picks dark vs light brightness. Every rule below only references variables.
    --------------------------------------------------------------------------- */
 
+/* ---------- motion tokens (Emil Kowalski curves; theme-independent) ---------- */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* strong ease-out for UI entrances */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);  /* on-screen movement/morphs */
+  --dur-press: 160ms;   /* button press feedback */
+  --dur-fast: 130ms;    /* hover/color */
+  --dur-menu: 160ms;    /* dropdowns, popovers */
+  --dur-modal: 220ms;   /* dialogs, overlays */
+}
+
+/* Accessibility: keep opacity/color feedback, drop movement + entrance motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .dd-menu,
+  .dialog-card,
+  .community-card,
+  .home-step {
+    animation: dialog-fade 0.15s ease both !important; /* opacity only */
+  }
+  /* Drop press-scale + hover-lift movement (keep color/opacity feedback). */
+  .btn:active, .dd-trigger:active, .tab-btn:active, .toggle-btn:active,
+  .sort-dir-btn:active, .win-btn:active, .titlebar-btn:active, .pin-btn:active,
+  .community-card:hover {
+    transform: none !important;
+  }
+}
+
 /* ---------- palette: default — dark ---------- */
 :root,
 :root[data-theme='default'][data-color-mode='dark'],
@@ -388,10 +422,24 @@ h3 {
   color: var(--text);
   border-radius: var(--radius-sm);
   padding: 7px 14px;
+  transition: transform var(--dur-press) var(--ease-out),
+    border-color var(--dur-fast) ease, background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
 }
 
 .btn:hover {
   border-color: var(--muted);
+}
+
+/* Press feedback: subtle depress on any pressable. Skips disabled buttons. */
+.btn:active:not(:disabled),
+.dd-trigger:active:not(:disabled),
+.tab-btn:active:not(:disabled),
+.toggle-btn:active:not(:disabled),
+.sort-dir-btn:active,
+.win-btn:active,
+.titlebar-btn:active {
+  transform: scale(0.97);
 }
 
 .btn.primary {
@@ -709,8 +757,10 @@ h3 {
 
 .progress-fill {
   height: 100%;
+  width: 100%;
+  transform-origin: left center;
   background: linear-gradient(90deg, var(--gold), var(--accent));
-  transition: width 0.3s;
+  transition: transform 280ms var(--ease-out);
 }
 
 .progress-fill.complete {
@@ -1308,7 +1358,8 @@ h3 {
 /* Pin button: dimmed when not pinned, highlighted when pinned */
 .pin-btn {
   filter: grayscale(1) opacity(0.4);
-  transition: filter 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: transform var(--dur-press) var(--ease-out), filter 0.15s,
+    background 0.15s, box-shadow 0.15s;
 }
 .pin-btn:hover {
   filter: none;
@@ -1331,7 +1382,8 @@ h3 {
   color: var(--muted);
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition: transform var(--dur-press) var(--ease-out), border-color 0.15s,
+    color 0.15s, background 0.15s;
   white-space: nowrap;
 }
 .toggle-btn:hover {
@@ -1603,7 +1655,11 @@ h3 {
   border-radius: var(--radius);
   padding: 16px;
   line-height: 1.5;
+  animation: card-in 340ms var(--ease-out) backwards;
 }
+
+.home-step:nth-child(2) { animation-delay: 60ms; }
+.home-step:nth-child(3) { animation-delay: 120ms; }
 
 .home-step-num {
   flex-shrink: 0;
@@ -1634,14 +1690,33 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.15s, transform var(--dur-fast) var(--ease-out);
   text-decoration: none;
   color: inherit;
+  /* Staggered fade-up on first paint; `backwards` keeps hover transforms working after. */
+  animation: card-in 320ms var(--ease-out) backwards;
+}
+
+.community-card:nth-child(2) { animation-delay: 45ms; }
+.community-card:nth-child(3) { animation-delay: 90ms; }
+.community-card:nth-child(4) { animation-delay: 135ms; }
+.community-card:nth-child(5) { animation-delay: 180ms; }
+.community-card:nth-child(6) { animation-delay: 225ms; }
+.community-card:nth-child(n + 7) { animation-delay: 270ms; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
 }
 
 .community-card:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border-solid));
-  transform: translateY(-2px);
+}
+
+/* Lift only on real hover-capable pointers (touch fires false hovers on tap). */
+@media (hover: hover) and (pointer: fine) {
+  .community-card:hover {
+    transform: translateY(-2px);
+  }
 }
 
 .community-view {
@@ -2006,7 +2081,8 @@ h3 {
   font-size: 13px;
   cursor: pointer;
   max-width: 100%;
-  transition: border-color 0.12s, box-shadow 0.12s, filter 0.12s;
+  transition: transform var(--dur-press) var(--ease-out), border-color 0.12s,
+    box-shadow 0.12s, filter 0.12s;
 }
 
 :where(.dd-trigger) {
@@ -2063,9 +2139,13 @@ h3 {
   filter: brightness(1.08);
 }
 
-.dd-menu {
+/* Positioning shell (fixed); the up-flip translate lives here, static. */
+.dd-anchor {
   position: fixed;
   z-index: 3000;
+}
+
+.dd-menu {
   background: var(--panel);
   border: 1px solid var(--border-solid);
   border-radius: var(--radius);
@@ -2078,7 +2158,17 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  animation: dialog-pop 0.12s ease-out;
+  /* Scale up from the trigger edge, not the center. */
+  transform-origin: top left;
+  animation: dd-open var(--dur-menu) var(--ease-out);
+}
+
+.dd-menu.up {
+  transform-origin: bottom left;
+}
+
+@keyframes dd-open {
+  from { opacity: 0; transform: scale(0.96); }
 }
 
 .dd-group {
@@ -2147,7 +2237,7 @@ h3 {
   justify-content: center;
   background: rgba(8, 10, 16, 0.55);
   backdrop-filter: blur(3px);
-  animation: dialog-fade 0.12s ease-out;
+  animation: dialog-fade var(--dur-modal) var(--ease-out);
 }
 
 .dialog-card {
@@ -2157,7 +2247,8 @@ h3 {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   padding: 20px;
   width: min(360px, calc(100vw - 48px));
-  animation: dialog-pop 0.14s ease-out;
+  /* Modal appears centered — center origin is correct here. */
+  animation: dialog-pop var(--dur-modal) var(--ease-out);
 }
 
 .dialog-title {
@@ -2228,6 +2319,7 @@ h3 {
   background: transparent;
   color: var(--muted);
   font-size: 12px;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
 .win-btn:hover {
@@ -2989,7 +3081,7 @@ h3 {
   font-weight: 500;
   font-size: 13.5px;
   border-radius: 999px;
-  transition: color 0.12s, background 0.12s;
+  transition: transform var(--dur-press) var(--ease-out), color 0.12s, background 0.12s;
 }
 
 .tab-btn:hover {
@@ -3041,6 +3133,7 @@ h3 {
   padding: 4px 10px;
   font-size: 14px;
   line-height: 1;
+  transition: transform var(--dur-press) var(--ease-out), background var(--dur-fast) ease;
 }
 
 .sort-dir-btn:hover {

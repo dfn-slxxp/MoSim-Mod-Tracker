@@ -110,20 +110,22 @@ function ThemeButton() {
       </button>
       {menu &&
         createPortal(
-          <div ref={menuRef} className="dd-menu theme-menu" style={{ top: menu.top, left: menu.left, minWidth: 190 }}>
-            <div className="dd-group">Theme</div>
-            {allThemes.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={`dd-option ${t.id === theme ? 'selected' : ''}`}
-                onClick={() => { setTheme(t.id); setMenu(null); }}
-              >
-                <span className="theme-menu-icon">{t.icon}</span>
-                <span className="dd-option-label">{t.label}</span>
-                {t.id === theme && <span className="dd-tick">✓</span>}
-              </button>
-            ))}
+          <div className="dd-anchor" style={{ top: menu.top, left: menu.left }}>
+            <div ref={menuRef} className="dd-menu theme-menu" style={{ minWidth: 190 }}>
+              <div className="dd-group">Theme</div>
+              {allThemes.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`dd-option ${t.id === theme ? 'selected' : ''}`}
+                  onClick={() => { setTheme(t.id); setMenu(null); }}
+                >
+                  <span className="theme-menu-icon">{t.icon}</span>
+                  <span className="dd-option-label">{t.label}</span>
+                  {t.id === theme && <span className="dd-tick">✓</span>}
+                </button>
+              ))}
+            </div>
           </div>,
           document.body
         )}

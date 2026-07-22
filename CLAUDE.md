@@ -366,6 +366,23 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   ProfileSetup modal over any page until they save.
 - Instagram/Discord are HANDLE ENTRY only (not OAuth) — shown as profile links.
 
+### Motion / animation (Emil Kowalski standards)
+- Tokens in styles.css `:root`: `--ease-out` cubic-bezier(0.23,1,0.32,1),
+  `--ease-in-out`, durations `--dur-press` 160ms / `--dur-fast` 130ms /
+  `--dur-menu` 160ms / `--dur-modal` 220ms. Use these, don't hand-roll curves.
+- Press feedback: `transform: scale(0.97)` on `:active` of buttons/pressables,
+  transition transform 160ms ease-out (skips :disabled).
+- Dropdowns (Select.tsx + theme menu): render into a fixed `.dd-anchor` wrapper
+  (holds position + up-flip translate) containing `.dd-menu` which owns the
+  entrance — `transform-origin: top/bottom left` (scales FROM the trigger),
+  `@keyframes dd-open` scale(0.96)+opacity, 160ms ease-out. Never scale from center.
+- Modals (`.dialog-*`): center origin (correct for centered modals), 220ms ease-out.
+- ProgressBar animates `transform: scaleX()` (GPU), not width. Community/home cards
+  fade-up with 45–60ms stagger (`card-in`, `backwards` fill so hover still works).
+- Global `@media (prefers-reduced-motion: reduce)` kills movement (press scale,
+  hover lift, entrance transforms) but keeps opacity/color feedback. Hover lift is
+  gated behind `@media (hover:hover) and (pointer:fine)`.
+
 ### Custom Themes
 - Injected client-side as `<style id="mosim-custom-themes">` with
   `:root[data-theme='<id>'][data-color-mode='dark|light'] { --var: value; }` blocks

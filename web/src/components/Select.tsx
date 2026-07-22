@@ -130,17 +130,19 @@ export function Select({
       </button>
       {open && pos &&
         createPortal(
+          // Anchor holds the fixed position (incl. the up-flip translate); the
+          // inner menu owns the scale/opacity entrance so the two don't fight.
           <div
-            ref={menuRef}
-            className="dd-menu"
-            style={{
-              top: pos.top,
-              left: pos.left,
-              minWidth: Math.max(pos.width, 140),
-              transform: pos.up ? 'translateY(-100%)' : undefined,
-            }}
+            className="dd-anchor"
+            style={{ top: pos.top, left: pos.left, transform: pos.up ? 'translateY(-100%)' : undefined }}
           >
-            {rows}
+            <div
+              ref={menuRef}
+              className={`dd-menu ${pos.up ? 'up' : 'down'}`}
+              style={{ minWidth: Math.max(pos.width, 140) }}
+            >
+              {rows}
+            </div>
           </div>,
           document.body
         )}
