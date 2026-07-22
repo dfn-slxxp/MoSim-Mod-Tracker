@@ -39,6 +39,21 @@ export function UserProfilePage() {
   const { uid } = useParams<{ uid: string }>();
   const [data, setData] = useState<PublicProfile | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'notfound'>('loading');
+  const [copied, setCopied] = useState(false);
+
+  // The embeddable share URL is the clean (non-hash) /u/:uid path the server
+  // renders social previews for. On desktop, point at the public web origin.
+  const shareLink = async () => {
+    const base = isTauri() ? await getServerUrl() : window.location.origin;
+    const url = `${base}/u/${encodeURIComponent(uid ?? '')}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard blocked — no-op */
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +88,12 @@ export function UserProfilePage() {
 
   return (
     <div className="page">
-      <Link className="btn subtle" to="/home" style={{ marginBottom: 14 }}>← Back to community</Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <Link className="btn subtle" to="/home">← Back to community</Link>
+        <button className="btn subtle" style={{ marginLeft: 'auto' }} onClick={shareLink}>
+          {copied ? '✓ Link copied' : '🔗 Share'}
+        </button>
+      </div>
 
       <div className="profile-header">
         {user.photo ? (

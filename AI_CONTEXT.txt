@@ -484,9 +484,25 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Server-side auth env: GOOGLE_CLIENT_ID/SECRET, OAUTH_REDIRECT_URI, JWT_SECRET,
   DB_PATH, optional ADMIN_EMAILS, optional GITHUB_CLIENT_ID/SECRET +
   DISCORD_CLIENT_ID/SECRET (each pair enables that sign-in provider), optional
-  TBA_AUTH_KEY (enables the server-side TBA team-name proxy).
+  TBA_AUTH_KEY (enables the server-side TBA team-name proxy), optional
+  PUBLIC_ORIGIN (absolute origin for social-embed URLs; default mods.sebastianw.tech).
 - Droplet npm blocks install scripts (allowScripts): manage.sh approves
   better-sqlite3 + esbuild each deploy and verifies require('better-sqlite3').
+- Rate limiting: in-process per-IP limiter in api.js (600/min all /api; 40/5min
+  on auth login + OAuth callbacks). Requires `app.set('trust proxy', 1)` (server.js)
+  so req.ip is the real client behind nginx. express.json capped at 600kb.
+- Hot public reads (/community, /steps, /themes) TTL-cached in-process (15-30s,
+  bounded staleness — no write invalidation since they change slowly).
+
+### Social embeds (Open Graph)
+- Crawlers don't run JS, so previews are server-rendered. web/index.html carries
+  site-wide OG/Twitter defaults (survive the Vite build). server.js renderIndex()
+  overrides them per page; escapeHtml() guards injected user values (XSS-safe).
+- `GET /u/:uid` (REAL path, not the hash route) serves a per-user embed using ONLY
+  public data — the public robot COUNT, never robot details — then redirects
+  humans to `/#/u/:uid`. Hidden users / 0-public-mod users fall back to the
+  generic embed, so private robots never leak. UserProfilePage has a Share button
+  that copies the clean `/u/:uid` URL. og:image falls back to /favicon.png.
 
 ---
 
