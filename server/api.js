@@ -64,7 +64,56 @@ const TAURI_ORIGINS = new Set([
   'https://tauri.localhost',
 ]);
 
+// ── Rate limiting (in-process; single instance, so a shared Map is correct) ───
+// Requires `app.set('trust proxy', 1)` in server.js so req.ip is the real client
+// behind nginx, not 127.0.0.1.
+function rateLimit({ max, windowMs, message }) {
+  const hits = new Map();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
+  }, windowMs);
+  if (timer.unref) timer.unref();
+  return (req, res, next) => {
+    const id = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const now = Date.now();
+    let e = hits.get(id);
+    if (!e || now > e.reset) { e = { count: 0, reset: now + windowMs }; hits.set(id, e); }
+    e.count += 1;
+    res.setHeader('X-RateLimit-Limit', String(max));
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - e.count)));
+    if (e.count > max) {
+      res.setHeader('Retry-After', String(Math.ceil((e.reset - now) / 1000)));
+      return res.status(429).json({ error: message || 'Too many requests — slow down.' });
+    }
+    next();
+  };
+}
+
+// Auth endpoints (login/callbacks/link/logout) get a tighter budget than reads.
+const authLimiter = rateLimit({ max: 40, windowMs: 5 * 60 * 1000, message: 'Too many sign-in attempts — wait a few minutes.' });
+
+// Tiny TTL memo for hot public reads. Bounded staleness (short TTL) instead of
+// write-invalidation, since community/steps/themes all change slowly.
+function ttlMemo(ttlMs) {
+  let val;
+  let exp = 0;
+  return (compute) => {
+    const now = Date.now();
+    if (now < exp) return val;
+    val = compute();
+    exp = now + ttlMs;
+    return val;
+  };
+}
+const communityCache = ttlMemo(15 * 1000);
+const stepsCache = ttlMemo(30 * 1000);
+const themesCache = ttlMemo(30 * 1000);
+
 const router = Router();
+
+// Baseline limit on ALL /api traffic (generous; the auth limiter is stricter).
+router.use(rateLimit({ max: 600, windowMs: 60 * 1000 }));
 
 router.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -207,7 +256,7 @@ router.get('/auth/providers', (_req, res) => {
   res.json({ google: true, github: githubEnabled(), discord: discordEnabled() });
 });
 
-router.get('/auth/login', (req, res) => {
+router.get('/auth/login', authLimiter, (req, res) => {
   const isDesktop = req.query.desktop === '1';
   const provider = String(req.query.provider ?? 'google');
   // Encode the desktop flag in the CSRF state token so the callback knows
@@ -299,7 +348,7 @@ function finishAuth(res, statePayload, ident) {
   }
 }
 
-router.get('/auth/callback', async (req, res) => {
+router.get('/auth/callback', authLimiter, async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!state || !code) return res.status(400).send('Missing OAuth parameters');
@@ -322,7 +371,7 @@ router.get('/auth/callback', async (req, res) => {
   }
 });
 
-router.get('/auth/callback/github', async (req, res) => {
+router.get('/auth/callback/github', authLimiter, async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!state || !code) return res.status(400).send('Missing OAuth parameters');
@@ -382,7 +431,7 @@ router.get('/auth/callback/github', async (req, res) => {
   }
 });
 
-router.get('/auth/callback/discord', async (req, res) => {
+router.get('/auth/callback/discord', authLimiter, async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!state || !code) return res.status(400).send('Missing OAuth parameters');
@@ -496,29 +545,32 @@ router.put('/profile', requireAuth, (req, res) => {
 // Users with at least one PUBLIC robot, unless an admin hid them.
 
 router.get('/community', (_req, res) => {
-  const robots = allRobots().filter((r) => !r.private && !r.modpackPrivate);
-  const counts = new Map();
-  const games = new Map();
-  for (const r of robots) {
-    counts.set(r.uid, (counts.get(r.uid) ?? 0) + 1);
-    if (r.game) {
-      if (!games.has(r.uid)) games.set(r.uid, new Set());
-      games.get(r.uid).add(r.game);
+  const payload = communityCache(() => {
+    const robots = allRobots().filter((r) => !r.private && !r.modpackPrivate);
+    const counts = new Map();
+    const games = new Map();
+    for (const r of robots) {
+      counts.set(r.uid, (counts.get(r.uid) ?? 0) + 1);
+      if (r.game) {
+        if (!games.has(r.uid)) games.set(r.uid, new Set());
+        games.get(r.uid).add(r.game);
+      }
     }
-  }
-  const users = allProfiles()
-    .filter((p) => !p.hidden && (counts.get(p.uid) ?? 0) > 0)
-    .map((p) => ({
-      uid: p.uid,
-      displayName: p.displayName ?? 'Modder',
-      photo: p.photo ?? null,
-      instagram: p.instagram ?? '',
-      discord: p.discord ?? '',
-      robotCount: counts.get(p.uid),
-      games: [...(games.get(p.uid) ?? [])].sort(),
-    }))
-    .sort((a, b) => b.robotCount - a.robotCount);
-  res.json({ users });
+    const users = allProfiles()
+      .filter((p) => !p.hidden && (counts.get(p.uid) ?? 0) > 0)
+      .map((p) => ({
+        uid: p.uid,
+        displayName: p.displayName ?? 'Modder',
+        photo: p.photo ?? null,
+        instagram: p.instagram ?? '',
+        discord: p.discord ?? '',
+        robotCount: counts.get(p.uid),
+        games: [...(games.get(p.uid) ?? [])].sort(),
+      }))
+      .sort((a, b) => b.robotCount - a.robotCount);
+    return { users };
+  });
+  res.json(payload);
 });
 
 // One community member's PUBLIC mods (clicking a user on the homepage).
@@ -590,11 +642,12 @@ router.put('/admin/users/:uid/visibility', requireAdmin, (req, res) => {
 // Readable by anyone (steps/themes are not secret); writable by admins only.
 
 router.get('/steps', (_req, res) => {
-  res.json({ steps: getSetting('steps') }); // null = client falls back to bundled steps.json
+  // null = client falls back to bundled steps.json
+  res.json(stepsCache(() => ({ steps: getSetting('steps') })));
 });
 
 router.get('/themes', (_req, res) => {
-  res.json({ themes: getSetting('themes') ?? [] });
+  res.json(themesCache(() => ({ themes: getSetting('themes') ?? [] })));
 });
 
 router.put('/admin/steps', requireAdmin, (req, res) => {

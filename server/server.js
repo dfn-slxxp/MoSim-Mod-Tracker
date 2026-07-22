@@ -25,9 +25,15 @@ const DIST = [
 ].find(fs.existsSync) ?? path.join(__dirname, '..', 'web', 'dist');
 
 const app = express();
+// Single nginx reverse proxy in front — trust it so req.ip is the real client
+// (X-Forwarded-For), which per-IP rate limiting depends on.
+app.set('trust proxy', 1);
 app.use(compression());
 app.use(cookieParser());
-app.use(express.json());
+// Cap request bodies: fits the ~400KB script upload cap with headroom, and
+// rejects oversized payloads (basic abuse/DoS hardening). Default was 100KB,
+// which would have silently rejected large script uploads.
+app.use(express.json({ limit: '600kb' }));
 
 // API routes — must come before the static middleware so /api/* is never
 // served as a file-not-found 404 fallback.
