@@ -102,6 +102,10 @@ MoSim Mod Tracker/
 │       ├── styles.css           ← All CSS. Palettes via :root[data-theme='x']
 │       │                           + brightness via :root[data-color-mode='dark|light'].
 │       │                           Custom themes injected as a <style> tag at runtime.
+│       │                           UI typeface: self-hosted IBM Plex Sans variable
+│       │                           (@font-face -> /fonts/plex-sans-var.woff2), Segoe
+│       │                           UI fallback. Numeric readouts (team #, progress)
+│       │                           use font-variant-numeric: tabular-nums.
 │       ├── theme.tsx            ← BUILTIN_THEMES (default/cloud) + custom themes;
 │       │                           separate colorMode (dark/light); injectCustomThemes()
 │       │                           emits both modes per custom theme; useTheme()
@@ -577,3 +581,19 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
 - 2026-07-21: Moved TBA to one server-side key: new authed proxy
   GET /api/tba/team/:number (TBA_AUTH_KEY env, 24h cache), lib/tba.ts now calls
   it, RobotForm per-user key UI removed. Key value lives only in droplet .env.
+- 2026-07-22: UI refinement pass (impeccable /polish, "refine what's there"
+  direction). CSS + one asset only, no JSX/behavior changes. Bundled a
+  self-hosted UI typeface (IBM Plex Sans variable, web/public/fonts/
+  plex-sans-var.woff2, ~45KB latin) replacing the raw Segoe UI system font;
+  added antialiasing + slight negative tracking on body and display headings.
+  Gave the default (dark and light) theme subtle accent-tinted atmospheric
+  background gradients (was --bg-image: none) and a tight contact --shadow on
+  dark (was none). Added tabular-nums to team numbers and progress readouts,
+  a themed ::selection color, a unified :focus-visible keyboard ring, and an
+  accent-tinted active nav state (previously identical to hover). Added
+  explicit font-src 'self' tauri: asset: data: to the desktop CSP in
+  tauri.conf.json. Verified: web build (tsc+vite) passes, font copies to
+  dist/fonts and is referenced in built CSS, no console errors, design
+  detector clears (remaining gradient-text hit is the pre-existing Instagram
+  brand label). Note: browser screenshots time out in this environment;
+  verification was via computed styles / accessibility tree, not visual.

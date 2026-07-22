@@ -4,6 +4,19 @@
    picks dark vs light brightness. Every rule below only references variables.
    --------------------------------------------------------------------------- */
 
+/* ---------- typeface: IBM Plex Sans (self-hosted variable woff2, latin) -------
+   IBM's engineering typeface — technical character that fits a robotics build
+   tracker, and it rhymes with the monospace used for code. Bundled locally so
+   the desktop (Tauri) build and offline web both render it; no CDN, single
+   variable file covers every weight. Falls back to Segoe UI. */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('/fonts/plex-sans-var.woff2') format('woff2');
+}
+
 /* ---------- motion tokens (Emil Kowalski curves; theme-independent) ---------- */
 :root {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* strong ease-out for UI entrances */
@@ -43,7 +56,9 @@
 :root[data-theme='default'][data-color-mode='dark'],
 :root:not([data-theme])[data-color-mode='dark'] {
   --bg: #0b0e14;
-  --bg-image: none;
+  --bg-image:
+    radial-gradient(ellipse 78% 55% at 12% -8%, rgba(63, 185, 80, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 55% at 100% 108%, rgba(88, 166, 255, 0.05) 0%, transparent 60%);
   --panel: #141a24;
   --panel-2: #1a2130;
   --border-solid: #263042;
@@ -56,7 +71,7 @@
   --red: #f85149;
   --blue: #58a6ff;
   --titlebar: #0a0d12;
-  --shadow: none;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
   --radius: 12px;
   --radius-sm: 9px;
   /* Status pill colors (tinted background + readable text) */
@@ -80,7 +95,9 @@
 :root[data-theme='default'][data-color-mode='light'],
 :root:not([data-theme])[data-color-mode='light'] {
   --bg: #f4f6f9;
-  --bg-image: none;
+  --bg-image:
+    radial-gradient(ellipse 78% 55% at 12% -8%, rgba(33, 135, 57, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 55% at 100% 108%, rgba(47, 111, 208, 0.05) 0%, transparent 60%);
   --panel: #ffffff;
   --panel-2: #eef1f5;
   --border-solid: #d5dce6;
@@ -205,8 +222,17 @@ body {
   background-image: var(--bg-image);
   background-attachment: fixed;
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
+  letter-spacing: -0.003em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Selection uses the live accent so it stays right in every theme. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 button {
@@ -267,11 +293,17 @@ a {
 h1 {
   font-size: 22px;
   margin: 0;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  letter-spacing: -0.015em;
 }
 
 h3 {
   margin: 0 0 8px;
   font-size: 14px;
+  letter-spacing: -0.01em;
 }
 
 .muted {
@@ -351,6 +383,11 @@ h3 {
   border-radius: var(--radius-sm);
 }
 
+.nav a {
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
 .nav a:hover {
   color: var(--text);
   background: var(--panel-2);
@@ -358,7 +395,8 @@ h3 {
 
 .nav a.active {
   color: var(--text);
-  background: var(--panel-2);
+  background: var(--accent-dim);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .theme-btn {
@@ -476,6 +514,24 @@ h3 {
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Unified keyboard focus ring (only shows for keyboard nav, not mouse click).
+   Inputs/selects keep their own border+shadow focus treatment. */
+.btn:focus-visible,
+.nav a:focus-visible,
+.tab-btn:focus-visible,
+.chip:focus-visible,
+.toggle-btn:focus-visible,
+.dd-trigger:focus-visible,
+.pill:focus-visible,
+.auth-me:focus-visible,
+.community-card:focus-visible,
+.sort-dir-btn:focus-visible,
+.win-btn:focus-visible,
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- auth ---------- */
@@ -677,6 +733,8 @@ h3 {
   color: var(--gold);
   white-space: nowrap;
   width: 70px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .col-name {
@@ -696,6 +754,7 @@ h3 {
   gap: 8px;
   min-width: 120px;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .comment-preview {
@@ -713,6 +772,7 @@ h3 {
   color: var(--gold);
   font-weight: 700;
   margin-right: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .team-num.big {
