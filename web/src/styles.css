@@ -443,14 +443,16 @@ h3 {
 .loading,
 .empty {
   color: var(--muted);
-  padding: 40px 0;
+  padding: 44px 24px;
   text-align: center;
+  line-height: 1.5;
 }
 
 .empty {
   border: 1px dashed var(--border-solid);
   border-radius: var(--radius);
   margin-top: 16px;
+  background: color-mix(in srgb, var(--panel) 45%, transparent);
 }
 
 /* ---------- buttons ---------- */
@@ -554,7 +556,7 @@ h3 {
 
 /* ---------- pages ---------- */
 .page-head {
-  margin-bottom: 18px;
+  margin-bottom: 22px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -563,6 +565,23 @@ h3 {
 
 .page-head p {
   margin: 0;
+  max-width: 64ch;   /* keep intro copy at a readable measure on wide pages */
+  line-height: 1.5;
+}
+
+/* Back / share action row shared by the public profile and similar pages. */
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+/* Horizontal group of buttons (e.g. account "connect" providers). */
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .add-form {
@@ -1797,6 +1816,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-bottom: 18px;
 }
 
 .profile-photo {
@@ -1938,6 +1958,23 @@ h3 {
   padding: 20px;
   box-shadow: var(--shadow);
   max-width: 440px;
+}
+
+/* Stacked account cards + their inner rhythm (was inline styles). */
+.account-card + .account-card {
+  margin-top: 16px;
+}
+
+.account-subhead + p {
+  margin-top: 0;
+}
+
+.account-identity > .btn {
+  margin-left: auto;
+}
+
+.linked-list + .btn-row {
+  margin-top: 12px;
 }
 
 .profile-form {
@@ -2994,6 +3031,46 @@ h3 {
   width: 100%;
   max-width: 380px;
   box-shadow: var(--shadow);
+}
+
+.signin-card .brand {
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.signin-card .brand-mark {
+  width: 48px;
+  height: 48px;
+}
+
+.signin-lead {
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+/* Stacked full-width provider buttons in the sign-in card. */
+.signin-card .btn {
+  width: 100%;
+}
+
+.signin-card .btn + .btn {
+  margin-top: 8px;
+}
+
+/* First-run profile-setup modal: centered brand + copy. */
+.profile-setup-card .brand {
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.profile-setup-card .brand-mark {
+  width: 40px;
+  height: 40px;
+}
+
+.profile-setup-card .dialog-title,
+.profile-setup-card .dialog-message {
+  text-align: center;
 }
 
 /* ---------- scripts page ---------- */

@@ -137,10 +137,10 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
           onBlur={(e) => lookupTeam(e.target.value)}
           required
         />
-        {fetching && <span className="muted" style={{ fontSize: 12 }}>Looking up…</span>}
+        {fetching && <span className="muted small">Looking up…</span>}
         {!fetching && teamName && <span className="team-name-tag">✓ {teamName}</span>}
         {!fetching && !teamName && team.trim() && (
-          <span className="muted" style={{ fontSize: 12 }}>Team not found</span>
+          <span className="muted small">Team not found</span>
         )}
       </div>
 

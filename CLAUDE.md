@@ -597,3 +597,19 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   detector clears (remaining gradient-text hit is the pre-existing Instagram
   brand label). Note: browser screenshots time out in this environment;
   verification was via computed styles / accessibility tree, not visual.
+- 2026-07-23: Polish pass across every page (impeccable /polish). CSS + JSX
+  (inline-style consolidation), no behavior/copy changes. Shared CSS lifts that
+  touch all pages: `.page-head p` constrained to 64ch measure + 1.5 line-height;
+  `.empty`/`.loading` gained horizontal padding (44px 24px, was 40px 0) + a
+  faint panel wash on `.empty`. Consolidated repeated inline `style={{}}` layout
+  into named classes: new `.page-actions` (back/share row) and `.btn-row`;
+  `.account-card + .account-card`, `.account-subhead + p`, `.account-identity >
+  .btn`, `.linked-list + .btn-row`, `.profile-header` margin, and `.signin-card`
+  brand/mark/lead/stacked-button rules + `.profile-setup-card` centering. Updated
+  JSX in App.tsx (SignInGate, ProfileSetup), AccountPage, UserProfilePage,
+  HomePage (loading → `.loading`), RobotForm (status spans → `muted small`).
+  Remaining inline styles are all legitimately dynamic (portal positioning,
+  ProgressBar transform, AdminPage live theme-preview colors). Verified: web
+  build (tsc+vite) passes, detector clean except the known Instagram label.
+  Browser pane viewport was stuck at 0x0 this session, so layout was verified
+  via computed styles/DOM, not pixels.

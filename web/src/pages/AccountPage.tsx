@@ -63,7 +63,7 @@ export function AccountPage() {
             Signed in with {PROVIDER_LABELS[user.provider ?? 'google']} · this can’t be changed here
           </div>
         </div>
-        <button className="btn subtle" style={{ marginLeft: 'auto' }} onClick={() => api.signOut()}>
+        <button className="btn subtle" onClick={() => api.signOut()}>
           Sign out
         </button>
       </div>
@@ -73,9 +73,9 @@ export function AccountPage() {
       </div>
 
       {/* Linked Google accounts */}
-      <div className="account-card" style={{ marginTop: 16 }}>
+      <div className="account-card">
         <h2 className="account-subhead">Sign-in accounts</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>
+        <p className="muted small">
           Connect more accounts — Google, GitHub, or Discord — so you can sign in with any of them
           and land here. Data always stays on this one account.
         </p>
@@ -98,7 +98,7 @@ export function AccountPage() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <div className="btn-row">
           <button className="btn" onClick={() => addAccount('google')}>+ Connect Google</button>
           {providers.github && (
             <button className="btn" onClick={() => addAccount('github')}>+ Connect GitHub</button>

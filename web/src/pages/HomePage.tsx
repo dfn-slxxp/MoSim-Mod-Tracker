@@ -141,7 +141,7 @@ export function HomePage() {
       <section className="home-section">
         <h2 className="home-section-title">Modders in the community</h2>
         {users === null ? (
-          <div className="muted" style={{ textAlign: 'center', padding: 20 }}>Loading community…</div>
+          <div className="loading">Loading community…</div>
         ) : users.length === 0 ? (
           <div className="empty">No public robots yet — be the first to share one.</div>
         ) : (

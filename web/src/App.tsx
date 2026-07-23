@@ -140,35 +140,23 @@ function SignInGate() {
   return (
     <div className="signin-gate">
       <div className="signin-card">
-        <div className="brand" style={{ justifyContent: 'center', marginBottom: 12 }}>
-          <img className="brand-mark" src={avatarUrl} alt="" style={{ width: 48, height: 48 }} />
+        <div className="brand">
+          <img className="brand-mark" src={avatarUrl} alt="" />
           <span className="brand-name">MoSim Mod Tracker</span>
         </div>
-        <p className="muted" style={{ margin: '0 0 20px', textAlign: 'center' }}>
+        <p className="signin-lead muted">
           Sign in to access your mod tracker.
         </p>
-        <button
-          className="btn primary"
-          style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => api.signIn('google')}
-        >
+        <button className="btn primary" onClick={() => api.signIn('google')}>
           Sign in with Google
         </button>
         {providers.github && (
-          <button
-            className="btn"
-            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
-            onClick={() => api.signIn('github')}
-          >
+          <button className="btn" onClick={() => api.signIn('github')}>
             Sign in with GitHub
           </button>
         )}
         {providers.discord && (
-          <button
-            className="btn"
-            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
-            onClick={() => api.signIn('discord')}
-          >
+          <button className="btn" onClick={() => api.signIn('discord')}>
             Sign in with Discord
           </button>
         )}
@@ -182,11 +170,11 @@ function ProfileSetup() {
   return (
     <div className="dialog-overlay">
       <div className="dialog-card profile-setup-card" role="dialog" aria-modal="true">
-        <div className="brand" style={{ justifyContent: 'center', marginBottom: 6 }}>
-          <img className="brand-mark" src={avatarUrl} alt="" style={{ width: 40, height: 40 }} />
+        <div className="brand">
+          <img className="brand-mark" src={avatarUrl} alt="" />
         </div>
-        <h2 className="dialog-title" style={{ textAlign: 'center' }}>Welcome — set up your profile</h2>
-        <p className="dialog-message" style={{ textAlign: 'center' }}>
+        <h2 className="dialog-title">Welcome — set up your profile</h2>
+        <p className="dialog-message">
           This is how you’ll appear in the community directory. You can change it any time on the
           Account page.
         </p>

@@ -88,9 +88,10 @@ export function UserProfilePage() {
 
   return (
     <div className="page">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+      <div className="page-actions">
         <Link className="btn subtle" to="/home">← Back to community</Link>
-        <button className="btn subtle" style={{ marginLeft: 'auto' }} onClick={shareLink}>
+        <span className="spacer" />
+        <button className="btn subtle" onClick={shareLink}>
           {copied ? '✓ Link copied' : '🔗 Share'}
         </button>
       </div>
@@ -117,7 +118,7 @@ export function UserProfilePage() {
         </div>
       </div>
 
-      <div className="table-wrap" style={{ marginTop: 18 }}>
+      <div className="table-wrap">
         <table className="tracker-table">
           <thead>
             <tr>
