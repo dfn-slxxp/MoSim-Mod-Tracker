@@ -1,15 +1,19 @@
 // ---------------------------------------------------------------------------
 // Repos page — the git repos your robot mods live in. Each repo stores:
-//   - a local path (used by the DESKTOP app to scan folders + read scripts)
 //   - a remote URL (shown as a link everywhere)
-// "Scan" walks Assets/**/Robots/** for folders containing a .prefab, asks git
-// for each folder's last commit date, and caches the result on the repo record
-// so the web UI (which can't touch your disk) still shows everything.
+//   - the last scan result (cached so the web UI can show it too)
+// WHERE the repo lives on disk is a per-device fact (lib/repoPaths.ts,
+// localStorage) — never on the shared server record, since the same repo shows
+// on the web and on other machines where an absolute path is meaningless.
+// "Scan" (desktop only) walks Assets/**/Robots/** for folders containing a
+// .prefab, asks git for each folder's last commit date, caches the result, and
+// auto-links any detected folder to a tracked robot when it's unambiguous.
 // ---------------------------------------------------------------------------
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
 import { useStore } from '../store/StoreContext';
+import { getRepoPath, setRepoPath } from '../lib/repoPaths';
 import type { Repo } from '../types';
 
 function fmtDate(ms: number): string {
@@ -27,17 +31,49 @@ function RepoCard({ repo }: { repo: Repo }) {
   const isDesktop = !!window.desktop;
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
+  const [autoMsg, setAutoMsg] = useState('');
+  // Device-local folder for this repo (empty on web / until set on desktop).
+  const [path, setPath] = useState(() => getRepoPath(repo.id));
+  const [pathDraft, setPathDraft] = useState(path);
+  const [editingPath, setEditingPath] = useState(false);
 
   // Tracker robots linked to this repo (via the Repo dropdown on a robot).
   const linked = robots.filter((r) => r.repoId === repo.id);
 
+  const savePath = () => {
+    const next = pathDraft.trim();
+    setRepoPath(repo.id, next);
+    setPath(next);
+    setEditingPath(false);
+  };
+
+  // After a scan, link each detected folder to a tracked robot when the match is
+  // unambiguous and that robot isn't already linked somewhere. Never overwrites
+  // an existing link (that would be a conflict), never guesses on ties.
+  const autolink = async (scanned: { name: string }[]) => {
+    let linkedCount = 0;
+    for (const sr of scanned) {
+      const matches = robots.filter((t) => t.team === sr.name || t.name === sr.name);
+      if (matches.length !== 1) continue; // no match, or ambiguous -> skip
+      const t = matches[0];
+      if (t.repoId) continue; // already linked (here or elsewhere) -> leave it
+      await api.updateRobot(t.id, { repoId: repo.id });
+      linkedCount += 1;
+    }
+    if (linkedCount > 0) {
+      setAutoMsg(`Linked ${linkedCount} robot${linkedCount === 1 ? '' : 's'} to this repo.`);
+    }
+  };
+
   const scan = async () => {
     setScanning(true);
     setScanError('');
+    setAutoMsg('');
     try {
-      const res = await window.desktop!.scanRepo(repo.localPath);
+      const res = await window.desktop!.scanRepo(path);
       if (!res.ok) throw new Error(res.error ?? 'Scan failed');
       await api.saveRepoScan(repo.id, { scannedAt: Date.now(), robots: res.robots });
+      await autolink(res.robots);
     } catch (e) {
       setScanError((e as Error).message);
     } finally {
@@ -57,11 +93,11 @@ function RepoCard({ repo }: { repo: Repo }) {
             {repo.remoteUrl.replace(/^https?:\/\//, '')} ↗
           </a>
         )}
-        {isDesktop && repo.localPath && (
+        {isDesktop && path && (
           <button
             className="btn subtle"
             title="Open folder"
-            onClick={() => window.desktop!.openPath(repo.localPath)}
+            onClick={() => window.desktop!.openPath(path)}
           >
             📂
           </button>
@@ -69,7 +105,7 @@ function RepoCard({ repo }: { repo: Repo }) {
         <span className="spacer" />
         {canEdit && (
           <>
-            {isDesktop && repo.localPath && (
+            {isDesktop && path && (
               <button className="btn" disabled={scanning} onClick={scan}>
                 {scanning ? 'Scanning…' : repo.scan ? 'Rescan' : 'Scan'}
               </button>
@@ -99,7 +135,44 @@ function RepoCard({ repo }: { repo: Repo }) {
         )}
       </div>
 
-      {repo.localPath && <div className="repo-path muted">{repo.localPath}</div>}
+      {/* Device-local folder — desktop only. Scanning + reading scripts need a
+          path on THIS PC; it's remembered per device, not on the server. */}
+      {isDesktop && canEdit && (
+        <div className="repo-folder">
+          {editingPath || !path ? (
+            <>
+              <input
+                className="grow"
+                placeholder="Folder on this PC (e.g. C:\Users\Seb\Desktop\Private-Mods)"
+                value={pathDraft}
+                onChange={(e) => setPathDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') savePath();
+                }}
+              />
+              <button className="btn" onClick={savePath}>Save folder</button>
+              {path && (
+                <button
+                  className="btn subtle"
+                  onClick={() => { setPathDraft(path); setEditingPath(false); }}
+                >
+                  Cancel
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="repo-path muted small">{path}</span>
+              <button
+                className="btn subtle"
+                onClick={() => { setPathDraft(path); setEditingPath(true); }}
+              >
+                Change folder
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Robots discovered on disk by the last scan */}
       {repo.scan ? (
@@ -146,11 +219,12 @@ function RepoCard({ repo }: { repo: Repo }) {
       ) : (
         <div className="muted small">
           {isDesktop
-            ? 'Not scanned yet — hit Scan to find robot folders and their last-modified dates.'
+            ? 'Not scanned yet — set this repo’s folder above, then hit Scan to find robot folders.'
             : 'Not scanned yet — scanning reads your disk, so it runs from the desktop app.'}
         </div>
       )}
 
+      {autoMsg && <div className="banner rounded">{autoMsg}</div>}
       {scanError && <div className="banner error rounded">{scanError}</div>}
 
       {linked.length > 0 && (
@@ -172,7 +246,6 @@ export function ReposPage() {
   const { repos, api, canEdit } = useStore();
   const { alertDialog } = useDialog();
   const [name, setName] = useState('');
-  const [localPath, setLocalPath] = useState('');
   const [remoteUrl, setRemoteUrl] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
 
@@ -182,12 +255,10 @@ export function ReposPage() {
     try {
       await api.addRepo({
         name: name.trim(),
-        localPath: localPath.trim(),
         remoteUrl: remoteUrl.trim(),
         private: isPrivate
       });
       setName('');
-      setLocalPath('');
       setRemoteUrl('');
     } catch (err) {
       void alertDialog((err as Error).message, 'Could not add repo');
@@ -199,19 +270,13 @@ export function ReposPage() {
       <div className="page-head">
         <h1>Repos</h1>
         <p className="muted">
-          The git repos your mods live in. Scans (from the desktop app) list every robot folder
-          with its last git modification date.
+          The git repos your mods live in. On the desktop app you can point each repo at its
+          folder on this PC and scan it for robot folders (with their last git modification date).
         </p>
       </div>
       {canEdit && (
         <form className="add-form" onSubmit={submit}>
           <input placeholder="Repo name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <input
-            className="grow"
-            placeholder="Local path (e.g. C:\Users\Seb\Desktop\Private-Mods)"
-            value={localPath}
-            onChange={(e) => setLocalPath(e.target.value)}
-          />
           <input
             className="grow"
             placeholder="Remote URL (e.g. https://github.com/you/repo)"

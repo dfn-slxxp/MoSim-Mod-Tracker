@@ -13,6 +13,7 @@ import { PillSelect } from '../components/PillSelect';
 import { Select } from '../components/Select';
 import { ProgressBar } from '../components/ProgressBar';
 import { Splits, WhatsLeft } from '../components/Splits';
+import { getRepoPath } from '../lib/repoPaths';
 import { STEPS, robotProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
 import { MODTYPE_META, ModType, RobotStatus, STATUS_META, StepProgress } from '../types';
@@ -47,6 +48,7 @@ export function RobotDetailPage() {
   }
 
   const repo = repos.find((r) => r.id === robot.repoId);
+  const repoPath = repo ? getRepoPath(repo.id) : '';
   const prog = robotProgress(robot);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -95,8 +97,8 @@ export function RobotDetailPage() {
             <a className="repo-link" href={repo.remoteUrl} target="_blank" rel="noreferrer">
               {repo.name} ↗
             </a>
-          ) : isDesktop && repo.localPath ? (
-            <button className="btn subtle" onClick={() => window.desktop!.openPath(repo.localPath)}>
+          ) : isDesktop && repoPath ? (
+            <button className="btn subtle" onClick={() => window.desktop!.openPath(repoPath)}>
               📂 {repo.name}
             </button>
           ) : (

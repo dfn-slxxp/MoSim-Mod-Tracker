@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ANTHROPIC_MODELS, GEMINI_MODELS, OPENROUTER_MODELS, Provider, fetchFreeOpenRouterModels, generateScript, settings } from '../ai/client';
 import { fetchRepoSource } from '../lib/github';
+import { getRepoPath } from '../lib/repoPaths';
 import { useStore } from '../store/StoreContext';
 import type { Repo, Robot } from '../types';
 import { Select } from './Select';
@@ -16,6 +17,8 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
   const { repos, scripts } = useStore();
   const repo: Repo | undefined = repos.find((r) => r.id === robot.repoId);
   const isDesktop = !!window.desktop;
+  // This device's folder for the linked repo (empty on web / if unset).
+  const repoPath = repo ? getRepoPath(repo.id) : '';
 
   // Panel state. Settings persist via the `settings` helpers; the rest is
   // per-visit. Sets are used for exclusions so "everything included" is the
@@ -96,10 +99,10 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
         if (!excludedLibrary.has(s.id)) examples[s.name] = s.content;
       }
       // 2) Any repo files ticked on top (desktop reads them off disk).
-      if (isDesktop && repo?.localPath) {
+      if (isDesktop && repoPath) {
         for (const rel of repoScripts) {
           if (!selectedRepoScripts[rel]) continue;
-          const res = await window.desktop!.readScript(repo.localPath, rel);
+          const res = await window.desktop!.readScript(repoPath, rel);
           if (res.ok) examples[rel] = res.content;
         }
       }
@@ -335,7 +338,7 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
             )}
           </div>
 
-          {isDesktop && repo?.localPath && repoScripts.length > 0 && (
+          {isDesktop && repo && repoPath && repoScripts.length > 0 && (
             <div className="ai-field">
               <span>
                 Extra examples from <b>{repo.name}</b> (read from disk)

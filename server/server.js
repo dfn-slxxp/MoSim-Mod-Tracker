@@ -14,7 +14,7 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
-const { getProfile, allRobots } = require('./db');
+const { getProfile, allRobots, getSetting } = require('./db');
 
 const PORT = process.env.PORT || 8787;
 const SITE = process.env.PUBLIC_ORIGIN || 'https://mods.sebastianw.tech';
@@ -54,6 +54,47 @@ function renderIndex({ title, description, image, url }) {
   setMeta('name', 'twitter:description', description);
   setMeta('name', 'twitter:image', image);
   return html;
+}
+
+// Current workflow steps: admin-edited copy (settings table) wins, else the
+// bundled steps.json. Read live per request so the embed reflects the real
+// template. The bundled default is cached; the admin override is not (changes
+// rarely, and getSetting is a cheap indexed lookup).
+let _bundledSteps = null;
+function bundledSteps() {
+  if (_bundledSteps == null) {
+    try {
+      _bundledSteps = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'steps.json'), 'utf8')).steps ?? [];
+    } catch {
+      _bundledSteps = [];
+    }
+  }
+  return _bundledSteps;
+}
+function currentSteps() {
+  const override = getSetting('steps');
+  return Array.isArray(override) && override.length ? override : bundledSteps();
+}
+
+// Progress derived from the live steps template + the robot's saved checkmarks.
+// Status is derived from completion (not the stored status field) so a shared
+// link always shows where the build actually is.
+function robotProgress(robot) {
+  const steps = currentSteps();
+  const progress = robot.progress || {};
+  let totalSubs = 0, doneSubs = 0, doneSteps = 0;
+  for (const step of steps) {
+    const subs = step.subs || [];
+    const checks = progress[step.id]?.subs || {};
+    const done = subs.filter((s) => checks[s.id]).length;
+    totalSubs += subs.length;
+    doneSubs += done;
+    if (subs.length > 0 && done === subs.length) doneSteps += 1;
+  }
+  const totalSteps = steps.length;
+  const percent = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
+  const status = percent >= 100 ? 'Complete' : percent > 0 ? 'In progress' : 'Planned';
+  return { totalSubs, doneSubs, totalSteps, doneSteps, percent, status };
 }
 
 // Git-clone layout: web/dist is one level up from server/.
@@ -104,6 +145,44 @@ app.get('/u/:uid', (req, res) => {
       };
 
   const redirect = `<script>location.replace('/#/u/' + ${JSON.stringify(uid)});</script>`;
+  const html = renderIndex(og).replace('</head>', `${redirect}</head>`);
+  res.set('Content-Type', 'text/html; charset=utf-8').send(html);
+});
+
+// Per-robot share page (real path, so crawlers get a custom embed). Only PUBLIC
+// robots get a real preview; private ones fall back to the generic embed so
+// nothing leaks. Progress + status are computed live from the steps template, so
+// the preview auto-updates as the build progresses. Humans are bounced to the SPA.
+app.get('/robot/:id', (req, res) => {
+  const id = req.params.id;
+  const robot = allRobots().find((r) => r.id === id);
+  const isPublic = robot && !robot.private && !robot.modpackPrivate;
+
+  let og;
+  if (isPublic) {
+    const p = robotProgress(robot);
+    const team = robot.team ? `Team ${robot.team}` : 'FRC robot';
+    const name = robot.name && robot.name !== `Team ${robot.team}` ? robot.name : team;
+    const parts = [team, robot.game, p.status,
+      `${p.percent}% complete (${p.doneSubs}/${p.totalSubs} sub-steps · ${p.doneSteps}/${p.totalSteps} steps)`]
+      .filter(Boolean);
+    const owner = getProfile(robot.uid);
+    og = {
+      title: `${name} · MoSim Mod Tracker`,
+      description: parts.join(' · '),
+      image: (owner && !owner.hidden && owner.photo) || `${SITE}/favicon.png`,
+      url: `${SITE}/robot/${encodeURIComponent(id)}`,
+    };
+  } else {
+    og = {
+      title: 'MoSim Mod Tracker',
+      description: 'Bring real FRC robots into MoSim and track every build from idea to release.',
+      image: `${SITE}/favicon.png`,
+      url: `${SITE}/`,
+    };
+  }
+
+  const redirect = `<script>location.replace('/#/robot/' + ${JSON.stringify(id)});</script>`;
   const html = renderIndex(og).replace('</head>', `${redirect}</head>`);
   res.set('Content-Type', 'text/html; charset=utf-8').send(html);
 });

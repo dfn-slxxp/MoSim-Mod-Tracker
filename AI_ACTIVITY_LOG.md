@@ -319,3 +319,32 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** web/src/theme.tsx, web/src/App.tsx, web/src/styles.css, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
 
 **User-facing outcome:** Right-click the theme button -> "Import colors from JSON", paste a palette (the exported object or a bare color map), and it applies as a new saved theme on that device, selectable and removable from the theme menu.
+
+### Robot share embed (Discord/Open Graph)
+
+**User message:** If I send a link of a mod progress tracker page (https://mods.sebastianw.tech/#/robot/<id>) in Discord it should show an overview of the robot like the in-app bar at the top. The status should pull from the steps and auto-update.
+
+**Work and decisions:** Added a server-rendered per-robot Open Graph embed, mirroring the existing /u/:uid pattern (crawlers do not run JS, so the preview must be in the served HTML). server/server.js: imported getSetting from ./db; added bundledSteps() (cached read of steps.json), currentSteps() (admin steps override in the settings table wins, else bundled), and robotProgress(robot) which counts checked sub-steps and fully-completed steps from the live steps template + the robot's saved progress. Status is DERIVED from completion (percent >= 100 Complete, > 0 In progress, else Planned), not the stored status field, so a shared link always reflects where the build actually is and auto-updates as steps are checked. New route GET /robot/:id: only PUBLIC robots (!private && !modpackPrivate) get a real preview (title = robot name, description = "Team N . game . derived-status . P% complete (a/b sub-steps . c/d steps)", image = owner photo or /favicon.png); private/unknown robots fall back to the generic site embed so nothing leaks. Humans are JS-redirected to /#/robot/:id.
+
+**Verification:** node --check server/server.js passed. Verified robotProgress math against the real steps.json (53 subs / 10 steps): 38 checked -> 72% / "In progress" / 7 full steps; empty -> 0% / "Planned". Confirmed getSetting returns a bare parsed array and admin PUT stores steps as a bare array, so currentSteps() picks the override correctly. Server deps are not installed locally (native better-sqlite3), so no live HTTP smoke test; route logic mirrors the proven /u/:uid embed.
+
+**Known limitation (flagged to user):** the human click-through target /#/robot/:id is behind RequireAuth (unlike the public /u/:uid page), so a non-signed-in viewer hits the sign-in wall. The embed card itself renders for everyone. Making public robot detail pages viewable without sign-in would be a follow-up.
+
+**Files changed:** server/server.js, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
+
+**User-facing outcome:** Pasting a public robot link in Discord (or any OG crawler) shows a preview card with the robot name, team, game, live-derived status, and progress that updates as the build advances.
+
+### Repos: device-local path, scan ignore list, autofill
+
+**User messages:** Repos also should not have a local path (it is on the server and I am on my PC). The scan-repo function should ignore 9496 and ClimbExamples; also ignore 118 and 2910. It should also autofill the repo on the robots it detects if no conflicts arise.
+
+**Work and decisions:**
+1. Local path moved off the shared server record to a PER-DEVICE store. New web/src/lib/repoPaths.ts (localStorage key mosim-repo-paths, id -> path). Removed localPath from the Repo type (types.ts) so NewRepo no longer carries it; removed the local-path input from the add-repo form (ReposPage). The RepoCard now shows a desktop-only "folder on this PC" control (set / change, remembered per device); scan + open-folder use that path. Updated the two other readers of repo.localPath to use getRepoPath(repo.id): AiScriptPanel.tsx (reading .cs off disk) and RobotDetailPage.tsx (open-folder button). Added .repo-folder CSS.
+2. Scan ignore list in src-tauri/src/commands.rs: new IGNORE_ROBOTS = 9496, ClimbExamples, 118, 2910 (skip detected robot folders with these names anywhere); also added ClimbExamples to SKIP so the scanner never descends into that example subtree.
+3. Autofill on scan (ReposPage.scan -> autolink): after saving the scan, each detected folder is matched to a tracked robot by team number (folder name == team, or name). If exactly one match AND that robot has no repo yet, it is linked to this repo (api.updateRobot repoId). Never overwrites an existing link and never guesses on ties ("no conflicts" = unambiguous + currently unlinked). Shows a "Linked N robots" banner.
+
+**Verification:** npm run build (tsc + vite) passed (fixed one TS narrowing error where the repo-scripts block guard changed from repo?.localPath to repoPath — added an explicit repo && guard). Rust change reviewed by hand (base.as_str() name match, continue skips list + descent); no Rust toolchain on this machine, so not compiled locally.
+
+**Files changed:** web/src/types.ts, web/src/lib/repoPaths.ts (new), web/src/pages/ReposPage.tsx, web/src/components/AiScriptPanel.tsx, web/src/pages/RobotDetailPage.tsx, web/src/styles.css, src-tauri/src/commands.rs, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
+
+**User-facing outcome:** Repos no longer store a PC-specific path on the server; on the desktop app you point each repo at its folder on that machine (remembered locally). Scans skip the shared example folders (9496, ClimbExamples, 118, 2910) and automatically link detected robot folders to matching tracked robots when the match is unambiguous.

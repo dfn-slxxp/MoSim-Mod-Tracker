@@ -176,7 +176,13 @@ pub fn read_script(repo_path: String, rel_path: String) -> ScriptResult {
 const SKIP: &[&str] = &[
     "Library", "Temp", "obj", "Logs", "node_modules",
     ".git", ".idea", "UserSettings",
+    // Shared example/reference tree, not the user's mods — don't descend into it.
+    "ClimbExamples",
 ];
+
+// Robot folders that are shared examples / reference bases, not the user's own
+// mods — never list them as detected robots (matched by folder name anywhere).
+const IGNORE_ROBOTS: &[&str] = &["9496", "ClimbExamples", "118", "2910"];
 
 fn do_scan(repo_path: &str) -> Result<Vec<RobotInfo>, String> {
     let root = PathBuf::from(repo_path);
@@ -210,6 +216,12 @@ fn do_scan(repo_path: &str) -> Result<Vec<RobotInfo>, String> {
                     has_prefab = true;
                 }
             }
+        }
+
+        if has_prefab && IGNORE_ROBOTS.contains(&base.as_str()) {
+            // A robot folder, but an ignored example/base — don't list it, and
+            // don't descend into it (matches the accept-branch's no-descend).
+            continue;
         }
 
         if has_prefab {

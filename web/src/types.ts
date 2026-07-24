@@ -84,9 +84,12 @@ export interface RepoScan {
 export interface Repo {
   id: string;
   name: string;
-  /** Absolute path on this PC (used by the desktop app to scan + read scripts). */
-  localPath: string;
-  /** e.g. a GitHub URL — shown as a link everywhere. */
+  /**
+   * e.g. a GitHub URL — shown as a link everywhere.
+   * (Where the repo lives on disk is a per-device fact kept in localStorage via
+   * lib/repoPaths.ts, NOT stored here — this record syncs to the web + other
+   * machines where an absolute path would be meaningless.)
+   */
   remoteUrl: string;
   private: boolean;
   ownerUid: string | null;

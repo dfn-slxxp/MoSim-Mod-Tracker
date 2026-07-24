@@ -159,7 +159,10 @@ MoSim Mod Tracker/
 │       │   │                          → PUT /api/admin/themes → live inject
 │       │   ├── PlannedPage.tsx   ← /planned (not in nav)
 │       │   ├── ModpacksPage.tsx  ← Game dropdown (GAMES), pill Private/Public toggle
-│       │   ├── ReposPage.tsx     ← Repo management + disk scan
+│       │   ├── ReposPage.tsx     ← Repo management + disk scan. Repo record has
+│       │   │                        NO local path (per-device, lib/repoPaths.ts,
+│       │   │                        localStorage). Scan autolinks detected folders
+│       │   │                        to matching tracked robots when unambiguous.
 │       │   ├── ScriptsPage.tsx   ← Script library. On add: AI auto-describes script
 │       │   │                        (bullet points, only script-evident behavior);
 │       │   │                        per-row "AI describe" re-run button; JSONL export
@@ -525,6 +528,15 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   humans to `/#/u/:uid`. Hidden users / 0-public-mod users fall back to the
   generic embed, so private robots never leak. UserProfilePage has a Share button
   that copies the clean `/u/:uid` URL. og:image falls back to /favicon.png.
+- `GET /robot/:id` (REAL path) serves a per-robot embed for PUBLIC robots only
+  (`!private && !modpackPrivate`); private/unknown fall back to the generic embed.
+  Description = "Team N · game · status · P% complete (a/b sub-steps · c/d steps)".
+  server.js robotProgress() derives progress + STATUS from the live steps template
+  (currentSteps(): admin `settings.steps` override else bundled steps.json) and the
+  robot's saved checkmarks — status is derived (Complete/In progress/Planned), NOT
+  the stored status field, so the preview auto-updates as steps get checked. Humans
+  are redirected to `/#/robot/:id`. NOTE: that hash route is behind RequireAuth, so
+  a signed-out click-through hits the sign-in wall (the embed card itself is public).
 
 ---
 
@@ -642,3 +654,18 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   build (tsc+vite) passes, detector clean except the known Instagram label.
   Browser pane viewport was stuck at 0x0 this session, so layout was verified
   via computed styles/DOM, not pixels.
+- 2026-07-24: Robot share embed. New server route GET /robot/:id renders a
+  per-robot Open Graph card for PUBLIC robots only (mirrors /u/:uid), with progress
+  + STATUS derived live from the steps template (server.js currentSteps()/
+  robotProgress()), so the preview auto-updates. Human click-through /#/robot/:id
+  is still behind RequireAuth (flagged; embed card itself is public). node --check
+  + progress math verified; server not run locally (native deps absent).
+- 2026-07-24: Repos overhaul. (1) Removed localPath from the shared Repo record;
+  it's now per-device in localStorage via lib/repoPaths.ts (getRepoPath/setRepoPath),
+  with a desktop-only folder control on each repo card. Updated the other readers
+  (AiScriptPanel disk reads, RobotDetailPage open-folder). (2) scan_repo ignores
+  robot folders named 9496/ClimbExamples/118/2910 (IGNORE_ROBOTS in commands.rs) +
+  never descends into ClimbExamples (added to SKIP). (3) After a scan, ReposPage
+  autolinks each detected folder to a tracked robot matched by team number when the
+  match is unambiguous and the robot is currently unlinked (never overwrites).
+  Web build passes; Rust reviewed by hand (no toolchain locally).
