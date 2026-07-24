@@ -55,11 +55,17 @@ function ColorModeButton() {
 }
 
 function ThemeButton() {
-  const { theme, setTheme, allThemes, colorMode } = useTheme();
+  const { theme, setTheme, allThemes, colorMode, importedThemes, importTheme, removeImportedTheme } =
+    useTheme();
   const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importErr, setImportErr] = useState('');
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const isImported = (id: string) => importedThemes.some((t) => t.id === id);
 
   const copyColors = async () => {
     const json = JSON.stringify(exportThemeColors(theme, colorMode), null, 2);
@@ -69,6 +75,18 @@ function ThemeButton() {
       setTimeout(() => setCopied(false), 1400);
     } catch {
       /* clipboard blocked — no-op */
+    }
+  };
+
+  const doImport = () => {
+    try {
+      const t = importTheme(importText);
+      setTheme(t.id);
+      setImportOpen(false);
+      setImportText('');
+      setImportErr('');
+    } catch (e) {
+      setImportErr((e as Error).message);
     }
   };
 
@@ -125,18 +143,40 @@ function ThemeButton() {
           <div className="dd-anchor" style={{ top: menu.top, left: menu.left }}>
             <div ref={menuRef} className="dd-menu theme-menu" style={{ minWidth: 190 }}>
               <div className="dd-group">Theme</div>
-              {allThemes.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className={`dd-option ${t.id === theme ? 'selected' : ''}`}
-                  onClick={() => { setTheme(t.id); setMenu(null); }}
-                >
-                  <span className="theme-menu-icon">{t.icon}</span>
-                  <span className="dd-option-label">{t.label}</span>
-                  {t.id === theme && <span className="dd-tick">✓</span>}
-                </button>
-              ))}
+              {allThemes.map((t) =>
+                isImported(t.id) ? (
+                  <div key={t.id} className={`dd-row ${t.id === theme ? 'selected' : ''}`}>
+                    <button
+                      type="button"
+                      className="dd-option dd-option-grow"
+                      onClick={() => { setTheme(t.id); setMenu(null); }}
+                    >
+                      <span className="theme-menu-icon">{t.icon}</span>
+                      <span className="dd-option-label">{t.label}</span>
+                      {t.id === theme && <span className="dd-tick">✓</span>}
+                    </button>
+                    <button
+                      type="button"
+                      className="dd-del"
+                      title="Remove this imported theme"
+                      onClick={() => removeImportedTheme(t.id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`dd-option ${t.id === theme ? 'selected' : ''}`}
+                    onClick={() => { setTheme(t.id); setMenu(null); }}
+                  >
+                    <span className="theme-menu-icon">{t.icon}</span>
+                    <span className="dd-option-label">{t.label}</span>
+                    {t.id === theme && <span className="dd-tick">✓</span>}
+                  </button>
+                )
+              )}
               <div className="dd-sep" />
               <button
                 type="button"
@@ -147,6 +187,47 @@ function ThemeButton() {
                 <span className="theme-menu-icon">{copied ? '✓' : '⧉'}</span>
                 <span className="dd-option-label">{copied ? 'Copied!' : 'Copy colors as JSON'}</span>
               </button>
+              <button
+                type="button"
+                className="dd-option"
+                title="Paste a colors JSON to apply it as a theme"
+                onClick={() => { setImportErr(''); setImportOpen(true); setMenu(null); }}
+              >
+                <span className="theme-menu-icon">📥</span>
+                <span className="dd-option-label">Import colors from JSON</span>
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+      {importOpen &&
+        createPortal(
+          <div
+            className="dialog-overlay"
+            onMouseDown={(e) => { if (e.target === e.currentTarget) setImportOpen(false); }}
+          >
+            <div className="dialog-card import-card" role="dialog" aria-modal="true">
+              <h2 className="dialog-title">Import theme colors</h2>
+              <p className="dialog-message">
+                Paste a colors JSON — either the exported <code>{'{ theme, mode, colors }'}</code>{' '}
+                object or a bare <code>{'{ "bg": "#…", "accent": "#…" }'}</code> map. It applies as a
+                new theme saved on this device.
+              </p>
+              <textarea
+                className="import-textarea"
+                spellCheck={false}
+                autoFocus
+                placeholder={'{\n  "theme": "my-theme",\n  "colors": { "bg": "#0b0e14", "accent": "#3fb950" }\n}'}
+                value={importText}
+                onChange={(e) => { setImportText(e.target.value); setImportErr(''); }}
+              />
+              {importErr && <div className="import-error">{importErr}</div>}
+              <div className="dialog-actions">
+                <button className="btn" onClick={() => setImportOpen(false)}>Cancel</button>
+                <button className="btn primary" disabled={!importText.trim()} onClick={doImport}>
+                  Import theme
+                </button>
+              </div>
             </div>
           </div>,
           document.body

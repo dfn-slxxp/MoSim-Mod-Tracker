@@ -408,6 +408,17 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   radius), returns `{theme, mode, colors}`, and copies it via
   navigator.clipboard.writeText with a 1.4s "Copied!" flip. Works for built-in and
   custom themes and captures the active dark/light mode.
+- The same menu has an "Import colors from JSON" action opening a paste modal.
+  `parseThemeImport(text)` (theme.tsx) accepts the exported `{theme, mode, colors}`
+  shape OR a bare `{bg, accent, ...}` map, drops unknown keys, rejects values with
+  `{}<>;` (CSS break-out guard), requires >= bg or accent. `injectImportedThemes()`
+  writes `<style id=mosim-imported-themes-style>` with mode-agnostic
+  `:root[data-theme='<id>']` blocks (forces `--bg-image: none` unless supplied, so
+  the base gradient doesn't bleed). Imported themes persist in localStorage
+  `mosim-imported-themes`, appear in allThemes with a 📥 icon, and are deletable
+  via a per-row ✕ (`removeImportedTheme`). These are LOCAL/per-device (not the
+  server-stored admin custom themes). useTheme() exposes importedThemes/importTheme/
+  removeImportedTheme.
 
 ### AI
 - Providers (localStorage): openrouter (FREE), gemini, anthropic, ollama.
@@ -609,6 +620,12 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   rendered palette (27 color vars) from computed styles and copies `{theme, mode,
   colors}` to the clipboard. Works for built-in + custom themes and the active
   brightness. Added a `.dd-sep` dropdown divider. Build + live dropdown verified.
+  Also shipped THEME_COLORS.md (portable palette spec for reuse elsewhere).
+- 2026-07-24: Added the reverse — "Import colors from JSON" in the same menu:
+  paste an exported object or bare color map to apply it as a local (per-device,
+  localStorage) theme, selectable + deletable in the theme list. parseThemeImport/
+  injectImportedThemes/importTheme/removeImportedTheme in theme.tsx; paste modal +
+  delete affordance in App.tsx; verified injection specificity + gradient-kill.
 - 2026-07-23: Polish pass across every page (impeccable /polish). CSS + JSX
   (inline-style consolidation), no behavior/copy changes. Shared CSS lifts that
   touch all pages: `.page-head p` constrained to 64ch measure + 1.5 line-height;

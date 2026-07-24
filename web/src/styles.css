@@ -2283,6 +2283,34 @@ h3 {
   background: var(--border-solid);
 }
 
+/* Row wrapper for a selectable option that also has a trailing action (imported themes). */
+.dd-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.dd-row.selected {
+  background: var(--accent-dim);
+}
+.dd-option-grow {
+  flex: 1;
+  min-width: 0;
+}
+.dd-del {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+}
+.dd-del:hover {
+  color: var(--red);
+  background: var(--panel-2);
+}
+
 .dd-option {
   display: flex;
   align-items: center;
@@ -2372,6 +2400,36 @@ h3 {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* Import-theme modal: a wider card with a paste area. */
+.import-card {
+  width: min(440px, calc(100vw - 48px));
+}
+.import-textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  tab-size: 2;
+}
+.import-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.import-error {
+  margin: 0 0 12px;
+  color: var(--red);
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
 @keyframes dialog-fade {

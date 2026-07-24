@@ -307,3 +307,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** THEME_COLORS.md (new), AI_ACTIVITY_LOG.md.
 
 **User-facing outcome:** A single markdown file the user can paste into another session to have the same palette applied elsewhere.
+
+### Import theme colors from JSON
+
+**User message:** Make it so I can input these JSONs as well.
+
+**Work and decisions:** Added an "Import colors from JSON" action to the theme dropdown (below the copy action), symmetric with the export. theme.tsx: new ImportedTheme type + parseThemeImport(text) that accepts either the exported {theme, mode, colors} shape or a bare {bg, accent, ...} map, drops unknown keys, rejects values containing {}<>; (CSS declaration break-out guard), and requires at least bg or accent. injectImportedThemes() writes a `<style id=mosim-imported-themes-style>` with `:root[data-theme='<id>'] {..}` blocks (mode-agnostic — a fixed pasted palette applies in both dark and light) and forces `--bg-image: none` unless the import carries one, so the default green/blue gradient doesn't bleed through (the base plain `:root` sets it). Imported themes persist in localStorage `mosim-imported-themes`, are injected on mount, appear in allThemes (cycle + menu) with a 📥 icon, and are deletable via a per-row ✕ (removeImportedTheme falls back to default if the active one is removed). The known-theme fallback effect now includes imported ids so an active import isn't reset. App.tsx: ThemeButton gained a paste modal (reuses .dialog-overlay/.dialog-card, monospace textarea, inline error) and delete affordance; styles.css got .dd-row/.dd-option-grow/.dd-del and .import-card/.import-textarea/.import-error.
+
+**Verification:** npm run build (tsc + vite) passed. In the live dev server: confirmed the theme menu renders both "Copy colors as JSON" and "Import colors from JSON"; replicated injectImportedThemes + theme selection via computed styles and confirmed imported --accent/--bg/--text/--pill-* override the base, --bg-image resolves to none (body background-image none), and an untouched var (--gold) correctly falls back to the base default. No console errors.
+
+**Files changed:** web/src/theme.tsx, web/src/App.tsx, web/src/styles.css, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
+
+**User-facing outcome:** Right-click the theme button -> "Import colors from JSON", paste a palette (the exported object or a bare color map), and it applies as a new saved theme on that device, selectable and removable from the theme menu.
