@@ -65,6 +65,36 @@ export function injectCustomThemes(themes: CustomTheme[]): void {
   tag.textContent = css;
 }
 
+/** Color CSS variables to include when exporting the active theme (skips gradients/radii). */
+const EXPORT_VARS = [
+  'bg', 'panel', 'panel-2', 'border-solid', 'text', 'muted', 'titlebar',
+  'accent', 'accent-contrast', 'accent-dim', 'blue', 'gold', 'red',
+  'pill-planned-bg', 'pill-planned-fg',
+  'pill-claimed-bg', 'pill-claimed-fg',
+  'pill-unity-bg', 'pill-unity-fg',
+  'pill-semi-bg', 'pill-semi-fg',
+  'pill-released-bg', 'pill-released-fg',
+  'pill-gray-bg', 'pill-gray-fg',
+  'pill-official-bg', 'pill-official-fg',
+];
+
+/**
+ * Read the colors currently rendering (whichever theme + brightness is active) straight
+ * from computed styles, so it works for built-in and custom themes alike. Returns a
+ * portable object you can drop into another project / design tool.
+ */
+export function exportThemeColors(theme: Theme, mode: ColorMode): {
+  theme: Theme; mode: ColorMode; colors: Record<string, string>;
+} {
+  const cs = getComputedStyle(document.documentElement);
+  const colors: Record<string, string> = {};
+  for (const key of EXPORT_VARS) {
+    const v = cs.getPropertyValue(`--${key}`).trim();
+    if (v) colors[key] = v;
+  }
+  return { theme, mode, colors };
+}
+
 interface ThemeValue {
   theme: Theme;
   setTheme: (t: Theme) => void;

@@ -2277,6 +2277,12 @@ h3 {
   padding: 6px 10px 3px;
 }
 
+.dd-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border-solid);
+}
+
 .dd-option {
   display: flex;
   align-items: center;

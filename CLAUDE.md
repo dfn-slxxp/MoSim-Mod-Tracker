@@ -401,6 +401,13 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - App.tsx titlebar: ColorModeButton (🌙/☀️ toggle) + ThemeButton (LEFT-click cycles
   allThemes; RIGHT-click portal menu). Select.tsx dropdowns scroll inside the menu
   without closing (page scroll still closes).
+- ThemeButton's right-click menu also has a "Copy colors as JSON" action (below a
+  `.dd-sep` divider). It calls `exportThemeColors(theme, mode)` (theme.tsx), which
+  reads the LIVE rendered palette from getComputedStyle for 27 curated color vars
+  (bg/panel/text/accent/blue/gold/red + all pill-*-bg/fg; skips bg-image/shadow/
+  radius), returns `{theme, mode, colors}`, and copies it via
+  navigator.clipboard.writeText with a 1.4s "Copied!" flip. Works for built-in and
+  custom themes and captures the active dark/light mode.
 
 ### AI
 - Providers (localStorage): openrouter (FREE), gemini, anthropic, ollama.
@@ -597,6 +604,11 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   detector clears (remaining gradient-text hit is the pre-existing Instagram
   brand label). Note: browser screenshots time out in this environment;
   verification was via computed styles / accessibility tree, not visual.
+- 2026-07-24: Added a "Copy colors as JSON" action to the ThemeButton right-click
+  menu (App.tsx) backed by `exportThemeColors()` in theme.tsx — reads the live
+  rendered palette (27 color vars) from computed styles and copies `{theme, mode,
+  colors}` to the clipboard. Works for built-in + custom themes and the active
+  brightness. Added a `.dd-sep` dropdown divider. Build + live dropdown verified.
 - 2026-07-23: Polish pass across every page (impeccable /polish). CSS + JSX
   (inline-style consolidation), no behavior/copy changes. Shared CSS lifts that
   touch all pages: `.page-head p` constrained to 64ch measure + 1.5 line-height;

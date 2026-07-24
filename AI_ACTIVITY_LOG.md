@@ -285,3 +285,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** web/src/styles.css, web/src/App.tsx, web/src/pages/HomePage.tsx, web/src/pages/AccountPage.tsx, web/src/pages/UserProfilePage.tsx, web/src/components/RobotForm.tsx, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
 
 **User-facing outcome:** Every page reads a little more finished: intro copy sits at a comfortable measure instead of stretching across wide pages, empty and loading states have proper breathing room and a subtle surface, and the sign-in / first-run / account / public-profile surfaces are driven by consistent classes instead of ad-hoc inline styles. No layout, content, or behavior changed.
+
+### Copy active theme colors as JSON
+
+**User message:** Add a copy option for the colors that copies it as JSON (or similar) to use elsewhere.
+
+**Work and decisions:** Added a "Copy colors as JSON" action to the theme dropdown (right-click the theme button in the titlebar/topbar; the same portal menu that lists the themes). Chose that menu because it is available to every user (not admin-only) and already tied to theme selection. New exported helper `exportThemeColors(theme, mode)` in web/src/theme.tsx reads the colors that are actually rendering from getComputedStyle(document.documentElement) for a curated list of 27 color CSS variables (bg, panel, panel-2, border-solid, text, muted, titlebar, accent, accent-contrast, accent-dim, blue, gold, red, and all pill-*-bg/fg pairs). Reading computed styles (rather than the generateTheme output) means it works identically for built-in and custom themes and captures the live dark/light brightness. Deliberately excluded bg-image (large gradient string), shadow, radius, radius-sm as non-color. Returns `{ theme, mode, colors }`; App.tsx serializes with JSON.stringify(..., 2) and writes it via navigator.clipboard.writeText (same call pattern as the existing share-link copy), with a 1.4s "Copied!" label flip and a try/catch no-op fallback if the clipboard is blocked. Added a `.dd-sep` divider style in styles.css (1px, --border-solid) to separate the copy action from the theme list.
+
+**Verification:** npm run build (tsc + vite) in web/ passed. Live check against the dev server (viewport worked this session at 1280x720): right-clicked the theme button, confirmed the menu renders the new "Copy colors as JSON" option; clicked it and confirmed the label flips and resets; reproduced the exact export payload via computed styles and confirmed valid JSON with all 27 vars resolved for the active theme+mode (default/dark). No console errors. Clipboard read-back could not be asserted (browser denies clipboard READ permission), but the write path is the same one already used by the share button.
+
+**Files changed:** web/src/theme.tsx, web/src/App.tsx, web/src/styles.css, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
+
+**User-facing outcome:** Right-click the theme button and pick "Copy colors as JSON" to copy the current theme's full palette (whichever theme + dark/light mode is active) to the clipboard as a portable JSON object, ready to paste into another project or design tool.

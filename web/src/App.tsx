@@ -21,7 +21,7 @@ import { ScriptsPage } from './pages/ScriptsPage';
 import { UserProfilePage } from './pages/UserProfilePage';
 import { useStore } from './store/StoreContext';
 import { useAuthProviders } from './lib/useAuthProviders';
-import { useTheme } from './theme';
+import { exportThemeColors, useTheme } from './theme';
 
 /** Desktop-only: toggle always-on-top. Grayscale = unpinned, accent = pinned. */
 function PinButton() {
@@ -55,10 +55,22 @@ function ColorModeButton() {
 }
 
 function ThemeButton() {
-  const { theme, setTheme, allThemes } = useTheme();
+  const { theme, setTheme, allThemes, colorMode } = useTheme();
   const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
+  const [copied, setCopied] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const copyColors = async () => {
+    const json = JSON.stringify(exportThemeColors(theme, colorMode), null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard blocked — no-op */
+    }
+  };
 
   const idx = Math.max(0, allThemes.findIndex((t) => t.id === theme));
   const next = allThemes[(idx + 1) % allThemes.length];
@@ -125,6 +137,16 @@ function ThemeButton() {
                   {t.id === theme && <span className="dd-tick">✓</span>}
                 </button>
               ))}
+              <div className="dd-sep" />
+              <button
+                type="button"
+                className="dd-option"
+                title="Copy the active palette as JSON to use elsewhere"
+                onClick={copyColors}
+              >
+                <span className="theme-menu-icon">{copied ? '✓' : '⧉'}</span>
+                <span className="dd-option-label">{copied ? 'Copied!' : 'Copy colors as JSON'}</span>
+              </button>
             </div>
           </div>,
           document.body
