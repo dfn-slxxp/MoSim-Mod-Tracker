@@ -297,3 +297,13 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** web/src/theme.tsx, web/src/App.tsx, web/src/styles.css, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
 
 **User-facing outcome:** Right-click the theme button and pick "Copy colors as JSON" to copy the current theme's full palette (whichever theme + dark/light mode is active) to the clipboard as a portable JSON object, ready to paste into another project or design tool.
+
+### Portable theme-color spec doc
+
+**User message:** Give me a markdown file explaining this so I can paste it into another website session and have it used there too.
+
+**Work and decisions:** Wrote THEME_COLORS.md at the repo root — a self-contained, portable spec for reusing the palette in another site/AI session. Covers: the exported `{theme, mode, colors}` shape; a "how to apply" section mapping each token to a `--<token>` CSS custom property with usage examples and a dark/light `data-color-mode` switch; a token reference table (role of each of the 27 tokens, including the pill-*-bg/fg chip pairs); concrete reference JSON for the built-in "default" theme in BOTH dark and light; and notes (8-digit hex = alpha, pair accent-contrast with accent, gradient/shadow/radius excluded as non-color). Light values sourced from the `[data-color-mode='light']` block in styles.css; dark values from the live export verified in the prior step.
+
+**Files changed:** THEME_COLORS.md (new), AI_ACTIVITY_LOG.md.
+
+**User-facing outcome:** A single markdown file the user can paste into another session to have the same palette applied elsewhere.
