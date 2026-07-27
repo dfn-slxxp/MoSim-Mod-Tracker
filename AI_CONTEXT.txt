@@ -39,7 +39,7 @@ the current repository code and this handoff file are authoritative.
 - **Web:** Same React frontend, served by an Express server with SQLite. Accessible at `https://mods.sebastianw.tech`.
 - **Backend domain hardcoded** to `https://mods.sebastianw.tech` in `src-tauri/src/config.rs` (`DEFAULT_SERVER`).
 - **Auth:** Google OAuth (required) + optional GitHub and Discord OAuth (enabled per-provider when their env creds exist; GET /api/auth/providers drives the login buttons). Web uses httpOnly cookie JWT. Desktop uses deep-link `mosim://auth?token=...` → stores Bearer token in `localStorage`.
-- **Admin:** email allowlist (`ADMIN_EMAILS` env, default `waldman.sebastian@gmail.com`). Admins get a hidden `/#/admin` dashboard: workflow-steps editor + custom themes editor. Both are stored server-side and apply to every device.
+- **Admin:** email allowlist (`ADMIN_EMAILS` env, default `waldman.sebastian@gmail.com`). Admins get a `/#/settings` page (nav-linked for admins only; `/#/admin` redirects here). Tabs: Themes (theme picker + color export/import + custom-theme editor), Workflow steps, Users. Steps + custom themes are stored server-side and apply to every device.
 
 ---
 
@@ -89,8 +89,11 @@ MoSim Mod Tracker/
 │   ├── index.html               ← favicon link (/favicon.png)
 │   ├── public/favicon.png       ← avatar as favicon
 │   └── src/
-│       ├── App.tsx              ← Routes + Shell. Nav: Robots, Modpacks, Repos,
-│       │                           Scripts, Compact. Hidden routes: /planned, /admin
+│       ├── App.tsx              ← Routes + Shell. Nav: Home, Robots, Modpacks,
+│       │                           Repos, Scripts, Compact + admin-only Settings.
+│       │                           ThemeButton right-click menu is now SELECTION-
+│       │                           ONLY (export/import moved to Settings > Themes).
+│       │                           Hidden route: /planned. /admin redirects to /settings.
 │       ├── main.tsx             ← HashRouter > ThemeProvider > StoreProvider > App
 │       ├── types.ts             ← ALL shared types: RobotStatus, ModType, GAMES,
 │       │                           Robot/Modpack/Repo/ScriptDoc, UserInfo (admin flag),
@@ -151,12 +154,21 @@ MoSim Mod Tracker/
 │       │   │                        ascending. In Progress = status != planned OR progress > 0
 │       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Status UPGRADE
 │       │   │                         auto-checks all sub-steps (keeps notes)
-│       │   ├── AdminPage.tsx     ← /#/admin (hidden). Gated by user.admin.
-│       │   │                        StepsEditor: add/remove/rename/reorder steps+subs
-│       │   │                          → PUT /api/admin/steps → applySteps()
-│       │   │                        ThemesEditor: custom themes (curated CSS var list,
-│       │   │                          color pickers, dark/light bases, preview)
-│       │   │                          → PUT /api/admin/themes → live inject
+│       │   ├── SettingsPage.tsx  ← /#/settings and /#/settings/:tab (ADMIN-ONLY,
+│       │   │                        gated by user.admin; absorbs the old /admin).
+│       │   │                        Nav-linked (admin only). Tabbed (.tab-bar):
+│       │   │                          themes | steps | users. /settings redirects
+│       │   │                          to /settings/themes.
+│       │   │                        Themes tab: ThemePicker (active-theme grid +
+│       │   │                          color-mode toggle + "Copy colors as JSON"
+│       │   │                          export via exportThemeColors + inline
+│       │   │                          "Import colors from JSON" + imported-theme
+│       │   │                          delete) THEN ThemesEditor (custom themes,
+│       │   │                          primary/secondary pickers, preview) →
+│       │   │                          PUT /api/admin/themes → live inject.
+│       │   │                        Steps tab: StepsEditor → PUT /api/admin/steps
+│       │   │                          → applySteps(). Users tab: UsersEditor
+│       │   │                          (GET /api/admin/users, visibility toggle).
 │       │   ├── PlannedPage.tsx   ← /planned (not in nav)
 │       │   ├── ModpacksPage.tsx  ← Game dropdown (GAMES), pill Private/Public toggle
 │       │   ├── ReposPage.tsx     ← Repo management + disk scan. Repo record has
@@ -264,7 +276,7 @@ interface CustomTheme {
 
 ## Workflow Steps
 
-`steps.json` is the bundled DEFAULT (10 steps). Admins edit the live set at `/#/admin`;
+`steps.json` is the bundled DEFAULT (10 steps). Admins edit the live set at `/#/settings/steps`;
 it's stored in the server `settings` table and loaded by every client on startup
 (`loadRemoteSteps`). Renaming labels keeps progress (ids stable); deleting steps/subs
 drops their checkmarks; new items start unchecked.
@@ -322,8 +334,10 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   `admin` flag. `requireAdmin` wraps `requireAuth` + allowlist check.
 - Steps + themes live in the `settings` table (global, not uid-scoped).
 - GET /api/steps and /api/themes are public (not secret); writes admin-only.
-- Admin dashboard has a Users section: GET /api/admin/users (all users + robot
-  counts + hidden), PUT /api/admin/users/:uid/visibility {hidden}.
+- The admin UI is `/#/settings` (SettingsPage.tsx), a tabbed page (Themes / Workflow
+  steps / Users), gated on user.admin. The Users tab: GET /api/admin/users (all users
+  + robot counts + hidden), PUT /api/admin/users/:uid/visibility {hidden}. `/#/admin`
+  redirects to `/#/settings`; a "Settings" nav link shows only for admins.
 
 ### Account linking (multiple providers: Google, GitHub, Discord)
 - Identity subjects: bare Google sub (legacy) or prefixed `github:<id>` /
@@ -402,26 +416,26 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   dark/light were theme ids migrate to default + color mode. Falls back to default
   if a saved custom theme was deleted.
 - App.tsx titlebar: ColorModeButton (🌙/☀️ toggle) + ThemeButton (LEFT-click cycles
-  allThemes; RIGHT-click portal menu). Select.tsx dropdowns scroll inside the menu
-  without closing (page scroll still closes).
-- ThemeButton's right-click menu also has a "Copy colors as JSON" action (below a
-  `.dd-sep` divider). It calls `exportThemeColors(theme, mode)` (theme.tsx), which
-  reads the LIVE rendered palette from getComputedStyle for 27 curated color vars
-  (bg/panel/text/accent/blue/gold/red + all pill-*-bg/fg; skips bg-image/shadow/
-  radius), returns `{theme, mode, colors}`, and copies it via
-  navigator.clipboard.writeText with a 1.4s "Copied!" flip. Works for built-in and
-  custom themes and captures the active dark/light mode.
-- The same menu has an "Import colors from JSON" action opening a paste modal.
-  `parseThemeImport(text)` (theme.tsx) accepts the exported `{theme, mode, colors}`
-  shape OR a bare `{bg, accent, ...}` map, drops unknown keys, rejects values with
-  `{}<>;` (CSS break-out guard), requires >= bg or accent. `injectImportedThemes()`
-  writes `<style id=mosim-imported-themes-style>` with mode-agnostic
-  `:root[data-theme='<id>']` blocks (forces `--bg-image: none` unless supplied, so
-  the base gradient doesn't bleed). Imported themes persist in localStorage
-  `mosim-imported-themes`, appear in allThemes with a 📥 icon, and are deletable
-  via a per-row ✕ (`removeImportedTheme`). These are LOCAL/per-device (not the
-  server-stored admin custom themes). useTheme() exposes importedThemes/importTheme/
-  removeImportedTheme.
+  allThemes; RIGHT-click portal menu). The right-click menu is now SELECTION-ONLY
+  (just the theme list) — the export/import/delete affordances moved to
+  Settings > Themes (SettingsPage.tsx ThemePicker). Select.tsx dropdowns scroll
+  inside the menu without closing (page scroll still closes).
+- Export ("Copy colors as JSON", in Settings > Themes) calls
+  `exportThemeColors(theme, customThemes)` (theme.tsx) which returns just the TWO
+  SEED colors `{primary, secondary}` — the stored custom primary/secondary, else the
+  live `--accent`/`--blue` for built-ins. The full palette is regenerated from the
+  pair via generateTheme() on re-import, so a round-trip reproduces both modes.
+- Import ("Import colors from JSON", inline textarea in Settings > Themes).
+  `parseThemeImport(text)` (theme.tsx) prefers the seed-pair `{primary, secondary}`
+  (hex-validated) and regenerates the whole palette for both modes; it also still
+  accepts a bare/legacy `{bg, accent, ...}` map (drops unknown keys, rejects values
+  with `{}<>;`, requires >= bg or accent). `injectImportedThemes()` writes
+  `<style id=mosim-imported-themes-style>`: a seed pair emits per-mode
+  `[data-color-mode]` blocks; a legacy map emits one mode-agnostic block with
+  `--bg-image: none`. Imported themes persist in localStorage `mosim-imported-themes`,
+  appear in allThemes with a 📥 icon, and are deletable in Settings > Themes. These
+  are LOCAL/per-device (not the server-stored admin custom themes). useTheme() exposes
+  importedThemes/importTheme/removeImportedTheme.
 
 ### AI
 - Providers (localStorage): openrouter (FREE), gemini, anthropic, ollama.
@@ -669,3 +683,20 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   autolinks each detected folder to a tracked robot matched by team number when the
   match is unambiguous and the robot is currently unlinked (never overwrites).
   Web build passes; Rust reviewed by hand (no toolchain locally).
+- 2026-07-26: Theme export = 2 seed colors. exportThemeColors(theme, customThemes)
+  now returns just `{primary, secondary}` (stored custom seeds, else live
+  accent/blue) instead of the old 27-var dump; parseThemeImport prefers a
+  `{primary, secondary}` pair and regenerates both modes via generateTheme (bare
+  legacy map still accepted). theme.tsx + App.tsx.
+- 2026-07-26: New ADMIN-ONLY /settings page (web/src/pages/SettingsPage.tsx),
+  absorbing /admin. Tabbed (.tab-bar): Themes / Workflow steps / Users; /settings
+  redirects to /settings/themes; /admin redirects to /settings; a "Settings" nav
+  link shows only for admins. Themes tab = ThemePicker (active-theme grid +
+  color-mode toggle + Copy-colors export + inline Import + imported-theme delete)
+  then ThemesEditor (custom themes). Steps tab = StepsEditor, Users tab =
+  UsersEditor (all moved verbatim from the deleted AdminPage.tsx). The titlebar
+  ThemeButton right-click menu is now selection-only (export/import/delete removed).
+  Added .settings-theme-grid/.settings-theme-chip/.settings-theme-pick/.settings-import
+  CSS. Verified: web build (tsc+vite) passes, no console errors on load, theme menu
+  renders selection-only (2 built-ins, no export/import), Settings nav hidden when
+  signed out, /settings routes without crashing.

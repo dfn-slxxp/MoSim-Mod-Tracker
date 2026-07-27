@@ -1524,6 +1524,55 @@ h3 {
   background: var(--accent-dim);
   border-radius: var(--radius);
 }
+
+/* Settings > Themes: active-theme picker + import block */
+.settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.settings-theme-chip {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.settings-theme-chip.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.settings-theme-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: left;
+  transition: transform var(--dur-press) var(--ease-out), background 0.12s;
+}
+.settings-theme-pick:hover {
+  background: var(--panel);
+}
+.settings-theme-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-import {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-solid);
+}
 .admin-step {
   border: 1px solid var(--border-solid);
   border-radius: var(--radius);

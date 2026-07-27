@@ -65,7 +65,7 @@ export function injectCustomThemes(themes: CustomTheme[]): void {
   tag.textContent = css;
 }
 
-/** Color CSS variables to include when exporting the active theme (skips gradients/radii). */
+/** Color CSS variables accepted on import of a bare/legacy palette map. */
 const EXPORT_VARS = [
   'bg', 'panel', 'panel-2', 'border-solid', 'text', 'muted', 'titlebar',
   'accent', 'accent-contrast', 'accent-dim', 'blue', 'gold', 'red',
@@ -79,30 +79,37 @@ const EXPORT_VARS = [
 ];
 
 /**
- * Read the colors currently rendering (whichever theme + brightness is active) straight
- * from computed styles, so it works for built-in and custom themes alike. Returns a
- * portable object you can drop into another project / design tool.
+ * Export just the two colors that seed a theme — the primary + secondary the user set.
+ * For a custom theme these are stored verbatim; for a built-in (or a legacy import with
+ * no seed pair) we fall back to the live accent + blue. The full palette is derived from
+ * this pair via generateTheme(), so re-importing reproduces the theme in both modes.
  */
-export function exportThemeColors(theme: Theme, mode: ColorMode): {
-  theme: Theme; mode: ColorMode; colors: Record<string, string>;
+export function exportThemeColors(theme: Theme, customThemes: CustomTheme[] = []): {
+  primary: string; secondary: string;
 } {
-  const cs = getComputedStyle(document.documentElement);
-  const colors: Record<string, string> = {};
-  for (const key of EXPORT_VARS) {
-    const v = cs.getPropertyValue(`--${key}`).trim();
-    if (v) colors[key] = v;
+  const custom = customThemes.find((t) => t.id === theme);
+  if (custom?.primary && custom?.secondary) {
+    return { primary: custom.primary, secondary: custom.secondary };
   }
-  return { theme, mode, colors };
+  const cs = getComputedStyle(document.documentElement);
+  return {
+    primary: cs.getPropertyValue('--accent').trim(),
+    secondary: cs.getPropertyValue('--blue').trim(),
+  };
 }
 
 // ── Importing a pasted palette ────────────────────────────────────────────────
 
-/** A user-pasted palette, applied as a live theme. Mode-agnostic (fixed colors). */
+/** A user-pasted palette, applied as a live theme. */
 export interface ImportedTheme {
   id: string;
   label: string;
   icon: string;
-  colors: Record<string, string>;
+  /** Seed pair — when present, both dark + light are generated (like a custom theme). */
+  primary?: string;
+  secondary?: string;
+  /** Legacy/bare raw CSS-var map, mode-agnostic. Used only when there's no seed pair. */
+  colors?: Record<string, string>;
 }
 
 const IMPORTED_KEY = 'mosim-imported-themes';
@@ -110,12 +117,22 @@ const IMPORTED_STYLE_TAG_ID = 'mosim-imported-themes-style';
 // Keys accepted on import (the 27 exported colors + a few optional extras).
 const IMPORT_ALLOWED = new Set([...EXPORT_VARS, 'bg-image', 'shadow', 'radius', 'radius-sm']);
 
+const isHexColor = (s: unknown): s is string =>
+  typeof s === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(s.trim());
+
 /**
- * Parse a pasted palette. Accepts either the exported `{theme, mode, colors}` shape or a
- * bare `{ bg, accent, ... }` map. Unknown keys are dropped; values that could break out of
- * a CSS declaration are rejected. Throws a friendly Error on anything unusable.
+ * Parse a pasted palette. Preferred shape is the exported seed pair
+ * `{ primary, secondary }` (the full palette is regenerated from it). Also still
+ * accepts a bare `{ bg, accent, ... }` CSS-var map for backwards compatibility.
+ * Unknown keys are dropped and values that could break out of a CSS declaration are
+ * rejected. Throws a friendly Error on anything unusable.
  */
-export function parseThemeImport(text: string): { label: string; colors: Record<string, string> } {
+export function parseThemeImport(text: string): {
+  label: string;
+  primary?: string;
+  secondary?: string;
+  colors?: Record<string, string>;
+} {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -124,9 +141,16 @@ export function parseThemeImport(text: string): { label: string; colors: Record<
   }
   if (!data || typeof data !== 'object') throw new Error('Expected a JSON object.');
   const obj = data as Record<string, unknown>;
+  const label = typeof obj.theme === 'string' && obj.theme.trim() ? obj.theme.trim() : 'Imported';
+
+  // Seed-pair form — what "Copy colors as JSON" produces.
+  if (isHexColor(obj.primary) && isHexColor(obj.secondary)) {
+    return { label, primary: obj.primary.trim(), secondary: obj.secondary.trim() };
+  }
+
+  // Bare / legacy CSS-var map.
   const rawColors =
     obj.colors && typeof obj.colors === 'object' ? (obj.colors as Record<string, unknown>) : obj;
-
   const colors: Record<string, string> = {};
   for (const [k, v] of Object.entries(rawColors)) {
     const key = k.replace(/^--/, '');
@@ -136,9 +160,8 @@ export function parseThemeImport(text: string): { label: string; colors: Record<
     colors[key] = val;
   }
   if (!colors.bg && !colors.accent) {
-    throw new Error('No recognizable theme colors found (need at least "bg" or "accent").');
+    throw new Error('No recognizable theme colors found (need "primary" + "secondary", or at least "bg"/"accent").');
   }
-  const label = typeof obj.theme === 'string' && obj.theme.trim() ? obj.theme.trim() : 'Imported';
   return { label, colors };
 }
 
@@ -148,23 +171,44 @@ function loadImportedThemes(): ImportedTheme[] {
     if (!raw) return [];
     const arr = JSON.parse(raw);
     return Array.isArray(arr)
-      ? arr.filter((t) => t && typeof t.id === 'string' && t.colors && typeof t.colors === 'object')
+      ? arr.filter(
+          (t) =>
+            t &&
+            typeof t.id === 'string' &&
+            ((t.colors && typeof t.colors === 'object') ||
+              (typeof t.primary === 'string' && typeof t.secondary === 'string'))
+        )
       : [];
   } catch {
     return [];
   }
 }
 
-/** Inject imported palettes as `<style>` blocks (mode-agnostic; kills the default gradient). */
+/**
+ * Inject imported palettes as `<style>` blocks. A seed pair generates both color modes
+ * (like a custom theme); a legacy raw map is emitted mode-agnostically with the default
+ * gradient killed so it doesn't bleed through.
+ */
 export function injectImportedThemes(themes: ImportedTheme[]): void {
   const css = themes
-    .map((t) => {
-      const entries = { ...t.colors };
+    .flatMap((t) => {
+      if (t.primary && t.secondary) {
+        const primary = t.primary;
+        const secondary = t.secondary;
+        return (['dark', 'light'] as const).map((mode) => {
+          const vars = generateTheme(primary, secondary, mode);
+          const lines = Object.entries(vars)
+            .map(([k, v]) => `  --${k}: ${v};`)
+            .join('\n');
+          return `:root[data-theme='${t.id}'][data-color-mode='${mode}'] {\n${lines}\n}`;
+        });
+      }
+      const entries = { ...(t.colors ?? {}) };
       if (!('bg-image' in entries)) entries['bg-image'] = 'none'; // don't inherit the default gradient
       const lines = Object.entries(entries)
         .map(([k, v]) => `  --${k}: ${v};`)
         .join('\n');
-      return `:root[data-theme='${t.id}'] {\n${lines}\n}`;
+      return [`:root[data-theme='${t.id}'] {\n${lines}\n}`];
     })
     .join('\n\n');
   let tag = document.getElementById(IMPORTED_STYLE_TAG_ID) as HTMLStyleElement | null;
@@ -276,16 +320,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const importTheme = (text: string): ImportedTheme => {
-    const { label, colors } = parseThemeImport(text);
+    const parsed = parseThemeImport(text);
     const taken = new Set([
       ...BUILTIN_THEMES.map((t) => t.id),
       ...customThemes.map((t) => t.id),
       ...importedThemes.map((t) => t.id),
     ]);
-    let id = `imported-${slugId(label)}`;
+    let id = `imported-${slugId(parsed.label)}`;
     let n = 2;
-    while (taken.has(id)) id = `imported-${slugId(label)}-${n++}`;
-    const t: ImportedTheme = { id, label, icon: '📥', colors };
+    while (taken.has(id)) id = `imported-${slugId(parsed.label)}-${n++}`;
+    const t: ImportedTheme =
+      parsed.primary && parsed.secondary
+        ? { id, label: parsed.label, icon: '📥', primary: parsed.primary, secondary: parsed.secondary }
+        : { id, label: parsed.label, icon: '📥', colors: parsed.colors };
     persistImported([...importedThemes, t]);
     return t;
   };

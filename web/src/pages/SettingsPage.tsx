@@ -1,20 +1,20 @@
 // ---------------------------------------------------------------------------
-// Admin dashboard (/admin — deliberately NOT in the navbar). Access is gated
-// by the server's ADMIN_EMAILS allowlist (user.admin from /api/me).
-//
-// Two tools:
-//   1. Steps editor  — add/remove/rename workflow steps + sub-steps. Saved
-//      server-side; every client loads it on startup (loadRemoteSteps).
-//   2. Themes editor — build custom CSS-variable themes stored server-side,
-//      usable on all devices exactly like the built-in dark/light/cloud.
+// Settings (/settings — admin only, gated by the server's ADMIN_EMAILS
+// allowlist via user.admin from /api/me). Larger page split into tabs:
+//   /settings/themes — active theme picker, export/import colors, and the
+//                        custom-theme editor (stored server-side, all devices).
+//   /settings/steps  — add/remove/rename workflow steps + sub-steps.
+//   /settings/users  — community directory visibility.
+// Absorbs the old /admin dashboard; /admin redirects here.
 // ---------------------------------------------------------------------------
 import { useEffect, useState } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
 import { generateTheme } from '../lib/color';
 import { isTauri, getServerUrl } from '../lib/desktop';
 import { STEPS, Step, applySteps } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { BUILTIN_THEMES, useTheme } from '../theme';
+import { BUILTIN_THEMES, exportThemeColors, useTheme } from '../theme';
 import type { AdminUser, CustomTheme } from '../types';
 
 // ── Small authenticated fetch helpers (cookie on web, Bearer on desktop) ────
@@ -164,10 +164,109 @@ function StepsEditor() {
   );
 }
 
-// ── Themes editor ────────────────────────────────────────────────────────────
+// ── Themes tab ─────────────────────────────────────────────────────────────
 
 /** Sensible starting colors for a new theme. */
 const DEFAULTS = { primary: '#3fb950', secondary: '#58a6ff' };
+
+/** Active-theme picker + export/import of the two seed colors, plus imported list. */
+function ThemePicker() {
+  const {
+    theme, setTheme, colorMode, toggleColorMode, allThemes,
+    customThemes, importedThemes, importTheme, removeImportedTheme,
+  } = useTheme();
+  const [copied, setCopied] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importErr, setImportErr] = useState('');
+  const isImported = (id: string) => importedThemes.some((t) => t.id === id);
+
+  const copyColors = async () => {
+    const json = JSON.stringify(exportThemeColors(theme, customThemes), null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard blocked — no-op */
+    }
+  };
+
+  const doImport = () => {
+    try {
+      const t = importTheme(importText);
+      setTheme(t.id);
+      setImportText('');
+      setImportErr('');
+    } catch (e) {
+      setImportErr((e as Error).message);
+    }
+  };
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-head">
+        <h2>Appearance</h2>
+        <button className="btn subtle" onClick={toggleColorMode}>
+          {colorMode === 'dark' ? '🌙 Dark' : '☀️ Light'}
+        </button>
+      </div>
+      <p className="muted small">
+        Pick the active theme and brightness. Export copies the two seed colors (primary +
+        secondary) as JSON so you can reuse them elsewhere or import them on another device.
+      </p>
+
+      <div className="settings-theme-grid">
+        {allThemes.map((t) => (
+          <div key={t.id} className={`settings-theme-chip ${t.id === theme ? 'active' : ''}`}>
+            <button type="button" className="settings-theme-pick" onClick={() => setTheme(t.id)}>
+              <span className="theme-menu-icon">{t.icon}</span>
+              <span className="settings-theme-label">{t.label}</span>
+              {t.id === theme && <span className="dd-tick">✓</span>}
+            </button>
+            {isImported(t.id) && (
+              <button
+                type="button"
+                className="dd-del"
+                title="Remove this imported theme"
+                onClick={() => removeImportedTheme(t.id)}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button className="btn" onClick={copyColors}>
+          {copied ? '✓ Copied!' : '⧉ Copy colors as JSON'}
+        </button>
+      </div>
+
+      <div className="settings-import">
+        <label className="muted small">Import colors from JSON</label>
+        <p className="muted small">
+          Paste an exported <code>{'{ "primary": "#…", "secondary": "#…" }'}</code> pair (or a bare{' '}
+          <code>{'{ "bg": "#…", "accent": "#…" }'}</code> map). It applies as a new theme saved on
+          this device.
+        </p>
+        <textarea
+          className="import-textarea"
+          spellCheck={false}
+          placeholder={'{\n  "primary": "#3fb950",\n  "secondary": "#58a6ff"\n}'}
+          value={importText}
+          onChange={(e) => { setImportText(e.target.value); setImportErr(''); }}
+        />
+        {importErr && <div className="import-error">{importErr}</div>}
+        <div className="btn-row">
+          <button className="btn primary" disabled={!importText.trim()} onClick={doImport}>
+            Import theme
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function ThemesEditor() {
   const { confirmDialog } = useDialog();
@@ -239,9 +338,8 @@ function ThemesEditor() {
       </div>
       <p className="muted small">
         Pick a primary and secondary color — the rest of the palette (surfaces, text, borders,
-        gradients, status colors) is generated for both dark and light mode. Use the 🌙/☀️ button
-        in the titlebar to preview each brightness. Themes sync to every device and appear on the
-        theme button.
+        gradients, status colors) is generated for both dark and light mode. Themes sync to every
+        device and appear on the theme button.
       </p>
       {msg && <div className="muted small admin-msg">{msg}</div>}
 
@@ -403,8 +501,16 @@ function UsersEditor() {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export function AdminPage() {
+const TABS = [
+  { id: 'themes', label: 'Themes' },
+  { id: 'steps', label: 'Workflow steps' },
+  { id: 'users', label: 'Users' },
+] as const;
+
+export function SettingsPage() {
   const { user, ready } = useStore();
+  const { tab } = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
 
   if (!ready) return <div className="loading">Loading…</div>;
   if (!user?.admin) {
@@ -414,19 +520,41 @@ export function AdminPage() {
       </div>
     );
   }
+  if (!tab) return <Navigate to="/settings/themes" replace />;
+  if (!TABS.some((t) => t.id === tab)) return <Navigate to="/settings/themes" replace />;
 
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Admin dashboard</h1>
+        <h1>Settings</h1>
         <p className="muted">
-          Global settings that apply to every user and device. Not linked in the navbar; the URL
-          is <code>/#/admin</code>.
+          Global settings that apply to every user and device.
         </p>
       </div>
-      <UsersEditor />
-      <StepsEditor />
-      <ThemesEditor />
+
+      <div className="tab-bar" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            className={`tab-btn ${tab === t.id ? 'active' : ''}`}
+            aria-selected={tab === t.id}
+            onClick={() => navigate(`/settings/${t.id}`)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'themes' && (
+        <>
+          <ThemePicker />
+          <ThemesEditor />
+        </>
+      )}
+      {tab === 'steps' && <StepsEditor />}
+      {tab === 'users' && <UsersEditor />}
     </div>
   );
 }
