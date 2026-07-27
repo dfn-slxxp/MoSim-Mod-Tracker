@@ -421,15 +421,19 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   Settings > Themes (SettingsPage.tsx ThemePicker). Select.tsx dropdowns scroll
   inside the menu without closing (page scroll still closes).
 - Export ("Copy colors as JSON", in Settings > Themes) calls
-  `exportThemeColors(theme, customThemes)` (theme.tsx) which returns just the TWO
-  SEED colors `{primary, secondary}` — the stored custom primary/secondary, else the
-  live `--accent`/`--blue` for built-ins. The full palette is regenerated from the
-  pair via generateTheme() on re-import, so a round-trip reproduces both modes.
+  `exportThemeColors(theme, customThemes, allThemes)` (theme.tsx) which returns a
+  ONE-ELEMENT ARRAY `[{name, primary, secondary}]` — name = the theme's label,
+  primary/secondary = the stored custom seeds, else the live `--accent`/`--blue` for
+  built-ins. The full palette is regenerated from the pair via generateTheme() on
+  re-import, so a round-trip reproduces both modes. The array shape lets several
+  themes be pasted at once.
 - Import ("Import colors from JSON", inline textarea in Settings > Themes).
-  `parseThemeImport(text)` (theme.tsx) prefers the seed-pair `{primary, secondary}`
-  (hex-validated) and regenerates the whole palette for both modes; it also still
-  accepts a bare/legacy `{bg, accent, ...}` map (drops unknown keys, rejects values
-  with `{}<>;`, requires >= bg or accent). `injectImportedThemes()` writes
+  `parseThemeImport(text)` (theme.tsx) returns `ParsedTheme[]` and prefers the
+  exported array `[{name, primary, secondary}]` (hex-validated seed pairs), also
+  accepts a single seed-pair object `{name?, primary, secondary}`, and still accepts a
+  bare/legacy `{bg, accent, ...}` map (drops unknown keys, rejects values with
+  `{}<>;`, requires >= bg or accent). `importTheme(text)` returns `ImportedTheme[]`
+  (imports every parsed entry; the picker selects the first). `injectImportedThemes()` writes
   `<style id=mosim-imported-themes-style>`: a seed pair emits per-mode
   `[data-color-mode]` blocks; a legacy map emits one mode-agnostic block with
   `--bg-image: none`. Imported themes persist in localStorage `mosim-imported-themes`,
@@ -683,11 +687,12 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   autolinks each detected folder to a tracked robot matched by team number when the
   match is unambiguous and the robot is currently unlinked (never overwrites).
   Web build passes; Rust reviewed by hand (no toolchain locally).
-- 2026-07-26: Theme export = 2 seed colors. exportThemeColors(theme, customThemes)
-  now returns just `{primary, secondary}` (stored custom seeds, else live
-  accent/blue) instead of the old 27-var dump; parseThemeImport prefers a
-  `{primary, secondary}` pair and regenerates both modes via generateTheme (bare
-  legacy map still accepted). theme.tsx + App.tsx.
+- 2026-07-26: Theme export = 2 seed colors. exportThemeColors now returns a
+  one-element array `[{name, primary, secondary}]` (name = theme label; seeds =
+  stored custom seeds, else live accent/blue) — signature gained an allThemes arg for
+  the name. parseThemeImport returns ParsedTheme[] and accepts that array, a single
+  seed-pair object, or a bare/legacy CSS-var map; importTheme returns ImportedTheme[]
+  (imports all, picker selects the first). theme.tsx + SettingsPage.tsx + App.tsx.
 - 2026-07-26: New ADMIN-ONLY /settings page (web/src/pages/SettingsPage.tsx),
   absorbing /admin. Tabbed (.tab-bar): Themes / Workflow steps / Users; /settings
   redirects to /settings/themes; /admin redirects to /settings; a "Settings" nav

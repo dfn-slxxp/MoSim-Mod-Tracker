@@ -366,3 +366,15 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **Files changed:** web/src/pages/SettingsPage.tsx (new), web/src/pages/AdminPage.tsx (deleted), web/src/App.tsx, web/src/theme.tsx, web/src/styles.css, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
 
 **User-facing outcome:** "Copy colors as JSON" now exports just the two seed colors you set. Admins get a nav-linked Settings page with Themes / Workflow steps / Users tabs; the theme export and import moved out of the top theme selector into Settings > Themes. The old /admin URL redirects to /settings.
+
+### Theme export as an array of named seed pairs
+
+**User message:** Showed the desired export shape: `[{"name": "Sunset", "primary": "#c2410c", "secondary": "#fbbf24"}]` — "export should look like this".
+
+**Work and decisions:** Changed exportThemeColors (web/src/theme.tsx) to return a one-element array `[{ name, primary, secondary }]` instead of a bare `{ primary, secondary }`. name is the theme's label, so the signature gained an allThemes arg (id -> label lookup); primary/secondary are the stored custom seeds, else the live --accent/--blue for built-ins. The array shape also lets several themes be pasted at once. Rewrote parseThemeImport to return ParsedTheme[] via a new parseOneTheme helper: it accepts the exported array `[{name, primary, secondary}]`, a single seed-pair object `{name?, primary, secondary}`, and (legacy) a bare `{bg, accent, ...}` CSS-var map; name or theme is read as the label. importTheme now returns ImportedTheme[] (imports every parsed entry, de-duping ids); SettingsPage doImport selects the first created theme. Updated the import block copy + placeholder to the array/name shape.
+
+**Verification:** npm run build (tsc strict + vite) passed. Validated the parser against the user's exact example plus a single-object and a legacy-map input via a standalone node script: array -> [{label:"Sunset",primary:"#c2410c",secondary:"#fbbf24"}], single -> one entry, legacy -> {label:"Imported",colors:{...}}. The Themes tab is admin-gated (needs OAuth against the live server), so the copy button itself was not exercised live.
+
+**Files changed:** web/src/theme.tsx, web/src/pages/SettingsPage.tsx, CLAUDE.md, AI_CONTEXT.txt, AI_ACTIVITY_LOG.md.
+
+**User-facing outcome:** "Copy colors as JSON" now produces `[{"name": "<theme>", "primary": "#…", "secondary": "#…"}]`, and import accepts that array (one or many themes), a single seed-pair object, or a legacy color map.

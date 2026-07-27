@@ -181,7 +181,7 @@ function ThemePicker() {
   const isImported = (id: string) => importedThemes.some((t) => t.id === id);
 
   const copyColors = async () => {
-    const json = JSON.stringify(exportThemeColors(theme, customThemes), null, 2);
+    const json = JSON.stringify(exportThemeColors(theme, customThemes, allThemes), null, 2);
     try {
       await navigator.clipboard.writeText(json);
       setCopied(true);
@@ -193,8 +193,8 @@ function ThemePicker() {
 
   const doImport = () => {
     try {
-      const t = importTheme(importText);
-      setTheme(t.id);
+      const created = importTheme(importText);
+      if (created.length) setTheme(created[0].id);
       setImportText('');
       setImportErr('');
     } catch (e) {
@@ -246,14 +246,15 @@ function ThemePicker() {
       <div className="settings-import">
         <label className="muted small">Import colors from JSON</label>
         <p className="muted small">
-          Paste an exported <code>{'{ "primary": "#…", "secondary": "#…" }'}</code> pair (or a bare{' '}
-          <code>{'{ "bg": "#…", "accent": "#…" }'}</code> map). It applies as a new theme saved on
-          this device.
+          Paste an exported{' '}
+          <code>{'[{ "name": "…", "primary": "#…", "secondary": "#…" }]'}</code> array (or a bare{' '}
+          <code>{'{ "bg": "#…", "accent": "#…" }'}</code> map). Each entry applies as a new theme
+          saved on this device.
         </p>
         <textarea
           className="import-textarea"
           spellCheck={false}
-          placeholder={'{\n  "primary": "#3fb950",\n  "secondary": "#58a6ff"\n}'}
+          placeholder={'[{ "name": "Sunset", "primary": "#c2410c", "secondary": "#fbbf24" }]'}
           value={importText}
           onChange={(e) => { setImportText(e.target.value); setImportErr(''); }}
         />
