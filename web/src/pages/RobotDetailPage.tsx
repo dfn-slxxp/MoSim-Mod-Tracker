@@ -16,7 +16,7 @@ import { Splits, WhatsLeft } from '../components/Splits';
 import { getRepoPath } from '../lib/repoPaths';
 import { STEPS, robotProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { MODTYPE_META, ModType, RobotStatus, STATUS_META, StepProgress } from '../types';
+import { GAMES, MODTYPE_META, ModType, RobotStatus, STATUS_META, StepProgress } from '../types';
 
 const STATUS_ORDER: RobotStatus[] = ['planned', 'in-unity', 'semi-functional', 'released'];
 
@@ -121,13 +121,11 @@ export function RobotDetailPage() {
         </label>
         <label>
           Game
-          <input
-            className="inline-edit"
-            defaultValue={robot.game}
-            key={`g-${robot.id}-${robot.game}`}
-            readOnly={!canEdit}
-            onBlur={(e) => {
-              const nextGame = e.target.value.trim();
+          <Select
+            value={robot.game}
+            disabled={!canEdit}
+            options={GAMES.map((g) => ({ value: g, label: g }))}
+            onChange={(nextGame) => {
               if (nextGame === robot.game) return;
               api.updateRobot(robot.id, { game: nextGame });
               const pack = modpacks.find((m) => m.id === robot.modpackId);

@@ -8,7 +8,6 @@ import { STEPS, robotProgress, stepProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
 import { GAMES, Robot, RobotStatus, STATUS_META, StepProgress } from '../types';
 
-type Tab = 'in-progress' | 'all';
 type SortKey = 'year' | 'team' | 'progress' | 'status' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
@@ -222,9 +221,6 @@ function RobotRow({ robot }: { robot: Robot }) {
         </div>
         {robot.status === 'in-unity' && step && <div className="step-hint">→ {step}</div>}
       </td>
-      <td className="col-comments" data-label="Comments">
-        <span className="comment-preview">{robot.notes || ''}</span>
-      </td>
     </tr>
   );
 }
@@ -232,7 +228,6 @@ function RobotRow({ robot }: { robot: Robot }) {
 export function RobotsPage() {
   const { robots } = useStore();
 
-  const [tab, setTab] = useState<Tab>('in-progress');
   const [filterGame, setFilterGame] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -249,15 +244,8 @@ export function RobotsPage() {
     className: STATUS_META[s].className
   }));
 
-  // "In progress" = status moved past planned OR any sub-step checked
-  // (a planned robot you started checking boxes on is being worked on).
-  const isInProgress = (r: Robot) => r.status !== 'planned' || robotProgress(r).done > 0;
-
-  // Base set by tab
-  const base = tab === 'in-progress' ? robots.filter(isInProgress) : robots;
-
   // Apply filters
-  let shown = base;
+  let shown = robots;
   if (filterGame) shown = shown.filter((r) => r.game === filterGame);
   if (filterYear) shown = shown.filter((r) => r.game.startsWith(filterYear));
   if (filterStatus) shown = shown.filter((r) => r.status === filterStatus);
@@ -289,8 +277,6 @@ export function RobotsPage() {
     sortBy === 'year' ? dir * (yearOfGame(a) - yearOfGame(b)) : yearOfGame(b) - yearOfGame(a)
   );
 
-  const inProgressCount = robots.filter(isInProgress).length;
-
   return (
     <div className="page wide">
       <div className="page-head">
@@ -299,22 +285,6 @@ export function RobotsPage() {
       </div>
 
       <RobotForm />
-
-      {/* Tabs */}
-      <div className="tab-bar">
-        <button
-          className={`tab-btn ${tab === 'in-progress' ? 'active' : ''}`}
-          onClick={() => { setTab('in-progress'); setFilterStatus(''); }}
-        >
-          In Progress ({inProgressCount})
-        </button>
-        <button
-          className={`tab-btn ${tab === 'all' ? 'active' : ''}`}
-          onClick={() => setTab('all')}
-        >
-          All ({robots.length})
-        </button>
-      </div>
 
       {/* Filter + sort bar */}
       <div className="filter-bar">
@@ -330,13 +300,11 @@ export function RobotsPage() {
           onChange={setFilterYear}
         />
 
-        {tab === 'all' && (
-          <Select
-            value={filterStatus}
-            options={[{ value: '', label: 'All statuses' }, ...STATUS_OPTIONS]}
-            onChange={setFilterStatus}
-          />
-        )}
+        <Select
+          value={filterStatus}
+          options={[{ value: '', label: 'All statuses' }, ...STATUS_OPTIONS]}
+          onChange={setFilterStatus}
+        />
 
         <Select value={filterProgress} options={PROGRESS_FILTERS} onChange={setFilterProgress} />
 
@@ -397,7 +365,6 @@ export function RobotsPage() {
                       <th>Modpack</th>
                       <th>Repo</th>
                       <th>Progress</th>
-                      <th>Comments</th>
                     </tr>
                   </thead>
                   <tbody>

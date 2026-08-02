@@ -712,9 +712,19 @@ h3 {
 
 .tracker-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13.5px;
 }
+
+/* Fixed column proportions so every per-game table lines up identically,
+   regardless of that game's content lengths. */
+.tracker-table th:nth-child(1), .tracker-table td:nth-child(1) { width: 9%; }
+.tracker-table th:nth-child(2), .tracker-table td:nth-child(2) { width: 19%; }
+.tracker-table th:nth-child(3), .tracker-table td:nth-child(3) { width: 16%; }
+.tracker-table th:nth-child(4), .tracker-table td:nth-child(4) { width: 18%; }
+.tracker-table th:nth-child(5), .tracker-table td:nth-child(5) { width: 14%; }
+.tracker-table th:nth-child(6), .tracker-table td:nth-child(6) { width: 24%; }
 
 .tracker-table th {
   text-align: left;
@@ -759,6 +769,14 @@ h3 {
 .col-name {
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.col-pack {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .step-hint {
@@ -3496,7 +3514,12 @@ h3 {
 }
 
 .repo-btn {
+  display: inline-block;
+  max-width: 100%;
   font-size: 12.5px;
   padding: 4px 10px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }

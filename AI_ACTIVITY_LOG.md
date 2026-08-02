@@ -439,4 +439,41 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 
 **Files changed:** `web/src/pages/ModpacksPage.tsx`, `web/src/components/RobotForm.tsx`, `web/src/pages/RobotDetailPage.tsx`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
 
+### Simplify /robots page
+
+**User message:** "Simplify the /robots page. The status should be next to the progress bar and should autofill from the progress and yet be able to manually changed (without the arrow though). The Mod-Type should be remoed as well, the game should be color coded like the mod type was, and separate the game year a bit, maybe with a space and it split up into separate tables. Furthermore, the sort option should not show Year (then team #). it should just be year (and remove game because it is the same.) The repo should be a clickable button. Ask questions if needed."
+
+**Clarifying questions asked and answers:** (1) Status-autofill mapping — answered: derive 0%=Planned/100%=Released/else=In Unity, plus label In Unity as "Simplifying Model" while the active step is the first workflow step. (2) Whether a manual override should persist against later progress changes — answered: always follow progress automatically. (3) Table-split granularity and repo-button behavior — answered: one table per game, repo button opens `remoteUrl` in a new tab.
+
+**Work and decisions:**
+1. `RobotsPage.tsx`: merged Status into the Progress column (next to the bar) using `PillSelect`'s new `hideChevron` prop; `deriveStatus()` computes the pill from `robotProgress()`, with Semi-Functional as the one manual/sticky exception; a `useEffect` in `RobotRow` keeps `robot.status` synced to the derived value so it reflects progress made anywhere in the app. Manual picks on the pill (`handleStatusChange`) don't set status directly for the three derivable values — they mutate the underlying sub-step checkmarks (clear all / check all / nudge one on) so the derived status naturally lands where the user picked, matching the existing upgrade-cascade pattern in `RobotDetailPage.tsx`.
+2. Removed the Mod Type column and its `PillSelect` entirely from the row and header.
+3. Game column became a color-coded pill (`gameClassName()` indexes into the same hue-family classes used for status pills) with the year and title in separate `<span>`s (`gameParts()` splits on `:`) for visual spacing.
+4. Replaced the single combined table with one table per game (`gameOrder`, grouped and headed by a color-coded `<h2>` using the same pill classes).
+5. Sort dropdown: renamed "Year (then team #)" to "Year"; removed the "Game" sort option (redundant once tables are already split by game).
+6. Repo cell renders as a link-styled button (`.repo-btn`) opening `repo.remoteUrl` in a new tab, `stopPropagation`'d so it doesn't also trigger the row's navigate-to-detail click.
+7. Added `hideChevron?: boolean` to `Select.tsx`/`PillSelect.tsx` so a pill can render without its dropdown arrow while staying clickable.
+
+**Verification:** `tsc --noEmit` and `npm run build` (tsc+vite) both passed in `web/`. Live browser verification wasn't possible — `/robots` is behind `RequireAuth` (real Google OAuth) and no credentials/backend are configured in this sandbox.
+
+**Files changed:** `web/src/pages/RobotsPage.tsx`, `web/src/components/Select.tsx`, `web/src/components/PillSelect.tsx`, `web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** `/robots` now shows one color-coded table per game, status lives next to the progress bar and auto-tracks it (still manually adjustable, no stray arrow), Mod Type is gone, the sort dropdown is trimmed, and Repo is a real clickable button.
+
+### Robots-page follow-up: uniform columns, drop tabs/Comments, Game dropdown
+
+**User messages (sent together in one turn):** "The colums should all be uniform on all of these. also remove the comments" / "Also remove the in progress tab and show all by default and allow sorting" / "The game part in the robot edit menu should be a dropdown not a textbox"
+
+**Work and decisions:**
+1. `web/src/styles.css`: `.tracker-table` switched to `table-layout: fixed` with `nth-child`-keyed percentage widths per column (9/19/16/18/14/24%), so every per-game table's columns line up identically regardless of that game's own content lengths (previously each table auto-sized independently, producing visibly different column widths per game, per user screenshot). Added `overflow:hidden; text-overflow:ellipsis` to `.col-name`, `.col-pack`, and `.repo-btn` so long text truncates instead of breaking the fixed layout.
+2. Removed the Comments column (`<th>Comments</th>` and the `col-comments`/`comment-preview` `<td>`) from `RobotsPage.tsx` entirely.
+3. Removed the In Progress / All tab bar from `RobotsPage.tsx`: dropped the `Tab` type, `tab` state, `isInProgress`/`base` filtering, and `inProgressCount`; the page now always starts from the full `robots` list before filters/sort apply. The status filter `Select` (previously only rendered when `tab === 'all'`) is now always shown.
+4. `RobotDetailPage.tsx`: replaced the free-text Game `<input>` in the metadata panel with a `Select` sourced from `GAMES` (imported from `../types`), matching `RobotForm.tsx`'s add-robot game picker; kept the existing modpack-detach-on-game-change side effect in the `onChange` handler.
+
+**Verification:** `tsc --noEmit` and `npm run build` (tsc+vite) both passed in `web/` after these changes. Live browser verification wasn't possible for the same reason as the prior entry (Google OAuth wall, no credentials configured here).
+
+**Files changed:** `web/src/pages/RobotsPage.tsx`, `web/src/pages/RobotDetailPage.tsx`, `web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Every per-game table on `/robots` now has identically aligned columns, the Comments column and the In Progress/All tabs are gone (all robots always show, sorting/filtering still works), and the Game field on a robot's detail page is now a proper dropdown instead of free text.
+
 **User-facing outcome:** Modpacks can now be edited in place (name, game/year, description) from the Modpacks page. A modpack's game/year is enforced everywhere a robot is attached to one: the modpack picker on both the add-robot form and the robot detail page only offers packs matching the robot's own game, and changing a robot's (or a modpack's) game automatically detaches any now-mismatched pack, with a confirmation when that would affect existing members.

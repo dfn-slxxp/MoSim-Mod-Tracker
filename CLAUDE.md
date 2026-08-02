@@ -172,22 +172,27 @@ MoSim Mod Tracker/
 │       │   ├── AccountPage.tsx   ← /account: edit display name + Instagram/Discord
 │       │   │                        handles (PUT /api/profile). ProfileForm shared
 │       │   │                        with the first-time setup modal
-│       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort,
-│       │   │                        one table PER GAME (color-coded heading, year/
-│       │   │                        title split into spans). No Mod Type column.
-│       │   │                        Game pill + Repo cell both color-coded/button.
-│       │   │                        Progress column = bar + status pill combined;
-│       │   │                        status auto-derives from progress (deriveStatus:
-│       │   │                        0%=planned, 100%=released, else in-unity, except
-│       │   │                        semi-functional which is manual/sticky) via a
-│       │   │                        useEffect that persists drift; picking a status
-│       │   │                        manually cascades progress like RobotDetailPage's
-│       │   │                        upgrade logic. Default sort: newest game year
-│       │   │                        first, then team # ascending (no Game sort option
-│       │   │                        — redundant with per-game tables). In Progress =
-│       │   │                        status != planned OR progress > 0
-│       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Status UPGRADE
-│       │   │                         auto-checks all sub-steps (keeps notes)
+│       │   ├── RobotsPage.tsx    ← No tabs — always shows every robot, filter + sort
+│       │   │                        bar handles narrowing (incl. status filter, no
+│       │   │                        longer tab-gated). One table PER GAME (color-coded
+│       │   │                        heading, year/title split into spans). No Mod Type,
+│       │   │                        no Comments column. Game pill + Repo cell both
+│       │   │                        color-coded/button. Progress column = bar + status
+│       │   │                        pill combined; status auto-derives from progress
+│       │   │                        (deriveStatus: 0%=planned, 100%=released, else
+│       │   │                        in-unity, except semi-functional which is
+│       │   │                        manual/sticky) via a useEffect that persists drift;
+│       │   │                        picking a status manually cascades progress like
+│       │   │                        RobotDetailPage's upgrade logic. Default sort:
+│       │   │                        newest game year first, then team # ascending (no
+│       │   │                        Game sort option — redundant with per-game tables).
+│       │   │                        `.tracker-table` uses table-layout:fixed with
+│       │   │                        nth-child percentage widths (styles.css) so every
+│       │   │                        per-game table's columns line up identically
+│       │   │                        regardless of that game's content lengths.
+│       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Game field is a
+│       │   │                         Select dropdown (GAMES), not free text. Status
+│       │   │                         UPGRADE auto-checks all sub-steps (keeps notes)
 │       │   ├── SettingsPage.tsx  ← /#/settings and /#/settings/:tab (ADMIN-ONLY,
 │       │   │                        gated by user.admin; absorbs the old /admin).
 │       │   │                        Nav-linked (admin only). Tabbed (.tab-bar):
@@ -830,3 +835,30 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   **Files changed:** `web/src/pages/ModpacksPage.tsx`,
   `web/src/components/RobotForm.tsx`, `web/src/pages/RobotDetailPage.tsx`,
   `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-02: Simplified `/robots` per user request (with 3 clarifying questions
+  answered first): status pill moved next to the progress bar with the chevron
+  hidden, auto-deriving from progress (0%/100%/else, Semi-Functional sticky/manual,
+  "Simplifying Model" label when the active step is the first workflow step) via a
+  `useEffect`, with manual picks translated into progress-checkbox mutations so
+  derived state naturally matches after a pick. Mod Type column removed. Game column
+  is now a color-coded pill (year/title split into spans, same hue families as
+  status pills), reused for a per-game table-group heading; robots render as one
+  table per game instead of one combined table. Sort dropdown trimmed to "Year"
+  (was "Year (then team #)") and the redundant "Game" option removed. Repo cell is
+  a button opening `remoteUrl` in a new tab. Follow-up in the same session: removed
+  the Comments column entirely; removed the In Progress/All tabs (page always shows
+  every robot now, filter bar's status filter is no longer tab-gated); made
+  `.tracker-table` `table-layout:fixed` with `nth-child` percentage column widths
+  (styles.css) so every per-game table's columns align identically regardless of
+  that game's content; and changed the Game field on `RobotDetailPage.tsx`'s detail/
+  edit panel from a free-text input to a `Select` dropdown sourced from `GAMES`
+  (matching `RobotForm.tsx`'s add-robot game picker). New `Select`/`PillSelect`
+  `hideChevron` prop added for the arrow-less pill look. **Verified:**
+  `tsc --noEmit` and `npm run build` (tsc+vite) both passed clean in `web/` after
+  each round of changes. Live browser verification wasn't possible — `/robots` is
+  behind `RequireAuth` (real Google OAuth), and no credentials/backend are
+  configured in this sandbox — so this was verified by type-check/build and code
+  review only, not pixels.
+  **Files changed:** `web/src/pages/RobotsPage.tsx`, `web/src/components/Select.tsx`,
+  `web/src/components/PillSelect.tsx`, `web/src/pages/RobotDetailPage.tsx`,
+  `web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
