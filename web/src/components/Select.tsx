@@ -26,6 +26,7 @@ export function Select({
   placeholder = '—',
   className = '',
   title,
+  hideChevron,
 }: {
   value: string;
   options: SelectOption[];
@@ -34,6 +35,8 @@ export function Select({
   placeholder?: string;
   className?: string;
   title?: string;
+  /** Hide the dropdown arrow (still clickable) — used where the pill should read as a plain label. */
+  hideChevron?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; up: boolean } | null>(null);
@@ -126,7 +129,7 @@ export function Select({
         }}
       >
         <span className="dd-label">{selected?.label ?? placeholder}</span>
-        <span className="dd-chev" aria-hidden>▾</span>
+        {!hideChevron && <span className="dd-chev" aria-hidden>▾</span>}
       </button>
       {open && pos &&
         createPortal(

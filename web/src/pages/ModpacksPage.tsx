@@ -12,6 +12,50 @@ export function ModpacksPage() {
   const [game, setGame] = useState<string>(GAMES[0]);
   const [description, setDescription] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editGame, setEditGame] = useState<string>(GAMES[0]);
+  const [editDescription, setEditDescription] = useState('');
+
+  const startEdit = (m: (typeof modpacks)[number]) => {
+    setEditingId(m.id);
+    setEditName(m.name);
+    setEditGame(m.game);
+    setEditDescription(m.description ?? '');
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const saveEdit = async (id: string) => {
+    if (!editName.trim()) return;
+    const pack = modpacks.find((m) => m.id === id);
+    if (pack && pack.game !== editGame) {
+      const members = robots.filter((r) => r.modpackId === id);
+      if (
+        members.length > 0 &&
+        !(await confirmDialog({
+          title: 'Change modpack year',
+          message: `${members.length} robot(s) in "${pack.name}" are from ${pack.game}. Changing the pack to ${editGame} will detach them, since a robot can only belong to a modpack from its own year.`,
+        }))
+      ) {
+        return;
+      }
+    }
+    try {
+      await api.updateModpack(id, {
+        name: editName.trim(),
+        game: editGame,
+        description: editDescription.trim(),
+      });
+      if (pack && pack.game !== editGame) {
+        const members = robots.filter((r) => r.modpackId === id);
+        await Promise.all(members.map((r) => api.setRobotModpack(r.id, null)));
+      }
+      setEditingId(null);
+    } catch (err) {
+      void alertDialog((err as Error).message, 'Could not update modpack');
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -64,6 +108,38 @@ export function ModpacksPage() {
       <div className="pack-list">
         {modpacks.map((m) => {
           const members = robots.filter((r) => r.modpackId === m.id);
+          if (canEdit && editingId === m.id) {
+            return (
+              <div key={m.id} className="pack-row">
+                <form
+                  className="add-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveEdit(m.id);
+                  }}
+                >
+                  <input
+                    placeholder="Pack name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                  <Select value={editGame} options={GAMES.map((g) => ({ value: g, label: g }))} onChange={setEditGame} />
+                  <input
+                    placeholder="Description (optional)"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                  />
+                  <button className="btn primary" type="submit">
+                    Save
+                  </button>
+                  <button className="btn subtle" type="button" onClick={cancelEdit}>
+                    Cancel
+                  </button>
+                </form>
+              </div>
+            );
+          }
           return (
             <div key={m.id} className="pack-row">
               <div className="pack-main">
@@ -83,6 +159,9 @@ export function ModpacksPage() {
               </div>
               {canEdit && (
                 <div className="pack-actions">
+                  <button type="button" className="btn subtle" onClick={() => startEdit(m)}>
+                    Edit
+                  </button>
                   <button
                     type="button"
                     className={`toggle-btn ${m.private ? 'on' : ''}`}

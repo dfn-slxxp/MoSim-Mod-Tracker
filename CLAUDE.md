@@ -5,16 +5,21 @@
 - No sycophantic openers or closing fluff.
 - No emojis or em-dashes.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
-- After every substantive user message or completed work item, update this handoff and mirror the same update in `AI_CONTEXT.txt`, so Codex, Claude, and other AI tools share current project context.
+- After every substantive user message or completed work item, update this file
+  (`CLAUDE.md`) — Session Notes at minimum, plus any section whose facts changed
+  (repository layout, data model, implementation notes) — so it stays the single
+  authoritative AI context file (no separate `AI_CONTEXT.txt` mirror is kept).
 - After every user message, append a portable, decision-focused entry to
   `AI_ACTIVITY_LOG.md`: exact user request, visible work, important decisions,
   verification, files changed, and user-facing result. It must not contain hidden
   chain-of-thought, secrets, or credential values.
+- Do both of the above updates as part of completing the work item itself, not as
+  an afterthought the user has to request separately.
 
 
 # MoSim Mod Tracker — AI Context File
 
-> **Keep this file up to date.** Every time a file is added, removed, or significantly changed, update the relevant section AND mirror the change into `ai_context.txt` (plain-text copy for other AI tools). Read this at the start of every session.
+> **Keep this file up to date.** Every time a file is added, removed, or significantly changed, update the relevant section. This is the single authoritative AI context file (no separate `AI_CONTEXT.txt` mirror). Read this at the start of every session.
 
 ---
 
@@ -63,8 +68,7 @@ the current repository code and this handoff file are authoritative.
 
 ```
 MoSim Mod Tracker/
-├── CLAUDE.md                    ← THIS FILE (AI context; mirror edits into ai_context.txt)
-├── ai_context.txt               ← Plain-text mirror of this file for other AI tools
+├── CLAUDE.md                    ← THIS FILE (single authoritative AI context file)
 ├── AI_ACTIVITY_LOG.md            ← Append-only cross-AI session/work log; see its rules
 ├── package.json                 ← Root npm: Tauri CLI dev dependency
 ├── steps.json                   ← BUNDLED DEFAULT workflow. Admin-edited copy on the
@@ -114,12 +118,28 @@ MoSim Mod Tracker/
 │       │                           emits both modes per custom theme; useTheme()
 │       ├── assets/avatar.png    ← Pixel-art avatar (app logo)
 │       ├── ai/
-│       │   ├── client.ts        ← 3 providers: gemini (watches YouTube via fileData),
-│       │   │                       anthropic, ollama. generateScript(), analyzeScript()
-│       │   │                       (bullet-point script description), providerConfigured()
-│       │   └── reference.ts     ← MoSim system prompt
+│       │   ├── client.ts        ← Multi-provider client (openrouter/gemini/anthropic/
+│       │   │                       ollama) used ONLY by ScriptsPage's "AI describe"
+│       │   │                       auto-summary now (analyzeScript(), providerConfigured()).
+│       │   │                       No longer calls a provider to generate scripts.
+│       │   ├── promptBuilder.ts ← buildRobotPrompt(): pure, no network calls. Assembles
+│       │   │                       the copy-pasteable AI prompt (task directions +
+│       │   │                       reference-only source) used by AiScriptPanel.
+│       │   └── reference.ts     ← MoSim system prompt, embedded verbatim into built prompts
 │       ├── components/
-│       │   ├── AiScriptPanel.tsx  ← AI script generator; provider picker incl. Gemini
+│       │   ├── AiScriptPanel.tsx  ← AI PROMPT BUILDER (robot detail page). Does NOT call
+│       │   │                         any AI itself — assembles one self-contained prompt
+│       │   │                         (buildRobotPrompt) from: manual description, the
+│       │   │                         team's real GitHub repo (fetchRepoSource, embedded
+│       │   │                         reference-only), a local RobotFramework checkout
+│       │   │                         (desktop-only, per-device path via lib/frameworkPath.ts,
+│       │   │                         listed with the list_cs_files Tauri command, embedded
+│       │   │                         reference-only), and the user's saved script-library
+│       │   │                         entries (linked via GET /api/scripts/:id/raw, not
+│       │   │                         pasted inline). Result is saved to robot.aiPrompt via
+│       │   │                         updateRobot, so it persists server-side across reloads
+│       │   │                         and cache clears, not just localStorage. No video-link
+│       │   │                         feature (removed).
 │       │   ├── AuthButton.tsx     ← Sign in/out in topbar
 │       │   ├── PillSelect.tsx     ← Colored select for status/modtype
 │       │   ├── ProgressBar.tsx    ← Fill bar
@@ -140,7 +160,10 @@ MoSim Mod Tracker/
 │       │                             pill color classes, Escape/outside/scroll close.
 │       │                             PillSelect wraps it. Never add a raw <select>.
 │       ├── lib/
-│       │   ├── desktop.ts        ← window.desktop bridge; isTauri, getServerUrl…
+│       │   ├── desktop.ts        ← window.desktop bridge; isTauri, getServerUrl,
+│       │   │                        listCsFiles(folderPath) (generic recursive .cs scan)
+│       │   ├── frameworkPath.ts  ← Per-device localStorage path to the user's local
+│       │   │                        RobotFramework source checkout (AI Prompt Builder)
 │       │   └── tba.ts            ← TBA API: getTbaKey, setTbaKey, fetchTeamName
 │       ├── pages/
 │       │   ├── HomePage.tsx      ← PUBLIC landing (/, /home on web). MoSim +
@@ -149,9 +172,20 @@ MoSim Mod Tracker/
 │       │   ├── AccountPage.tsx   ← /account: edit display name + Instagram/Discord
 │       │   │                        handles (PUT /api/profile). ProfileForm shared
 │       │   │                        with the first-time setup modal
-│       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort.
-│       │   │                        Default sort: newest game year first, then team #
-│       │   │                        ascending. In Progress = status != planned OR progress > 0
+│       │   ├── RobotsPage.tsx    ← Two tabs (In Progress / All), filter + sort,
+│       │   │                        one table PER GAME (color-coded heading, year/
+│       │   │                        title split into spans). No Mod Type column.
+│       │   │                        Game pill + Repo cell both color-coded/button.
+│       │   │                        Progress column = bar + status pill combined;
+│       │   │                        status auto-derives from progress (deriveStatus:
+│       │   │                        0%=planned, 100%=released, else in-unity, except
+│       │   │                        semi-functional which is manual/sticky) via a
+│       │   │                        useEffect that persists drift; picking a status
+│       │   │                        manually cascades progress like RobotDetailPage's
+│       │   │                        upgrade logic. Default sort: newest game year
+│       │   │                        first, then team # ascending (no Game sort option
+│       │   │                        — redundant with per-game tables). In Progress =
+│       │   │                        status != planned OR progress > 0
 │       │   ├── RobotDetailPage.tsx ← Metadata, splits, AI panel. Status UPGRADE
 │       │   │                         auto-checks all sub-steps (keeps notes)
 │       │   ├── SettingsPage.tsx  ← /#/settings and /#/settings/:tab (ADMIN-ONLY,
@@ -196,13 +230,19 @@ MoSim Mod Tracker/
 │   │                               desktop deep-link variant), JWT (cookie + Bearer),
 │   │                               CRUD factory for 4 collections, /api/data bulk.
 │   │                               ADMIN_EMAILS allowlist; GET /api/steps + /api/themes
-│   │                               (public); PUT /api/admin/steps|themes (admin only)
+│   │                               (public); PUT /api/admin/steps|themes (admin only).
+│   │                               GET /api/scripts/:id/raw (PUBLIC, unguessable UUID —
+│   │                               same trust model as /robot/:id and /u/:uid) returns a
+│   │                               saved script's raw text/plain content, so a built AI
+│   │                               prompt can link to it instead of pasting it inline.
 │   ├── db.js                    ← better-sqlite3. Tables: robots, modpacks, repos,
 │   │                               scripts (uid-scoped JSON blobs) + settings (global
 │   │                               key/value: 'steps','themes') + profiles (uid ->
 │   │                               {displayName,email,photo,instagram,discord,completed,
 │   │                               hidden,createdAt}). getProfile/setProfile/allProfiles/
-│   │                               allRobots. DB_PATH env overrides location (droplet)
+│   │                               allRobots. getById(table,id): row by id, no uid check
+│   │                               (backs the public /api/scripts/:id/raw route). DB_PATH
+│   │                               env overrides location (droplet)
 │   ├── manage.sh                ← Droplet ops: setup|deploy|restart|logs|status.
 │   │                               NO SECRETS in git (empty GOOGLE_* vars = deploy
 │   │                               skips .env rewrite; fill only for fresh setup).
@@ -260,6 +300,7 @@ interface Robot {
   order: number;
   createdAt: number;
   progress: Record<string, StepProgress>;  // stepId → {subs: Record<string,bool>, note}
+  aiPrompt?: string;  // last built AI prompt (see AI Prompt Builder), persisted server-side
 }
 
 interface UserInfo { uid; name; email; photo; admin?: boolean }
@@ -441,7 +482,38 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   are LOCAL/per-device (not the server-stored admin custom themes). useTheme() exposes
   importedThemes/importTheme/removeImportedTheme.
 
-### AI
+### AI Prompt Builder (robot detail page, `AiScriptPanel.tsx`)
+- Does NOT call any AI provider. `ai/promptBuilder.ts` `buildRobotPrompt()` is a pure
+  function that assembles ONE self-contained text prompt the user copies into any AI
+  model's chat box themselves. Sections: `## Task` (rules) + `## MoSim scripting rules`
+  (MOSIM_SYSTEM_PROMPT embedded verbatim) + `## What this robot needs to do` (the
+  manual description), then a `# Reference material below (context only)` banner
+  followed by reference-only source groups — explicitly marked as not-to-copy-verbatim.
+- Reference sources, all optional and combinable:
+  1. The team's real robot GitHub repo — fetched live via `lib/github.ts`
+     `fetchRepoSource(url)` (same fetch as before), embedded inline.
+  2. A local RobotFramework checkout — desktop-only. Path is per-device
+     (`lib/frameworkPath.ts`, localStorage `mosim-framework-path`), scanned with the
+     Tauri `list_cs_files(folderPath)` command (generic recursive `.cs` lister,
+     `src-tauri/src/commands.rs`, registered in `lib.rs`), files read via the existing
+     `read_script` command, embedded inline.
+  3. Other `.cs` files from the robot's linked repo (desktop, disk scan) — embedded inline.
+  4. The user's saved script-library entries — NOT pasted inline; linked as
+     `- name — {origin}/api/scripts/{id}/raw` so the target AI can fetch them if it
+     supports URLs. Keeps the prompt short.
+- No video-link feature (explicitly removed per user request — this panel no longer
+  has any video input).
+- Result is saved to `robot.aiPrompt` via `api.updateRobot(id, {aiPrompt})` on every
+  build, and cleared the same way — so it persists server-side (SQLite JSON blob),
+  surviving reloads and browser cache clears, not just localStorage.
+- Known gap: removing the old generation flow also removed the only in-app UI for
+  configuring an AI provider/API key. `ai/client.ts`'s provider settings (openrouter/
+  gemini/anthropic/ollama) still exist and are still used by `analyzeScript()` for
+  ScriptsPage's "AI describe" auto-summary, but there is currently no UI anywhere in
+  the app to set a key for a fresh install — only devices with a key already saved
+  in localStorage from before this change can use "AI describe".
+
+### AI client (`ai/client.ts`) — now only backs ScriptsPage "AI describe"
 - Providers (localStorage): openrouter (FREE), gemini, anthropic, ollama.
 - OpenRouter = the free hosted option: free ":free" models, one free key from
   openrouter.ai/keys, OpenAI-compatible POST to openrouter.ai/api/v1/chat/completions
@@ -449,16 +521,6 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   the panel calls fetchFreeOpenRouterModels() (public /api/v1/models, filters
   ":free", biggest-context first) to populate the dropdown live; OPENROUTER_MODELS
   is only the offline fallback and self-corrects a stale saved model.
-- Gemini: YouTube URLs sent as `fileData` parts → the model watches them.
-  Endpoint: generativelanguage.googleapis.com v1beta generateContent, key in query.
-- AiScriptPanel has THREE input modes (any one drives generation): text
-  description, video links, and a GitHub repo URL of the team's REAL robot code.
-- `lib/github.ts` fetchRepoSource(url): parseRepoUrl → GitHub trees API (CORS ok)
-  → raw.githubusercontent.com per file (CORS ok, not counted vs the 60/hr API
-  limit). Filters to .java/.kt/.cpp/.h/.cs/.py, skips build/vendordeps/test/etc.,
-  prioritizes subsystems/Robot/commands/Constants, caps ~30 files / 150k chars.
-  Files go into GenerateInput.sourceRepo; buildPrompt asks the model to translate
-  the real code into a MoSim C# script. Public repos only.
 - `analyzeScript(name, content)`: bullet-point description of a .cs script, used by
   ScriptsPage auto-describe on add + per-row re-run. Only script-evident behavior.
 - Anthropic: direct browser calls with `anthropic-dangerous-direct-browser-access`.
@@ -470,6 +532,8 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   rollers + UpdateAudio() + state machine; de-emphasizes joint movement (handled
   elsewhere) and setpoint numbers (units differ → // TODO placeholders). It's a
   template literal — code fences are \`\`\`csharp (escaped), closing is a real backtick.
+  Now consumed both by `analyzeScript()` and embedded directly into built prompts
+  by `promptBuilder.ts`.
 
 ### TBA API
 - ONE server-side key: `TBA_AUTH_KEY` env on the droplet (never in git). Users
@@ -557,6 +621,23 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   a signed-out click-through hits the sign-in wall (the embed card itself is public).
 
 ---
+
+### Modpacks (year-scoped)
+- A modpack's `game` field IS its year/season (e.g. "2025: Reefscape"); modpacks
+  are now editable in place (`ModpacksPage.tsx`: Edit button per row swaps the row
+  into the same add-form fields — name/game/description — Save calls the existing
+  `api.updateModpack`). If the game is changed on a pack that still has member
+  robots, a confirm dialog warns and, on confirm, those robots are detached
+  (`api.setRobotModpack(id, null)`) since a robot can only belong to a modpack from
+  its own year.
+- Attachment is enforced client-side wherever a robot picks a modpack: `RobotForm.tsx`
+  filters the modpack dropdown to `modpacks.filter(m => m.game === game)` and clears
+  an incompatible selection when the game field changes (`changeGame`); the "+ New"
+  inline modpack form defaults its game to the robot's currently selected game.
+  `RobotDetailPage.tsx` filters its Modpack `Select` the same way, and blurring an
+  edited Game text field auto-detaches an existing modpack whose `game` no longer
+  matches. No server-side check was added (matches the existing pattern where e.g.
+  team-number format also isn't server-validated; this is a single-owner-per-uid app).
 
 ## Pending / Known Issues
 
@@ -705,3 +786,47 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   CSS. Verified: web build (tsc+vite) passes, no console errors on load, theme menu
   renders selection-only (2 built-ins, no export/import), Settings nav hidden when
   signed out, /settings routes without crashing.
+- 2026-08-02: AI Prompt Builder replaces the old AI script generator on the robot
+  detail page. `AiScriptPanel.tsx` no longer calls any AI provider — it assembles one
+  copy-pasteable prompt (`ai/promptBuilder.ts` `buildRobotPrompt()`) from a manual
+  description, the team's real GitHub repo (reference-only, embedded), a local
+  RobotFramework checkout (desktop-only, per-device path via new `lib/frameworkPath.ts`,
+  scanned with a new generic Tauri command `list_cs_files` in `commands.rs`/`lib.rs`,
+  reference-only, embedded), and the user's saved script-library entries (linked via a
+  new public route `GET /api/scripts/:id/raw`, not pasted inline — same unguessable-UUID
+  trust model as `/robot/:id`/`/u/:uid`; backed by new `db.js` `getById()`). The video-link
+  feature was removed entirely per explicit request. The built prompt is saved to a new
+  `Robot.aiPrompt` field via the existing `updateRobot` CRUD path, so it persists
+  server-side (SQLite JSON blob) across reloads and browser cache clears, not just
+  localStorage. `ai/client.ts` was trimmed of the old generation code path (video/Gemini
+  fileData, buildPrompt, generateScript) but keeps its provider settings + `analyzeScript()`,
+  which ScriptsPage's "AI describe" still depends on — flagged gap: there is now no UI
+  anywhere in the app to configure an AI provider/key for a fresh install (previously
+  AiScriptPanel was the only place with that UI). Also this session: retired the separate
+  `AI_CONTEXT.txt` mirror file — `CLAUDE.md` is now the single authoritative AI context
+  file (see the Approach section at the top for the updated doc-maintenance rule).
+  **Verified:** `npm run build` (tsc+vite) in `web/` passed; `node --check` passed for
+  `server/api.js` and `server/db.js`. Rust changes (`commands.rs`, `lib.rs`) were reviewed
+  by hand only — no local Rust/Tauri toolchain to compile against. No runtime/browser
+  smoke test was performed (framework-folder scan and repo-disk-read paths are
+  desktop/Tauri-only and can't be exercised from the web preview; the web-facing parts
+  — description/source-repo/script-library-link flow, persisted-prompt reload — were not
+  smoke-tested live either this session).
+  **Files changed:** `server/db.js`, `server/api.js`, `web/src/types.ts`,
+  `src-tauri/src/commands.rs`, `src-tauri/src/lib.rs`, `web/src/lib/desktop.ts`,
+  `web/src/desktop.d.ts`, `web/src/lib/frameworkPath.ts` (new), `web/src/ai/client.ts`,
+  `web/src/ai/promptBuilder.ts` (new), `web/src/components/AiScriptPanel.tsx` (rewritten),
+  `CLAUDE.md`, `AI_ACTIVITY_LOG.md`. `AI_CONTEXT.txt` deleted.
+- 2026-08-02: Modpacks are now editable (name/game/description) via an inline
+  edit form in `ModpacksPage.tsx`, reusing the existing `api.updateModpack`.
+  Changing a modpack's game while it still has member robots now warns and
+  detaches them (a robot can only belong to a modpack from its own year).
+  Enforced the year restriction wherever a robot's modpack is picked:
+  `RobotForm.tsx` and `RobotDetailPage.tsx` both filter the modpack dropdown to
+  packs matching the robot's `game`, and clear/detach an incompatible modpack
+  when the game changes. **Verified:** `npm run build` (tsc+vite) in `web/`
+  passed; loaded the dev server in the browser preview pane with no console
+  errors (full interactive flow needs Google sign-in, not exercised locally).
+  **Files changed:** `web/src/pages/ModpacksPage.tsx`,
+  `web/src/components/RobotForm.tsx`, `web/src/pages/RobotDetailPage.tsx`,
+  `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.

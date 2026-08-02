@@ -3,7 +3,7 @@ const { Router } = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const {
-  db, getAll, insert, update, remove, getSetting, setSetting,
+  db, getAll, getById, insert, update, remove, getSetting, setSetting,
   getProfile, setProfile, allProfiles, allRobots,
   resolveUid, linkAccount, linkedAccounts, unlinkAccount, mergeAccounts,
 } = require('./db');
@@ -786,6 +786,16 @@ router.use('/repos', crud('repos', {
 }));
 
 // ── Scripts ───────────────────────────────────────────────────────────────────
+
+// PUBLIC raw content link (id is an unguessable UUID, same trust model as the
+// /robot/:id and /u/:uid embed pages) — lets a generated AI prompt reference a
+// script by URL instead of pasting its full content inline.
+router.get('/scripts/:id/raw', (req, res) => {
+  const script = getById('scripts', req.params.id);
+  if (!script) return res.status(404).type('text/plain').send('Script not found');
+  const safeName = (script.name || 'script.cs').replace(/[^\w.-]+/g, '_');
+  res.type('text/plain').set('Content-Disposition', `inline; filename="${safeName}"`).send(script.content ?? '');
+});
 
 router.use('/scripts', crud('scripts'));
 

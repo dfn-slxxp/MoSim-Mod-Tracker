@@ -127,7 +127,11 @@ export function RobotDetailPage() {
             key={`g-${robot.id}-${robot.game}`}
             readOnly={!canEdit}
             onBlur={(e) => {
-              if (e.target.value !== robot.game) api.updateRobot(robot.id, { game: e.target.value.trim() });
+              const nextGame = e.target.value.trim();
+              if (nextGame === robot.game) return;
+              api.updateRobot(robot.id, { game: nextGame });
+              const pack = modpacks.find((m) => m.id === robot.modpackId);
+              if (pack && pack.game !== nextGame) api.setRobotModpack(robot.id, null);
             }}
           />
         </label>
@@ -157,7 +161,9 @@ export function RobotDetailPage() {
             disabled={!canEdit}
             options={[
               { value: '', label: 'No modpack' },
-              ...modpacks.map((m) => ({ value: m.id, label: `${m.name}${m.private ? ' 🔒' : ''}` })),
+              ...modpacks
+                .filter((m) => m.game === robot.game)
+                .map((m) => ({ value: m.id, label: `${m.name}${m.private ? ' 🔒' : ''}` })),
             ]}
             onChange={(v) => api.setRobotModpack(robot.id, v || null)}
           />

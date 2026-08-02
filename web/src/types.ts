@@ -64,6 +64,8 @@ export interface Robot {
   order: number;
   createdAt: number; // Unix ms timestamp (Date.now())
   progress: Record<string, StepProgress>; // step id -> progress
+  /** Last built AI prompt (see AiScriptPanel) — persisted server-side so it survives reloads/cache clears. */
+  aiPrompt?: string;
 }
 
 /** One robot folder found while scanning a repo on disk. */
@@ -258,6 +260,7 @@ export function normalizeRobot(r: Robot): Robot {
     modpackPrivate: r.modpackPrivate ?? false,
     progress: r.progress ?? {},
     notes: r.notes ?? '',
-    teamName: r.teamName ?? undefined
+    teamName: r.teamName ?? undefined,
+    aiPrompt: r.aiPrompt ?? ''
   };
 }

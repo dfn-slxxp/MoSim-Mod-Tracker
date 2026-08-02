@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PillSelect } from '../components/PillSelect';
 import { ProgressBar } from '../components/ProgressBar';
@@ -6,31 +6,75 @@ import { RobotForm } from '../components/RobotForm';
 import { Select } from '../components/Select';
 import { STEPS, robotProgress, stepProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { GAMES, MODTYPE_META, ModType, Robot, RobotStatus, STATUS_META } from '../types';
+import { GAMES, Robot, RobotStatus, STATUS_META, StepProgress } from '../types';
 
 type Tab = 'in-progress' | 'all';
-type SortKey = 'year' | 'team' | 'game' | 'progress' | 'status' | 'createdAt';
+type SortKey = 'year' | 'team' | 'progress' | 'status' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
 const STATUS_ORDER: RobotStatus[] = ['planned', 'in-unity', 'semi-functional', 'released'];
 
-const STATUS_OPTIONS = (Object.keys(STATUS_META) as RobotStatus[]).map((s) => ({
-  value: s,
-  label: STATUS_META[s].label,
-  className: STATUS_META[s].className
-}));
+// Rotating color families for the Game column/heading — reuses the same pill
+// hues status/mod-type pills use, keyed by a game's position in GAMES (falls
+// back to a stable hash for games no longer in that list).
+const GAME_COLOR_CLASSES = ['gm-released', 'gm-planned', 'gm-semi', 'gm-official', 'gm-claimed'];
 
-const MODTYPE_OPTIONS = (Object.keys(MODTYPE_META) as Exclude<ModType, ''>[]).map((m) => ({
-  value: m,
-  label: MODTYPE_META[m].label,
-  className: MODTYPE_META[m].className
-}));
+function hashCode(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return h;
+}
 
-function currentStep(robot: Robot): string | null {
+function gameClassName(game: string): string {
+  const idx = (GAMES as readonly string[]).indexOf(game);
+  const i = idx === -1 ? Math.abs(hashCode(game)) : idx;
+  return GAME_COLOR_CLASSES[i % GAME_COLOR_CLASSES.length];
+}
+
+/** Splits "2025: Reefscape" into a year + title so they can be spaced apart. */
+function gameParts(game: string): { year: string; title: string } {
+  const idx = game.indexOf(':');
+  if (idx === -1) return { year: game, title: '' };
+  return { year: game.slice(0, idx).trim(), title: game.slice(idx + 1).trim() };
+}
+
+function yearOfGame(game: string): number {
+  return parseInt(game, 10) || 0;
+}
+
+function currentStepId(robot: Robot): string | null {
+  for (const step of STEPS) {
+    if (!stepProgress(robot, step).complete) return step.id;
+  }
+  return null;
+}
+
+function currentStepTitle(robot: Robot): string | null {
   for (const step of STEPS) {
     if (!stepProgress(robot, step).complete) return step.title;
   }
   return null;
+}
+
+/**
+ * Status derived from progress: 0% = Planned, 100% = Released, anything in
+ * between = In Unity. Semi-Functional can't be derived from checkmarks (it's
+ * a judgment call about playability), so it's the one manual/sticky value.
+ */
+function deriveStatus(robot: Robot, pct: number): RobotStatus {
+  if (robot.status === 'semi-functional') return 'semi-functional';
+  if (pct <= 0) return 'planned';
+  if (pct >= 100) return 'released';
+  return 'in-unity';
+}
+
+function statusOptions(robot: Robot) {
+  const onFirstStep = currentStepId(robot) === STEPS[0]?.id;
+  return STATUS_ORDER.map((s) => ({
+    value: s,
+    label: s === 'in-unity' && onFirstStep ? 'Simplifying Model' : STATUS_META[s].label,
+    className: STATUS_META[s].className
+  }));
 }
 
 const PROGRESS_FILTERS = [
@@ -60,7 +104,7 @@ function compareTeams(a: Robot, b: Robot): number {
 }
 
 function gameYear(robot: Robot): number {
-  return parseInt(robot.game, 10) || 0;
+  return yearOfGame(robot.game);
 }
 
 function RobotRow({ robot }: { robot: Robot }) {
@@ -69,7 +113,61 @@ function RobotRow({ robot }: { robot: Robot }) {
   const pack = modpacks.find((m) => m.id === robot.modpackId);
   const repo = repos.find((r) => r.id === robot.repoId);
   const prog = robotProgress(robot);
-  const step = currentStep(robot);
+  const step = currentStepTitle(robot);
+  const derived = deriveStatus(robot, prog.pct);
+
+  // Keep the stored status in sync with progress made elsewhere (e.g. the
+  // splits view), so status stays accurate without a manual visit here.
+  useEffect(() => {
+    if (canEdit && derived !== robot.status) {
+      api.updateRobot(robot.id, { status: derived });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [robot.id, robot.status, prog.pct, canEdit]);
+
+  const handleStatusChange = async (v: string) => {
+    const newStatus = v as RobotStatus;
+    if (newStatus === 'semi-functional') {
+      await api.updateRobot(robot.id, { status: 'semi-functional' });
+      return;
+    }
+    if (newStatus === 'planned') {
+      const progress: Record<string, StepProgress> = {};
+      for (const s of STEPS) progress[s.id] = { subs: {}, note: robot.progress[s.id]?.note ?? '' };
+      await api.updateRobot(robot.id, { status: 'planned', progress });
+      return;
+    }
+    if (newStatus === 'released') {
+      const progress: Record<string, StepProgress> = {};
+      for (const s of STEPS) {
+        progress[s.id] = {
+          subs: Object.fromEntries(s.subs.map((sub) => [sub.id, true])),
+          note: robot.progress[s.id]?.note ?? ''
+        };
+      }
+      await api.updateRobot(robot.id, { status: 'released', progress });
+      return;
+    }
+    // in-unity: nudge off 0% so it doesn't immediately re-derive back to Planned
+    if (prog.pct === 0) {
+      const first = STEPS[0];
+      const firstSub = first?.subs[0];
+      if (first && firstSub) {
+        const progress = {
+          ...robot.progress,
+          [first.id]: {
+            subs: { ...(robot.progress[first.id]?.subs ?? {}), [firstSub.id]: true },
+            note: robot.progress[first.id]?.note ?? ''
+          }
+        };
+        await api.updateRobot(robot.id, { status: 'in-unity', progress });
+        return;
+      }
+    }
+    await api.updateRobot(robot.id, { status: 'in-unity' });
+  };
+
+  const { year, title } = gameParts(robot.game);
 
   return (
     <tr className="robot-row" onClick={() => navigate(`/robot/${robot.id}`)}>
@@ -82,36 +180,47 @@ function RobotRow({ robot }: { robot: Robot }) {
           </span>
         )}
       </td>
-      <td className="col-game" data-label="Game">{robot.game}</td>
-      <td className="col-status" data-label="Status">
-        <PillSelect
-          value={robot.status}
-          options={STATUS_OPTIONS}
-          disabled={!canEdit}
-          onChange={(v) => api.updateRobot(robot.id, { status: v as RobotStatus })}
-        />
-        {robot.status === 'in-unity' && step && <div className="step-hint">→ {step}</div>}
-      </td>
-      <td className="col-modtype" data-label="Mod type">
-        <PillSelect
-          value={robot.modType}
-          options={MODTYPE_OPTIONS}
-          disabled={!canEdit}
-          allowEmpty="—"
-          onChange={(v) => api.updateRobot(robot.id, { modType: v as ModType })}
-        />
+      <td className="col-game" data-label="Game">
+        <span className={`game-pill ${gameClassName(robot.game)}`}>
+          <span className="game-year">{year}</span>
+          {title && <span className="game-title">{title}</span>}
+        </span>
       </td>
       <td className="col-pack" data-label="Modpack">
         {pack ? pack.name : <span className="muted">—</span>}
       </td>
       <td className="col-repo" data-label="Repo">
-        {repo ? repo.name : <span className="muted">—</span>}
+        {repo ? (
+          repo.remoteUrl ? (
+            <a
+              className="btn subtle repo-btn"
+              href={repo.remoteUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {repo.name} ↗
+            </a>
+          ) : (
+            <span className="muted">{repo.name}</span>
+          )
+        ) : (
+          <span className="muted">—</span>
+        )}
       </td>
       <td className="col-progress" data-label="Progress">
         <div className="cell-progress">
           <ProgressBar pct={prog.pct} small />
           {prog.pct < 100 && <span className="muted">{prog.pct}%</span>}
+          <PillSelect
+            value={robot.status}
+            options={statusOptions(robot)}
+            disabled={!canEdit}
+            hideChevron
+            onChange={handleStatusChange}
+          />
         </div>
+        {robot.status === 'in-unity' && step && <div className="step-hint">→ {step}</div>}
       </td>
       <td className="col-comments" data-label="Comments">
         <span className="comment-preview">{robot.notes || ''}</span>
@@ -133,6 +242,12 @@ export function RobotsPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const YEARS = [...new Set(GAMES.map((g) => g.split(':')[0].trim()))];
+
+  const STATUS_OPTIONS = (Object.keys(STATUS_META) as RobotStatus[]).map((s) => ({
+    value: s,
+    label: STATUS_META[s].label,
+    className: STATUS_META[s].className
+  }));
 
   // "In progress" = status moved past planned OR any sub-step checked
   // (a planned robot you started checking boxes on is being worked on).
@@ -159,18 +274,20 @@ export function RobotsPage() {
   const dir = sortDir === 'asc' ? 1 : -1;
   shown = [...shown].sort((a, b) => {
     switch (sortBy) {
-      // Team number remains ascending inside each year, including when the
-      // year direction is flipped. This makes the default newest-year-first
-      // ordering useful without requiring a second sort control.
       case 'year':      return dir * (gameYear(a) - gameYear(b)) || compareTeams(a, b);
       case 'team':      return dir * compareTeams(a, b);
-      case 'game':      return dir * a.game.localeCompare(b.game);
       case 'progress':  return dir * (robotProgress(a).pct - robotProgress(b).pct);
       case 'status':    return dir * (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
       case 'createdAt': return dir * (a.createdAt - b.createdAt);
       default:          return 0;
     }
   });
+
+  // Group into one table per game. Group order follows the year sort when
+  // that's the active sort key, otherwise defaults to newest-first.
+  const gameOrder = [...new Set(shown.map((r) => r.game))].sort((a, b) =>
+    sortBy === 'year' ? dir * (yearOfGame(a) - yearOfGame(b)) : yearOfGame(b) - yearOfGame(a)
+  );
 
   const inProgressCount = robots.filter(isInProgress).length;
 
@@ -235,9 +352,8 @@ export function RobotsPage() {
             title="Sort by"
             value={sortBy}
             options={[
-              { value: 'year', label: 'Year (then team #)' },
+              { value: 'year', label: 'Year' },
               { value: 'team', label: 'Team #' },
-              { value: 'game', label: 'Game' },
               { value: 'progress', label: 'Progress' },
               { value: 'status', label: 'Status' },
               { value: 'createdAt', label: 'Date added' },
@@ -262,28 +378,38 @@ export function RobotsPage() {
             : 'No robots match the current filters.'}
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="tracker-table">
-            <thead>
-              <tr>
-                <th>Team #</th>
-                <th>Team Name</th>
-                <th>Game</th>
-                <th>Status</th>
-                <th>Mod Type</th>
-                <th>Modpack</th>
-                <th>Repo</th>
-                <th>Progress</th>
-                <th>Comments</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((r) => (
-                <RobotRow key={r.id} robot={r} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        gameOrder.map((game) => {
+          const rows = shown.filter((r) => r.game === game);
+          const { year, title } = gameParts(game);
+          return (
+            <div key={game} className="game-table-group">
+              <h2 className={`game-table-heading ${gameClassName(game)}`}>
+                <span className="game-year">{year}</span>
+                {title && <span className="game-title">{title}</span>}
+              </h2>
+              <div className="table-wrap">
+                <table className="tracker-table">
+                  <thead>
+                    <tr>
+                      <th>Team #</th>
+                      <th>Team Name</th>
+                      <th>Game</th>
+                      <th>Modpack</th>
+                      <th>Repo</th>
+                      <th>Progress</th>
+                      <th>Comments</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <RobotRow key={r.id} robot={r} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })
       )}
     </div>
   );

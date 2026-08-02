@@ -57,6 +57,14 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
     if (match) setGame(match);
   };
 
+  // A robot can only belong to a modpack from its own year, so switching the
+  // game clears an incompatible pack selection.
+  const changeGame = (g: string) => {
+    setGame(g);
+    const pack = modpacks.find((m) => m.id === modpackId);
+    if (pack && pack.game !== g) setModpackId('');
+  };
+
   const createModpack = async () => {
     if (!newPackName.trim()) return;
     setCreatingPack(true);
@@ -122,7 +130,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
 
   const modpackOptions = [
     { value: '', label: 'No modpack' },
-    ...modpacks.map((m) => ({ value: m.id, label: m.name })),
+    ...modpacks.filter((m) => m.game === game).map((m) => ({ value: m.id, label: m.name })),
   ];
 
   return (
@@ -145,7 +153,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       </div>
 
       {/* Game */}
-      <Select className="game-select" value={game} options={GAME_OPTIONS} onChange={setGame} />
+      <Select className="game-select" value={game} options={GAME_OPTIONS} onChange={changeGame} />
 
       {/* Modpack + create new */}
       <div className="modpack-group">
@@ -158,7 +166,10 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
           type="button"
           className="btn subtle"
           style={{ fontSize: 12, whiteSpace: 'nowrap' }}
-          onClick={() => setShowNewModpack(!showNewModpack)}
+          onClick={() => {
+            if (!showNewModpack) setNewPackGame(game);
+            setShowNewModpack(!showNewModpack);
+          }}
         >
           + New
         </button>

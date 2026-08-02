@@ -771,7 +771,8 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 120px;
+  flex-wrap: wrap;
+  min-width: 200px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -832,6 +833,7 @@ h3 {
 .progress.small {
   height: 7px;
   flex: 1;
+  min-width: 60px;
 }
 
 .progress-fill {
@@ -3429,6 +3431,72 @@ h3 {
 /* Game column in tracker table */
 .col-game {
   font-size: 12.5px;
-  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Color-coded game pill (table cell) + heading (per-game table group) —
+   reuses the same hue families as the status/mod-type pills. */
+.game-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.game-year {
+  font-variant-numeric: tabular-nums;
+}
+
+.game-title {
+  opacity: 0.85;
+  font-weight: 500;
+}
+
+.game-table-group + .game-table-group {
+  margin-top: 28px;
+}
+
+.game-table-heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  border-radius: var(--radius-sm);
+  padding: 5px 14px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.game-table-heading .game-title {
+  opacity: 0.9;
+}
+
+.gm-planned {
+  background: var(--pill-planned-bg);
+  color: var(--pill-planned-fg);
+}
+.gm-released {
+  background: var(--pill-released-bg);
+  color: var(--pill-released-fg);
+}
+.gm-semi {
+  background: var(--pill-semi-bg);
+  color: var(--pill-semi-fg);
+}
+.gm-official {
+  background: var(--pill-official-bg);
+  color: var(--pill-official-fg);
+}
+.gm-claimed {
+  background: var(--pill-claimed-bg);
+  color: var(--pill-claimed-fg);
+}
+
+.repo-btn {
+  font-size: 12.5px;
+  padding: 4px 10px;
   white-space: nowrap;
 }

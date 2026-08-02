@@ -81,6 +81,7 @@ pub fn run() {
             commands::open_path,
             commands::scan_repo,
             commands::read_script,
+            commands::list_cs_files,
             take_pending_auth_token,
         ])
         .run(tauri::generate_context!())

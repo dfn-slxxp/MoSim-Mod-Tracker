@@ -97,70 +97,6 @@ export const settings = {
   setOpenRouterModel: (m: string) => localStorage.setItem(KEYS.openRouterModel, m.trim()),
 };
 
-export interface GenerateInput {
-  robotName: string;
-  team: string;
-  description: string;
-  videoLinks: string[];
-  /** name -> file content of past scripts to use as examples. */
-  exampleScripts: Record<string, string>;
-  /** A real FRC team's robot code to translate into MoSim (path -> content). */
-  sourceRepo?: { url: string; files: Record<string, string> };
-}
-
-function isYouTubeUrl(url: string): boolean {
-  return /youtu\.be\/|youtube\.com\/watch/.test(url);
-}
-
-/** Build the text-only user message (used by Claude + Ollama). */
-function buildPrompt(input: GenerateInput): string {
-  const parts: string[] = [];
-  parts.push(`Robot: ${input.team ? input.team + ' ' : ''}${input.robotName}`);
-
-  const repoFiles = input.sourceRepo?.files ?? {};
-  const hasRepo = Object.keys(repoFiles).length > 0;
-
-  if (hasRepo) {
-    parts.push(
-      `\n## The team's real robot source code (from ${input.sourceRepo!.url})\n` +
-        `This is the actual FRC team's code. Study its subsystems, mechanisms, motors, sensors, ` +
-        `and control logic, then recreate the robot's behavior as a single MoSim C# robot script. ` +
-        `Reproduce WHICH mechanisms exist and how they coordinate per pose, but do NOT copy setpoint ` +
-        `numbers — the real code's units differ from MoSim's, so follow the Setpoint handling rules: ` +
-        `coordinated multi-mechanism poses become Setpoint ScriptableObjects, single tweakables become ` +
-        `plain float fields, and all setpoint values are left as // TODO tune-in-MoSim placeholders.`
-    );
-    for (const [path, content] of Object.entries(repoFiles)) {
-      const lang = path.split('.').pop() ?? '';
-      parts.push(`\n### ${path}\n\`\`\`${lang}\n${content.slice(0, 40000)}\n\`\`\``);
-    }
-  }
-
-  if (input.description.trim()) {
-    parts.push(`\n## Functionality description\n${input.description}`);
-  } else if (!hasRepo) {
-    parts.push(`\n## Functionality description\n(none provided)`);
-  }
-
-  if (input.videoLinks.length > 0) {
-    parts.push(
-      `\n## Reference match/reveal videos (for context only — the description above covers what they show)\n` +
-        input.videoLinks.map((v) => `- ${v}`).join('\n')
-    );
-  }
-  const names = Object.keys(input.exampleScripts);
-  if (names.length > 0) {
-    parts.push(`\n## My past robot scripts (match their style and API usage)`);
-    for (const name of names) {
-      // Cap each file so a huge script can't blow past the context limit.
-      const content = input.exampleScripts[name].slice(0, 30000);
-      parts.push(`\n### ${name}\n\`\`\`csharp\n${content}\n\`\`\``);
-    }
-  }
-  parts.push(`\nGenerate the complete robot script now.`);
-  return parts.join('\n');
-}
-
 async function callAnthropic(prompt: string): Promise<string> {
   const apiKey = settings.getApiKey();
   if (!apiKey) throw new Error('No API key set. Add your Anthropic API key first.');
@@ -270,62 +206,6 @@ async function callOpenRouter(prompt: string, maxTokens = 16000): Promise<string
   const content = body?.choices?.[0]?.message?.content;
   if (!content) throw new Error('OpenRouter returned an empty response (the free model may be busy — try again).');
   return content;
-}
-
-async function callGemini(input: GenerateInput): Promise<string> {
-  const apiKey = settings.getGeminiKey();
-  if (!apiKey) throw new Error('No Gemini API key set. Add your Google AI Studio key first.');
-
-  const model = settings.getGeminiModel();
-
-  // Build content parts: YouTube video links are passed as fileData so Gemini
-  // can actually watch them; non-YouTube links fall back to text references.
-  const videoParts: unknown[] = [];
-  const textOnlyLinks: string[] = [];
-  for (const link of input.videoLinks) {
-    if (isYouTubeUrl(link)) {
-      videoParts.push({ fileData: { mimeType: 'video/mp4', fileUri: link } });
-    } else {
-      textOnlyLinks.push(link);
-    }
-  }
-
-  const textInput: GenerateInput = { ...input, videoLinks: textOnlyLinks };
-  const textParts: unknown[] = [{ text: buildPrompt(textInput) }];
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: MOSIM_SYSTEM_PROMPT }] },
-        contents: [{ role: 'user', parts: [...videoParts, ...textParts] }],
-        generationConfig: { maxOutputTokens: 16000 },
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
-    try { const b = await res.json(); detail = b?.error?.message ?? detail; } catch { /* keep */ }
-    throw new Error(`Gemini API error: ${detail}`);
-  }
-
-  const body = await res.json();
-  return (body?.candidates?.[0]?.content?.parts as { text?: string }[] | undefined)
-    ?.map((p) => p.text ?? '')
-    .join('') ?? '';
-}
-
-/** Generate via whichever provider is selected. Throws readable Errors. */
-export async function generateScript(input: GenerateInput): Promise<string> {
-  const provider = settings.getProvider();
-  if (provider === 'gemini') return callGemini(input);
-  const prompt = buildPrompt(input);
-  if (provider === 'ollama') return callOllama(prompt);
-  if (provider === 'openrouter') return callOpenRouter(prompt);
-  return callAnthropic(prompt);
 }
 
 /** True when the currently selected provider has enough config to be called. */

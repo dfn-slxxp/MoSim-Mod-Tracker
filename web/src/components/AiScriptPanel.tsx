@@ -1,48 +1,59 @@
 // ---------------------------------------------------------------------------
-// AI Script Generator panel, shown on the robot detail page.
-// Context fed to the model = your WHOLE script library (untick to exclude)
-// + optionally .cs files scanned from the robot's linked repo (desktop only)
-// + your description of the robot. Provider is either the Claude API or a
-// local Ollama model (including one you trained yourself — TRAINING.md).
+// AI Prompt Builder, shown on the robot detail page. Unlike the old version,
+// this does NOT call any AI model — it assembles a single self-contained text
+// prompt (directions + reference source, see ai/promptBuilder.ts) that you
+// paste into any AI model of your choice. The built prompt is persisted on
+// the robot record server-side (robot.aiPrompt), so it survives reloads and
+// even clearing the browser cache — not just localStorage.
+//
+// Reference material bundled into the prompt:
+//   - The team's real robot GitHub repo (fetched live, embedded inline)
+//   - A local RobotFramework source checkout (desktop only, per-device path,
+//     embedded inline) — the real API the script must use
+//   - Your saved script-library examples — linked via the public
+//     /api/scripts/:id/raw endpoint instead of pasted inline, to keep things short
 // ---------------------------------------------------------------------------
 import { useEffect, useMemo, useState } from 'react';
-import { ANTHROPIC_MODELS, GEMINI_MODELS, OPENROUTER_MODELS, Provider, fetchFreeOpenRouterModels, generateScript, settings } from '../ai/client';
+import { buildRobotPrompt } from '../ai/promptBuilder';
+import { isTauri, getServerUrl } from '../lib/desktop';
 import { fetchRepoSource } from '../lib/github';
+import { getFrameworkPath, setFrameworkPath } from '../lib/frameworkPath';
 import { getRepoPath } from '../lib/repoPaths';
 import { useStore } from '../store/StoreContext';
 import type { Repo, Robot } from '../types';
-import { Select } from './Select';
+
+async function apiOrigin(): Promise<string> {
+  return isTauri() ? await getServerUrl() : window.location.origin;
+}
 
 export function AiScriptPanel({ robot }: { robot: Robot }) {
-  const { repos, scripts } = useStore();
+  const { repos, scripts, api } = useStore();
   const repo: Repo | undefined = repos.find((r) => r.id === robot.repoId);
   const isDesktop = !!window.desktop;
   // This device's folder for the linked repo (empty on web / if unset).
   const repoPath = repo ? getRepoPath(repo.id) : '';
 
-  // Panel state. Settings persist via the `settings` helpers; the rest is
-  // per-visit. Sets are used for exclusions so "everything included" is the
-  // default without having to pre-check anything.
   const [open, setOpen] = useState(false);
-  const [provider, setProviderState] = useState<Provider>(settings.getProvider());
-  const [apiKey, setKeyState] = useState(settings.getApiKey());
-  const [model, setModelState] = useState(settings.getModel());
-  const [ollamaUrl, setOllamaUrlState] = useState(settings.getOllamaUrl());
-  const [ollamaModel, setOllamaModelState] = useState(settings.getOllamaModel());
-  const [geminiKey, setGeminiKeyState] = useState(settings.getGeminiKey());
-  const [geminiModel, setGeminiModelState] = useState(settings.getGeminiModel());
-  const [openRouterKey, setOpenRouterKeyState] = useState(settings.getOpenRouterKey());
-  const [openRouterModel, setOpenRouterModelState] = useState(settings.getOpenRouterModel());
-  const [orModels, setOrModels] = useState(OPENROUTER_MODELS);
   const [description, setDescription] = useState('');
-  const [videos, setVideos] = useState('');
   const [sourceRepoUrl, setSourceRepoUrl] = useState('');
   const [excludedLibrary, setExcludedLibrary] = useState<Set<string>>(new Set());
   const [selectedRepoScripts, setSelectedRepoScripts] = useState<Record<string, boolean>>({});
+
+  const [frameworkPath, setFrameworkPathState] = useState(getFrameworkPath());
+  const [frameworkFiles, setFrameworkFiles] = useState<string[]>([]);
+  const [excludedFramework, setExcludedFramework] = useState<Set<string>>(new Set());
+  const [scanningFramework, setScanningFramework] = useState(false);
+  const [frameworkError, setFrameworkError] = useState('');
+
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
-  const [output, setOutput] = useState('');
   const [error, setError] = useState('');
+  const [output, setOutput] = useState(robot.aiPrompt ?? '');
+
+  // Reload the persisted prompt whenever we're pointed at a different robot.
+  useEffect(() => {
+    setOutput(robot.aiPrompt ?? '');
+  }, [robot.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Every .cs file the repo scan found, flattened across robot folders.
   const repoScripts = useMemo(() => {
@@ -52,86 +63,107 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
     return [...new Set(all)].sort();
   }, [repo]);
 
-  // Pull the LIVE free-model list once the panel is opened on OpenRouter, since
-  // OpenRouter rotates them. Self-correct if the saved model is no longer free.
-  useEffect(() => {
-    if (!open || provider !== 'openrouter') return;
-    let cancelled = false;
-    fetchFreeOpenRouterModels().then((list) => {
-      if (cancelled || list.length === 0) return;
-      setOrModels(list);
-      if (!list.some((m) => m.id === settings.getOpenRouterModel())) {
-        setOpenRouterModelState(list[0].id);
+  const scanFramework = async () => {
+    if (!isDesktop || !frameworkPath.trim()) return;
+    setScanningFramework(true);
+    setFrameworkError('');
+    try {
+      const res = await window.desktop!.listCsFiles(frameworkPath.trim());
+      if (!res.ok) {
+        setFrameworkError(res.error || 'Could not read that folder.');
+        setFrameworkFiles([]);
+      } else {
+        setFrameworkFiles(res.files);
+        setExcludedFramework(new Set()); // default: all included
       }
-    });
-    return () => { cancelled = true; };
-  }, [open, provider]);
-
-  const toggleLibrary = (id: string) => {
-    setExcludedLibrary((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    } finally {
+      setScanningFramework(false);
+    }
   };
 
-  const run = async () => {
+  const toggleSet = (set: Set<string>, setSet: (s: Set<string>) => void, id: string) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSet(next);
+  };
+
+  const build = async () => {
     setBusy(true);
     setError('');
-    setOutput('');
     setStatus('');
     try {
-      // Persist settings so they're remembered next time.
-      settings.setProvider(provider);
-      settings.setApiKey(apiKey);
-      settings.setModel(model);
-      settings.setOllamaUrl(ollamaUrl);
-      settings.setOllamaModel(ollamaModel);
-      settings.setGeminiKey(geminiKey);
-      settings.setGeminiModel(geminiModel);
-      settings.setOpenRouterKey(openRouterKey);
-      settings.setOpenRouterModel(openRouterModel);
+      setFrameworkPath(frameworkPath);
 
-      // 1) All library scripts except the unticked ones.
-      const examples: Record<string, string> = {};
-      for (const s of scripts) {
-        if (!excludedLibrary.has(s.id)) examples[s.name] = s.content;
-      }
-      // 2) Any repo files ticked on top (desktop reads them off disk).
-      if (isDesktop && repoPath) {
-        for (const rel of repoScripts) {
-          if (!selectedRepoScripts[rel]) continue;
-          const res = await window.desktop!.readScript(repoPath, rel);
-          if (res.ok) examples[rel] = res.content;
-        }
-      }
-
-      // 3) The team's real robot code from a GitHub repo (translation source).
+      // 1) The team's real robot code from a GitHub repo (translation source).
       let sourceRepo: { url: string; files: Record<string, string> } | undefined;
       if (sourceRepoUrl.trim()) {
         setStatus('Reading the team’s GitHub repo…');
         const src = await fetchRepoSource(sourceRepoUrl.trim());
         sourceRepo = { url: src.url, files: src.files };
-        setStatus(
-          `Loaded ${src.count} file${src.count === 1 ? '' : 's'} from the repo` +
-            `${src.truncated ? ' (largest/most-relevant only)' : ''}. Generating…`
-        );
       }
 
-      const text = await generateScript({
+      // 2) Local RobotFramework reference source (desktop only).
+      const referenceGroups: { heading: string; note: string; files: Record<string, string> }[] = [];
+      if (isDesktop && frameworkPath.trim() && frameworkFiles.length > 0) {
+        setStatus('Reading RobotFramework source…');
+        const frameworkContent: Record<string, string> = {};
+        for (const rel of frameworkFiles) {
+          if (excludedFramework.has(rel)) continue;
+          const res = await window.desktop!.readScript(frameworkPath.trim(), rel);
+          if (res.ok) frameworkContent[rel] = res.content;
+        }
+        if (Object.keys(frameworkContent).length > 0) {
+          referenceGroups.push({
+            heading: `RobotFramework source (${frameworkPath.trim()})`,
+            note:
+              'The actual MoSim RobotFramework API — the only movement, joint, roller, and ' +
+              "game-piece methods available. Use these exact signatures; do not invent methods that aren't here.",
+            files: frameworkContent,
+          });
+        }
+      }
+
+      // 2b) Other .cs files scanned from this robot's linked repo (desktop only).
+      if (isDesktop && repoPath) {
+        const chosen = repoScripts.filter((rel) => selectedRepoScripts[rel]);
+        if (chosen.length > 0) {
+          setStatus('Reading repo scripts…');
+          const repoContent: Record<string, string> = {};
+          for (const rel of chosen) {
+            const res = await window.desktop!.readScript(repoPath, rel);
+            if (res.ok) repoContent[rel] = res.content;
+          }
+          if (Object.keys(repoContent).length > 0) {
+            referenceGroups.push({
+              heading: `Other scripts from ${repo?.name ?? 'this repo'} (read from disk)`,
+              note: 'Other mod scripts in the same local repo — for style/API reference only.',
+              files: repoContent,
+            });
+          }
+        }
+      }
+
+      // 3) Library scripts referenced by link (not pasted inline).
+      setStatus('Linking library scripts…');
+      const origin = await apiOrigin();
+      const scriptLinks = scripts
+        .filter((s) => !excludedLibrary.has(s.id))
+        .map((s) => ({ name: s.name, url: `${origin}/api/scripts/${s.id}/raw` }));
+
+      const text = buildRobotPrompt({
         robotName: robot.name,
         team: robot.team,
+        game: robot.game,
         description,
-        videoLinks: videos
-          .split('\n')
-          .map((v) => v.trim())
-          .filter(Boolean),
-        exampleScripts: examples,
-        sourceRepo
+        sourceRepo,
+        referenceGroups,
+        scriptLinks,
       });
+
       setOutput(text);
       setStatus('');
+      await api.updateRobot(robot.id, { aiPrompt: text });
     } catch (e) {
       setError((e as Error).message);
       setStatus('');
@@ -140,141 +172,28 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
     }
   };
 
-  const download = () => {
-    // Pull the first ```csharp block out of the response, if any.
-    const match = output.match(/```(?:csharp|cs)?\n([\s\S]*?)```/);
-    const code = match ? match[1] : output;
-    const blob = new Blob([code], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${robot.name.replace(/\W+/g, '') || 'Robot'}.cs`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+  const clearPrompt = async () => {
+    setOutput('');
+    await api.updateRobot(robot.id, { aiPrompt: '' });
   };
 
   const includedCount = scripts.length - excludedLibrary.size;
+  const includedFrameworkCount = frameworkFiles.length - excludedFramework.size;
 
   return (
     <div className="ai-panel">
       <button className="ai-toggle" onClick={() => setOpen(!open)}>
-        <span className="ai-spark">✦</span> AI Script Generator
+        <span className="ai-spark">✦</span> AI Prompt Builder
         <span className={`chevron ${open ? 'open' : ''}`}>▸</span>
       </button>
       {open && (
         <div className="ai-body">
           <p className="muted small">
-            Describe what the robot does (mechanisms, setpoints, how it scores){' '}
-            <b>or</b> paste the team's real robot GitHub repo below and let the AI translate their
-            actual code.{' '}
-            {provider === 'gemini'
-              ? 'YouTube links are sent directly to Gemini for video analysis.'
-              : 'Video links are included as text reference.'}
-            {' '}Keys/settings stay on this device only.
-            {provider === 'openrouter' && (
-              <>
-                {' '}
-                <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
-                  Get a free OpenRouter key ↗
-                </a>{' '}
-                (no card needed) — it unlocks the free models above.
-              </>
-            )}
+            Builds a single prompt you paste into any AI model of your choice — this app never
+            calls an AI itself. Describe what the robot does <b>or</b> paste the team's real robot
+            GitHub repo, add your local RobotFramework source for reference, and the prompt fully
+            explains what's needed to write the script. The built prompt is saved to this robot.
           </p>
-
-          <div className="ai-row">
-            <label>
-              Provider
-              <Select
-                value={provider}
-                options={[
-                  { value: 'openrouter', label: 'OpenRouter — Free (no payment)' },
-                  { value: 'gemini', label: 'Gemini (Google AI Studio key · watches videos)' },
-                  { value: 'anthropic', label: 'Claude (Anthropic key · text only)' },
-                  { value: 'ollama', label: 'Local model via Ollama (free, trainable)' },
-                ]}
-                onChange={(v) => setProviderState(v as Provider)}
-              />
-            </label>
-            {provider === 'openrouter' && (
-              <>
-                <label>
-                  OpenRouter key
-                  <input
-                    type="password"
-                    placeholder="sk-or-..."
-                    value={openRouterKey}
-                    onChange={(e) => setOpenRouterKeyState(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Free model
-                  <Select
-                    value={openRouterModel}
-                    options={orModels.map((m) => ({ value: m.id, label: m.label }))}
-                    onChange={setOpenRouterModelState}
-                  />
-                </label>
-              </>
-            )}
-            {provider === 'gemini' && (
-              <>
-                <label>
-                  Google AI Studio key
-                  <input
-                    type="password"
-                    placeholder="AIza..."
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKeyState(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Model
-                  <Select
-                    value={geminiModel}
-                    options={GEMINI_MODELS.map((m) => ({ value: m.id, label: m.label }))}
-                    onChange={setGeminiModelState}
-                  />
-                </label>
-              </>
-            )}
-            {provider === 'anthropic' && (
-              <>
-                <label>
-                  Anthropic API key
-                  <input
-                    type="password"
-                    placeholder="sk-ant-..."
-                    value={apiKey}
-                    onChange={(e) => setKeyState(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Model
-                  <Select
-                    value={model}
-                    options={ANTHROPIC_MODELS.map((m) => ({ value: m.id, label: m.label }))}
-                    onChange={setModelState}
-                  />
-                </label>
-              </>
-            )}
-            {provider === 'ollama' && (
-              <>
-                <label>
-                  Ollama URL
-                  <input value={ollamaUrl} onChange={(e) => setOllamaUrlState(e.target.value)} />
-                </label>
-                <label>
-                  Model name
-                  <input
-                    placeholder="mosim-coder or qwen2.5-coder:7b"
-                    value={ollamaModel}
-                    onChange={(e) => setOllamaModelState(e.target.value)}
-                  />
-                </label>
-              </>
-            )}
-          </div>
 
           <label className="ai-field">
             Robot functionality
@@ -283,18 +202,6 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
               placeholder="e.g. 2-stage cascade elevator with a wrist coral end effector, ground algae intake on a pivot, deep climb with a winch. L4 needs a back-off before placing…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-            />
-          </label>
-
-          <label className="ai-field">
-            {provider === 'gemini'
-              ? 'YouTube video links (one per line — Gemini will watch them)'
-              : 'Match / reveal video links (one per line — TBA, YouTube, …)'}
-            <textarea
-              rows={2}
-              placeholder={'https://youtu.be/...\nhttps://www.thebluealliance.com/match/...'}
-              value={videos}
-              onChange={(e) => setVideos(e.target.value)}
             />
           </label>
 
@@ -308,15 +215,57 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
               onChange={(e) => setSourceRepoUrl(e.target.value)}
             />
             <span className="muted small">
-              The AI reads the team's actual robot code (subsystems, setpoints, mechanisms) and
-              translates it into a MoSim script — an alternative to describing it above. Public repos
-              only.
+              Embedded in the prompt as reference-only source (public repos only) — the target AI
+              translates it, it isn't copied verbatim.
             </span>
           </label>
 
+          {isDesktop && (
+            <div className="ai-field">
+              <span>RobotFramework source (reference-only, embedded in the prompt)</span>
+              <input
+                placeholder="C:\path\to\MoSim-Reefscape-Public\Assets\Scripts\RobotFramework"
+                value={frameworkPath}
+                onChange={(e) => setFrameworkPathState(e.target.value)}
+                onBlur={() => setFrameworkPath(frameworkPath)}
+              />
+              <div className="ai-row">
+                <button
+                  className="btn subtle"
+                  type="button"
+                  disabled={!frameworkPath.trim() || scanningFramework}
+                  onClick={scanFramework}
+                >
+                  {scanningFramework ? 'Scanning…' : 'Scan folder'}
+                </button>
+                {frameworkFiles.length > 0 && (
+                  <span className="muted small">
+                    {includedFrameworkCount}/{frameworkFiles.length} .cs files included
+                  </span>
+                )}
+              </div>
+              {frameworkError && <div className="banner error rounded">{frameworkError}</div>}
+              {frameworkFiles.length > 0 && (
+                <div className="ai-scripts">
+                  {frameworkFiles.map((rel) => (
+                    <label key={rel} className="inline-check">
+                      <input
+                        type="checkbox"
+                        checked={!excludedFramework.has(rel)}
+                        onChange={() => toggleSet(excludedFramework, setExcludedFramework, rel)}
+                      />
+                      {rel.split('/').pop()}
+                      <span className="muted small"> ({rel})</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="ai-field">
             <span>
-              Script library examples — {includedCount}/{scripts.length} included
+              Script library links — {includedCount}/{scripts.length} included
               {scripts.length === 0 && (
                 <span className="muted"> (drop your past scripts on the Scripts page first)</span>
               )}
@@ -328,7 +277,7 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
                     <input
                       type="checkbox"
                       checked={!excludedLibrary.has(s.id)}
-                      onChange={() => toggleLibrary(s.id)}
+                      onChange={() => toggleSet(excludedLibrary, setExcludedLibrary, s.id)}
                     />
                     {s.name}
                     {s.description && <span className="muted small"> — {s.description.slice(0, 60)}</span>}
@@ -341,7 +290,7 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
           {isDesktop && repo && repoPath && repoScripts.length > 0 && (
             <div className="ai-field">
               <span>
-                Extra examples from <b>{repo.name}</b> (read from disk)
+                Other scripts from <b>{repo.name}</b> (read from disk, embedded as reference)
               </span>
               <div className="ai-scripts">
                 {repoScripts.map((rel) => (
@@ -365,17 +314,17 @@ export function AiScriptPanel({ robot }: { robot: Robot }) {
             <button
               className="btn primary"
               disabled={busy || (!description.trim() && !sourceRepoUrl.trim())}
-              onClick={run}
+              onClick={build}
             >
-              {busy ? 'Generating…' : 'Generate script'}
+              {busy ? 'Building…' : 'Build prompt'}
             </button>
             {output && (
               <>
                 <button className="btn" onClick={() => navigator.clipboard.writeText(output)}>
                   Copy
                 </button>
-                <button className="btn" onClick={download}>
-                  Download .cs
+                <button className="btn danger subtle" onClick={clearPrompt}>
+                  Clear
                 </button>
               </>
             )}

@@ -52,6 +52,7 @@ if (isTauri()) {
     startDragging: ()                             => inv('start_dragging'),
     scanRepo:    (localPath: string)              => inv('scan_repo', { localPath }),
     readScript:  (repoPath: string, relPath: string) => inv('read_script', { repoPath, relPath }),
+    listCsFiles: (folderPath: string)              => inv('list_cs_files', { folderPath }),
     openPath:    (pathOrUrl: string)              => inv('open_path', { pathOrUrl }),
   };
 

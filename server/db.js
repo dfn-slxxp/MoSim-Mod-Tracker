@@ -77,6 +77,12 @@ function getAll(table, uid) {
     .map((r) => JSON.parse(r.data));
 }
 
+/** A single row's data by id alone (no uid check — used for unguessable-id public links). */
+function getById(table, id) {
+  const row = db.prepare(`SELECT data FROM ${table} WHERE id = ?`).get(id);
+  return row ? JSON.parse(row.data) : null;
+}
+
 function nextOrd(table, uid) {
   const row = db.prepare(`SELECT MAX(ord) AS m FROM ${table} WHERE uid = ?`).get(uid);
   return (row?.m ?? 0) + 1;
@@ -198,7 +204,7 @@ function setSetting(key, value) {
 }
 
 module.exports = {
-  db, getAll, insert, update, remove, getSetting, setSetting,
+  db, getAll, getById, insert, update, remove, getSetting, setSetting,
   getProfile, setProfile, allProfiles, allRobots,
   resolveUid, linkAccount, linkedAccounts, unlinkAccount, mergeAccounts,
 };

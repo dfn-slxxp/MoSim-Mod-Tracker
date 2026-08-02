@@ -28,6 +28,13 @@ pub struct ScriptResult {
     content: String,
 }
 
+#[derive(Serialize)]
+pub struct FileListResult {
+    ok: bool,
+    error: Option<String>,
+    files: Vec<String>,
+}
+
 // ── Commands ──────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -169,6 +176,44 @@ pub fn read_script(repo_path: String, rel_path: String) -> ScriptResult {
         Ok(content) => ScriptResult { ok: true, error: None, content },
         Err(e) => ScriptResult { ok: false, error: Some(e.to_string()), content: String::new() },
     }
+}
+
+/// Recursively lists every .cs file under `folder_path` (relative paths), for
+/// use as a generic reference-source scan (e.g. a local RobotFramework
+/// checkout) — unlike `scan_repo`, this has no notion of "robot folders".
+#[tauri::command]
+pub fn list_cs_files(folder_path: String) -> FileListResult {
+    if folder_path.is_empty() || !Path::new(&folder_path).exists() {
+        return FileListResult {
+            ok: false,
+            error: Some(format!("Path not found: {}", folder_path)),
+            files: vec![],
+        };
+    }
+    let root = PathBuf::from(&folder_path);
+    let mut files = Vec::new();
+    let mut stack = vec![root.clone()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if !SKIP.contains(&name) {
+                    stack.push(path);
+                }
+            } else if path.extension().and_then(|e| e.to_str()) == Some("cs") {
+                if let Ok(rel) = path.strip_prefix(&root) {
+                    files.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+    }
+    files.sort();
+    FileListResult { ok: true, error: None, files }
 }
 
 // ── Repo scanner — mirrors Electron main.js logic exactly ────────────────────

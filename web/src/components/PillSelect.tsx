@@ -16,7 +16,8 @@ export function PillSelect({
   options,
   onChange,
   disabled,
-  allowEmpty
+  allowEmpty,
+  hideChevron
 }: {
   value: string;
   options: PillOption[];
@@ -24,6 +25,8 @@ export function PillSelect({
   disabled?: boolean;
   /** Adds a gray "—" option representing "not set". */
   allowEmpty?: string;
+  /** Hide the dropdown arrow (still clickable) — reads as a plain pill. */
+  hideChevron?: boolean;
 }) {
   const opts: SelectOption[] = [
     ...(allowEmpty !== undefined ? [{ value: '', label: allowEmpty, className: 'pill-empty' }] : []),
@@ -37,6 +40,7 @@ export function PillSelect({
       disabled={disabled}
       placeholder={allowEmpty ?? '—'}
       className="dd-pill"
+      hideChevron={hideChevron}
     />
   );
 }

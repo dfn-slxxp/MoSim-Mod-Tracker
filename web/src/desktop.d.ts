@@ -20,6 +20,8 @@ export interface DesktopAPI {
   scanRepo(localPath: string): Promise<{ ok: boolean; error?: string; robots: ScannedRobot[] }>;
   /** Read a .cs script from inside a repo (path-checked in the main process). */
   readScript(repoPath: string, relPath: string): Promise<{ ok: boolean; error?: string; content: string }>;
+  /** Recursively list every .cs file (relative paths) under a local folder. */
+  listCsFiles(folderPath: string): Promise<{ ok: boolean; error?: string; files: string[] }>;
   /** Open a folder in the OS file explorer, or a URL in the default browser. */
   openPath(pathOrUrl: string): Promise<void>;
 }
