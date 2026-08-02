@@ -474,7 +474,7 @@ function UsersEditor() {
           {users.map((u) => (
             <div key={u.uid} className={`admin-user ${u.hidden ? 'hidden' : ''}`}>
               {u.photo ? (
-                <img className="admin-user-photo" src={u.photo} alt="" referrerPolicy="no-referrer" />
+                <img className="admin-user-photo" src={u.photo} alt={`${u.displayName}'s avatar`} referrerPolicy="no-referrer" />
               ) : (
                 <div className="admin-user-photo placeholder">{u.displayName.charAt(0).toUpperCase()}</div>
               )}

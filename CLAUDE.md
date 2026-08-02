@@ -862,3 +862,104 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   **Files changed:** `web/src/pages/RobotsPage.tsx`, `web/src/components/Select.tsx`,
   `web/src/components/PillSelect.tsx`, `web/src/pages/RobotDetailPage.tsx`,
   `web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-02: User caught Mod Type still surfaced in two places after the /robots
+  table column was removed — the add-robot form (`RobotForm.tsx`) and the robot
+  detail edit panel (`RobotDetailPage.tsx`). Removed the Mod Type `Select`/
+  `PillSelect` control, its state, and `MODTYPE_OPTIONS` from both; `RobotForm.tsx`
+  now sends `modType: ''` when creating a robot. `Robot.modType` stays in the data
+  model (types.ts, DB) — only the UI for setting it was removed, so old data is
+  preserved but nothing in the app currently lets a user set/see it. Separately,
+  confirmed (no code change needed) that team-number rebuild suffixes ("694a",
+  "694b") already work end-to-end: `lib/tba.ts` `baseTeamNumber()` strips the
+  trailing letter before the TBA proxy call, the team `<input>` in `RobotForm.tsx`
+  is free text so suffixes are already typeable, and `RobotsPage.tsx`'s
+  `compareTeams()` already tie-breaks same-number suffixes alphabetically.
+  **Verified:** `tsc --noEmit` + `npm run build` passed in `web/`.
+  **Files changed:** `web/src/components/RobotForm.tsx`,
+  `web/src/pages/RobotDetailPage.tsx`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-02: Ran the `impeccable` skill's full pipeline (document → audit → polish)
+  on request. `document` produced `DESIGN.md` + `.impeccable/design.json` (Scan mode,
+  capturing the existing visual system — colors, typography, layout, elevation,
+  shapes, components). `audit` then ran technical quality checks and returned a
+  scored report (accessibility, theming, responsive, code-cleanliness findings).
+  `polish` applied the real fixes from that report, in `polish.md`'s triage order
+  (functional/accessibility blockers first, then design-system drift):
+  - **Accessibility (P1):** `Splits.tsx` step header (`.split-head`) is now
+    keyboard-operable (`role="button"`, `tabIndex`, `onKeyDown` Enter/Space,
+    `aria-expanded`); its check button gained `role="checkbox"` +
+    `aria-checked="true"|"mixed"|"false"`. `RobotsPage.tsx`'s clickable `.robot-row`
+    `<tr>` gained the same pattern (`role="link"`, `tabIndex`, `onKeyDown` Enter,
+    `aria-label`). `RobotForm.tsx`'s two unlabeled text inputs (team number, new
+    modpack name) gained `aria-label`.
+  - **Accessibility (P2):** `CompactPage.tsx`'s three icon-only titlebar buttons
+    (run mode, pin, expand) gained `aria-label` mirroring their existing `title`.
+    Five user-photo `<img alt="">` (AuthButton, UserProfilePage, SettingsPage
+    users tab, HomePage community cards, AccountPage) now describe whose photo it
+    is; the app-logo `<img alt="">` instances next to visible brand text (App.tsx,
+    HomePage hero) were left alone — decorative + redundant with adjacent text is
+    correct there. `RobotDetailPage.tsx`'s heading skip (h1 → h3, no h2) was fixed
+    by promoting its "Robot notes" and `Splits.tsx`'s "Left to do" headers to `h2`,
+    matching the h2-for-section-headers pattern already used on every other page.
+  - **Theming (P2, design-system drift):** `.check.checked` hardcoded a
+    GitHub-green (`#238636`) regardless of theme — a real violation of DESIGN.md's
+    own "One Accent Rule," since it stayed green under the Cloud theme's purple
+    accent. Changed to `var(--accent)` / `color-mix(...)` / `var(--accent-contrast)`,
+    mirroring the existing `.btn.primary` pattern. `.banner.info`/`.banner.error`
+    hardcoded the default theme's exact blue/red hex+alpha; changed to
+    `color-mix(in srgb, var(--blue|red) 8%/17%, transparent)` so banners recolor
+    correctly under Cloud/custom/imported themes. Two stray `color: #fff` literals
+    (`.titlebar-btn.danger:hover`, `.win-btn.close:hover`) became
+    `var(--accent-contrast)`. The Cloud theme's own bespoke gradient
+    topbar/titlebar/background (`styles.css` ~L133-139, ~L2925-3010) was reviewed
+    and intentionally left as literal hex — it's a self-contained, theme-scoped
+    decorative flourish, not a cross-theme component hardcoding one theme's colors,
+    so "fixing" it would have destroyed Cloud's distinct look. This was roughly
+    5 of the ~19 "hardcoded hex" hits the audit flagged; treated as false positives.
+  - **Self-caught doc fix:** `DESIGN.md`'s Elevation & Depth section and
+    `.impeccable/design.json`'s `shadows[].purpose` had incorrectly claimed "the
+    dark theme's `--shadow` is missing/none." Re-verified against `styles.css`:
+    only the `cloud`+`dark` combination has `--shadow: none`; `default` (both
+    modes) and `cloud`+`light` all have real shadow values. Corrected both files
+    (including the "mid-transition" framing in DESIGN.md's Overview, which no
+    longer needed to hedge on elevation, only on the heading-scale change).
+  **Verified:** `npm run build` (tsc+vite) passed clean in `web/`; `node -e
+  "JSON.parse(...)"` confirmed `.impeccable/design.json` stayed valid JSON;
+  loaded the dev server in the browser preview — HomePage (the one page not
+  behind `RequireAuth`) rendered with no console errors, and its accessibility
+  tree showed all nav/theme/sign-in controls intact. The auth-gated pages
+  (Robots, RobotDetail, Compact, Settings) could not be exercised live (no Google
+  OAuth credentials in this sandbox) — verified there via build/type-check and
+  code review only, consistent with prior sessions' approach for this repo.
+  `enhance` (the pipeline's final stage) was not reached this session.
+  **Files changed:** `DESIGN.md`, `.impeccable/design.json`,
+  `web/src/components/Splits.tsx`, `web/src/components/RobotForm.tsx`,
+  `web/src/components/AuthButton.tsx`, `web/src/pages/RobotsPage.tsx`,
+  `web/src/pages/CompactPage.tsx`, `web/src/pages/UserProfilePage.tsx`,
+  `web/src/pages/SettingsPage.tsx`, `web/src/pages/HomePage.tsx`,
+  `web/src/pages/AccountPage.tsx`, `web/src/pages/RobotDetailPage.tsx`,
+  `web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-02: `enhance` step of the impeccable pipeline (document → audit → polish →
+  enhance), scoped to typeset since DESIGN.md itself already named an unfinished,
+  specific target: the Rising Weight Rule (h1 700/28-32px, h2 700/20px, h3 650/15px).
+  Checked actual computed styles in the browser first rather than trusting the
+  earlier `document` pass's claim that headings were "body-matched weight (400)" —
+  they were already bold (700) via the browser's UA default for h1-h6 (no
+  font-weight was ever set in `styles.css`'s bare `h1`/`h2`/`h3` rules); the real gap
+  was only size (h1 at 22px, h3 at 14px) and h2 having no explicit rule at all
+  (fell through to the ~17-24px UA default depending on context). Set explicit
+  `font-size`/`font-weight` on all three to the documented target (h1: 700/28px,
+  h2: 700/20px, h3: 650/15px), removing their dependence on browser defaults.
+  Corrected DESIGN.md's Typography/Overview sections and `.impeccable/design.json`'s
+  `typographyMeta`/`narrative.rules` to describe the realized state instead of a
+  pending transition (same self-correction pattern as the earlier shadow-token fix).
+  Did not pursue the other enhance categories (animate/colorize/layout/delight/
+  overdrive) this pass — a dense Operate-mode utility app doesn't currently have a
+  gap in those that DESIGN.md names as unfinished, and inventing one would be scope
+  creep beyond what was asked. **Verified:** `npm run build` (tsc+vite) passed
+  clean; `.impeccable/design.json` re-validated as JSON; reloaded the dev server in
+  the browser preview, confirmed via computed-style inspection that the global
+  `h1`/`h2`/`h3` rules now carry the target size/weight, no console errors. Visual
+  screenshot wasn't available in this sandbox (Browser pane compositing timeout) —
+  verified via computed styles instead of pixels.
+  **Files changed:** `web/src/styles.css`, `DESIGN.md`, `.impeccable/design.json`,
+  `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.

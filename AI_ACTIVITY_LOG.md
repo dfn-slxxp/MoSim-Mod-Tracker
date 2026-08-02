@@ -476,4 +476,53 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 
 **User-facing outcome:** Every per-game table on `/robots` now has identically aligned columns, the Comments column and the In Progress/All tabs are gone (all robots always show, sorting/filtering still works), and the Game field on a robot's detail page is now a proper dropdown instead of free text.
 
+### Remove remaining Mod Type UI; confirm team-suffix TBA behavior
+
+**User messages:** "mod type is still here. it shouldn't be." (with a screenshot showing the add-robot form's "Mod type: —" dropdown) / "I should be able to add suffixes to robots, such as 694a and 694b and 694c and it should cut the suffix out when pulling from tba. this is for if i have multiple robots from the same team"
+
+**Work and decisions:**
+1. The Mod Type column was removed from `/robots` in an earlier entry, but the control still existed in two other places: the add-robot form (`RobotForm.tsx`) and the robot detail edit panel (`RobotDetailPage.tsx`). Removed the `Select`/`PillSelect` control, `modType` state, and `MODTYPE_OPTIONS` from both. `RobotForm.tsx`'s `addRobot` call now passes `modType: ''` (the type still requires the field). Left `Robot.modType` in `types.ts`/the DB schema untouched — only the UI for setting/viewing it was removed, so existing data isn't affected.
+2. Investigated the suffix request before writing any code, since it looked already-implemented: `web/src/lib/tba.ts` `baseTeamNumber()` already regex-strips a trailing letter (`"694a"` → `"694"`) before the TBA proxy call; the team `<input>` in `RobotForm.tsx` is already free text (placeholder literally says "e.g. 9496 or 9496b"); and `RobotsPage.tsx`'s `compareTeams()` already numeric-sorts with an alphabetical tie-break on the full string. Verified the regex behavior directly (`node -e`) rather than asserting from memory. No code change was needed or made for this part.
+
+**Verification:** `tsc --noEmit` and `npm run build` (tsc+vite) both passed in `web/` after the Mod Type removal.
+
+**Files changed:** `web/src/components/RobotForm.tsx`, `web/src/pages/RobotDetailPage.tsx`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Mod Type no longer appears anywhere in the app (add form or detail page). Team-number suffixes like `694a`/`694b`/`694c` were confirmed to already work end-to-end — they display as entered, sort correctly next to each other, and the TBA nickname lookup already ignores the suffix.
+
+### Impeccable pipeline: document → audit → polish
+
+**User messages:** "follow what i said earlier. document. then audit. then polish and refine. then enhance. along the way, fix whats needed." (confirming, mid-pipeline, that I should proceed from the delivered audit straight into polish rather than pausing for review)
+
+**Work and decisions:**
+1. `document` (Scan mode — mature existing visual system, not greenfield): generated `DESIGN.md` and `.impeccable/design.json`, capturing the app's colors, typography, layout, elevation, shapes, and components as they actually exist in `styles.css`/`theme.tsx`/components.
+2. `audit`: ran technical quality checks and returned a scored, prioritized report (accessibility, theming, responsive, code cleanliness) without fixing anything, per the audit command's scope.
+3. `polish`, following `polish.md`'s triage order (functional/accessibility blockers, then design-system drift, then visual/motion, then cleanup):
+   - Made `Splits.tsx`'s step header and `RobotsPage.tsx`'s clickable row keyboard-operable (`role`, `tabIndex`, `onKeyDown`, `aria-expanded`/`aria-label`); added `aria-checked` to the step's check button; added `aria-label` to `RobotForm.tsx`'s two unlabeled inputs and `CompactPage.tsx`'s three icon-only buttons; gave five user-photo `<img alt="">` instances a real description (left the app-logo `alt=""` instances alone — correctly decorative next to visible brand text); fixed `RobotDetailPage.tsx`'s h1→h3 heading skip by promoting its and `Splits.tsx`'s section headers to `h2`, matching every other page's pattern.
+   - Fixed `.check.checked` in `styles.css`, which hardcoded GitHub-green regardless of theme (a real violation of DESIGN.md's own "One Accent Rule" — stayed green under Cloud's purple accent) to use `var(--accent)`/`color-mix(...)`/`var(--accent-contrast)`, mirroring `.btn.primary`. Fixed `.banner.info`/`.banner.error`, which hardcoded the default theme's exact blue/red hex+alpha, to use `color-mix(in srgb, var(--blue|red) N%, transparent)` so banners recolor under other themes. Fixed two stray `color: #fff` literals to `var(--accent-contrast)`.
+   - Reviewed the Cloud theme's own bespoke gradient topbar/titlebar/background hardcoded hex (~5 of the audit's ~19 "hardcoded hex" hits) and left it as-is — it's an intentional, theme-scoped decorative flourish, not a component hardcoding one theme's colors onto another.
+   - Self-caught and fixed a factual error in my own earlier `document` output: `DESIGN.md`/`design.json` had claimed "the dark theme's shadow is missing/none," but re-checking `styles.css` showed only `cloud`+`dark` lacks a shadow — `default` (both modes) and `cloud`+`light` all have real shadow values. Corrected both files.
+
+**Verification:** `npm run build` (tsc+vite) passed clean in `web/`; `node -e "JSON.parse(...)"` confirmed `.impeccable/design.json` stayed valid JSON. Loaded the dev server in the browser preview: HomePage (the only page not behind `RequireAuth`) rendered with no console errors and an intact accessibility tree. The auth-gated pages could not be exercised live (no Google OAuth credentials in this sandbox) — verified there via build/type-check and code review only. The pipeline's `enhance` stage was not reached this session.
+
+**Files changed:** `DESIGN.md`, `.impeccable/design.json`, `web/src/components/Splits.tsx`, `web/src/components/RobotForm.tsx`, `web/src/components/AuthButton.tsx`, `web/src/pages/RobotsPage.tsx`, `web/src/pages/CompactPage.tsx`, `web/src/pages/UserProfilePage.tsx`, `web/src/pages/SettingsPage.tsx`, `web/src/pages/HomePage.tsx`, `web/src/pages/AccountPage.tsx`, `web/src/pages/RobotDetailPage.tsx`, `web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Keyboard and screen-reader users can now operate the step accordion, the robots-table row click-through, the compact overlay's icon buttons, and the add-robot form; user avatars announce whose photo they are; the robot detail page's heading order is no longer broken. The checked-step indicator and info/error banners now correctly follow the active theme's accent/blue/red instead of showing a fixed color under every theme.
+
+### Impeccable pipeline: enhance (typeset)
+
+**User messages:** "proceed"
+
+**Work and decisions:**
+1. Scoped `enhance` to typeset, since DESIGN.md already named a specific, unfinished target (the Rising Weight Rule: h1 700/28-32px, h2 700/20px, h3 650/15px) rather than inventing new enhance work.
+2. Checked actual computed styles in the browser before touching anything, rather than trusting the earlier `document` pass's claim that headings were "body-matched weight (400)": h1/h2/h3 were already rendering bold (700) via the browser's default UA stylesheet, since `styles.css` never set `font-weight` on them. The real gap was only size (h1 at 22px vs. the ~28-32px target, h3 at 14px vs. 15px) and h2 having no explicit rule at all.
+3. Set explicit `font-size`/`font-weight` on `h1`/`h2`/`h3` in `styles.css` to the documented target, so the hierarchy no longer depends on browser defaults. Corrected DESIGN.md's Typography/Overview sections and `.impeccable/design.json`'s `typographyMeta`/`narrative.rules` to describe the now-realized state instead of a pending transition — the same self-correction pattern used earlier this session for the shadow-token claim.
+4. Did not pursue animate/colorize/layout/delight/overdrive this pass — nothing in DESIGN.md names a gap in those categories for this dense, Operate-mode utility app, and manufacturing one would be scope creep beyond what was asked.
+
+**Verification:** `npm run build` (tsc+vite) passed clean; `.impeccable/design.json` re-validated as JSON; reloaded the dev server in the browser preview and confirmed via computed-style inspection (`getComputedStyle`) that the global `h1`/`h2`/`h3` rules carry the target size/weight, with no console errors. A visual screenshot wasn't available in this sandbox (Browser pane compositing timeout) — verified via computed styles instead of pixels.
+
+**Files changed:** `web/src/styles.css`, `DESIGN.md`, `.impeccable/design.json`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Page titles, section headers, and card/subsection headers now render at the size/weight DESIGN.md had already committed to as the app's intended hierarchy, instead of relying on the browser's default heading styles for part of that scale.
+
 **User-facing outcome:** Modpacks can now be edited in place (name, game/year, description) from the Modpacks page. A modpack's game/year is enforced everywhere a robot is attached to one: the modpack picker on both the add-robot form and the robot detail page only offers packs matching the robot's own game, and changing a robot's (or a modpack's) game automatically detaches any now-mismatched pack, with a confirmation when that would affect existing members.

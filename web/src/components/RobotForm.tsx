@@ -2,20 +2,11 @@ import { FormEvent, useState } from 'react';
 import { fetchTeamName } from '../lib/tba';
 import { STEPS } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { GAMES, MODTYPE_META, ModType, StepProgress } from '../types';
+import { GAMES, StepProgress } from '../types';
 import { useDialog } from './Dialog';
 import { Select } from './Select';
 
 const GAME_OPTIONS = GAMES.map((g) => ({ value: g, label: g }));
-
-const MODTYPE_OPTIONS = [
-  { value: '', label: 'Mod type: —' },
-  ...(Object.keys(MODTYPE_META) as Exclude<ModType, ''>[]).map((m) => ({
-    value: m,
-    label: MODTYPE_META[m].label,
-    className: MODTYPE_META[m].className,
-  })),
-];
 
 export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const { api, modpacks, canEdit } = useStore();
@@ -25,7 +16,6 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
   const [fetching, setFetching] = useState(false);
   const [game, setGame] = useState<string>(GAMES[0]);
   const [modpackId, setModpackId] = useState('');
-  const [modType, setModType] = useState<ModType>('');
   const [markComplete, setMarkComplete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -109,7 +99,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         teamName: teamName ?? undefined,
         game,
         status: markComplete ? 'released' : 'planned',
-        modType,
+        modType: '',
         modpackId: modpackId || null,
         repoId: null,
         private: false,
@@ -118,7 +108,6 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       });
       setTeam('');
       setTeamName(null);
-      setModType('');
       setMarkComplete(false);
       onAdded?.(id);
     } catch (err) {
@@ -139,6 +128,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       <div className="form-field-group">
         <input
           className="team-input"
+          aria-label="Team number"
           placeholder="Team # (e.g. 9496 or 9496b)"
           value={team}
           onChange={(e) => { setTeam(e.target.value); setTeamName(null); }}
@@ -175,8 +165,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
         </button>
       </div>
 
-      {/* Mod type + completed toggle */}
-      <Select value={modType} options={MODTYPE_OPTIONS} onChange={(v) => setModType(v as ModType)} />
+      {/* Completed toggle */}
       <button
         type="button"
         className={`toggle-btn ${markComplete ? 'on' : ''}`}
@@ -190,6 +179,7 @@ export function RobotForm({ onAdded }: { onAdded?: (id: string) => void }) {
       {showNewModpack && (
         <div className="inline-modpack-form">
           <input
+            aria-label="New modpack name"
             placeholder="Pack name"
             value={newPackName}
             onChange={(e) => setNewPackName(e.target.value)}

@@ -291,18 +291,23 @@ a {
 }
 
 h1 {
-  font-size: 22px;
+  font-size: 28px;
+  font-weight: 700;
   margin: 0;
   letter-spacing: -0.02em;
 }
 
 h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px;
   letter-spacing: -0.015em;
 }
 
 h3 {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 650;
   letter-spacing: -0.01em;
 }
 
@@ -413,15 +418,15 @@ h3 {
 }
 
 .banner.info {
-  background: #58a6ff14;
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
   color: var(--blue);
-  border-color: #58a6ff2b;
+  border-color: color-mix(in srgb, var(--blue) 17%, transparent);
 }
 
 .banner.error {
-  background: #f8514914;
+  background: color-mix(in srgb, var(--red) 8%, transparent);
   color: var(--red);
-  border-color: #f851492b;
+  border-color: color-mix(in srgb, var(--red) 17%, transparent);
 }
 
 .banner.rounded {
@@ -923,9 +928,9 @@ h3 {
 }
 
 .check.checked {
-  background: #238636;
-  border-color: #2ea043;
-  color: #fff;
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 74%, var(--accent-contrast));
+  color: var(--accent-contrast);
 }
 
 .check.half {
@@ -1459,7 +1464,7 @@ h3 {
 
 .titlebar-btn.danger:hover {
   background: var(--red);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .titlebar-btn.active {
@@ -2571,7 +2576,7 @@ h3 {
 
 .win-btn.close:hover {
   background: var(--red);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 /* Transparent undecorated window: the shell paints its own rounded chrome. */

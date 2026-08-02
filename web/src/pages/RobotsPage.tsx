@@ -169,7 +169,16 @@ function RobotRow({ robot }: { robot: Robot }) {
   const { year, title } = gameParts(robot.game);
 
   return (
-    <tr className="robot-row" onClick={() => navigate(`/robot/${robot.id}`)}>
+    <tr
+      className="robot-row"
+      tabIndex={0}
+      role="link"
+      aria-label={`View ${robot.teamName ?? robot.name}`}
+      onClick={() => navigate(`/robot/${robot.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') navigate(`/robot/${robot.id}`);
+      }}
+    >
       <td className="col-team">{robot.team}</td>
       <td className="col-name">
         {robot.teamName ?? robot.name}

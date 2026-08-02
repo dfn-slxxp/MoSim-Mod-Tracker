@@ -117,10 +117,24 @@ export function Splits({
         const note = robot.progress[step.id]?.note ?? '';
         return (
           <div key={step.id} className={`split ${sp.complete ? 'done' : sp.done > 0 ? 'partial' : ''}`}>
-            <div className="split-head" onClick={() => setExpanded((e) => ({ ...e, [step.id]: !open }))}>
+            <div
+              className="split-head"
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
+              onClick={() => setExpanded((e) => ({ ...e, [step.id]: !open }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setExpanded((ex) => ({ ...ex, [step.id]: !open }));
+                }
+              }}
+            >
               <button
                 className={`check ${sp.complete ? 'checked' : sp.done > 0 ? 'half' : ''}`}
                 title={sp.complete ? 'Uncheck all sub-steps' : 'Check all sub-steps'}
+                aria-checked={sp.complete ? 'true' : sp.done > 0 ? 'mixed' : 'false'}
+                role="checkbox"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleStep(step);
@@ -188,7 +202,7 @@ export function WhatsLeft({ robot }: { robot: Robot }) {
   }
   return (
     <div className="whats-left">
-      <h3>Left to do</h3>
+      <h2>Left to do</h2>
       <ul>
         {remaining.map(({ step, sp }) => (
           <li key={step.id}>

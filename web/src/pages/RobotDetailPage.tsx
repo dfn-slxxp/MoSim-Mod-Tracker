@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Robot detail — the LiveSplit-style splits view plus all robot settings
-// (status, mod type, modpack, repo, privacy) and the AI script generator.
+// (status, modpack, repo, privacy) and the AI script generator.
 //
 // Editing pattern used here: text inputs are "uncontrolled" (defaultValue) and
 // save on blur (when you click away), so we don't hammer the store on every
@@ -16,7 +16,7 @@ import { Splits, WhatsLeft } from '../components/Splits';
 import { getRepoPath } from '../lib/repoPaths';
 import { STEPS, robotProgress } from '../steps';
 import { useStore } from '../store/StoreContext';
-import { GAMES, MODTYPE_META, ModType, RobotStatus, STATUS_META, StepProgress } from '../types';
+import { GAMES, RobotStatus, STATUS_META, StepProgress } from '../types';
 
 const STATUS_ORDER: RobotStatus[] = ['planned', 'in-unity', 'semi-functional', 'released'];
 
@@ -24,11 +24,6 @@ const STATUS_OPTIONS = (Object.keys(STATUS_META) as RobotStatus[]).map((s) => ({
   value: s,
   label: STATUS_META[s].label,
   className: STATUS_META[s].className
-}));
-const MODTYPE_OPTIONS = (Object.keys(MODTYPE_META) as Exclude<ModType, ''>[]).map((m) => ({
-  value: m,
-  label: MODTYPE_META[m].label,
-  className: MODTYPE_META[m].className
 }));
 
 export function RobotDetailPage() {
@@ -143,16 +138,6 @@ export function RobotDetailPage() {
           />
         </label>
         <label>
-          Mod type
-          <PillSelect
-            value={robot.modType}
-            options={MODTYPE_OPTIONS}
-            disabled={!canEdit}
-            allowEmpty="—"
-            onChange={(v) => api.updateRobot(robot.id, { modType: v as ModType })}
-          />
-        </label>
-        <label>
           Modpack
           <Select
             value={robot.modpackId ?? ''}
@@ -223,7 +208,7 @@ export function RobotDetailPage() {
         <div className="detail-side">
           <WhatsLeft robot={robot} />
           <div className="robot-notes">
-            <h3>Robot notes</h3>
+            <h2>Robot notes</h2>
             <textarea
               key={`n-${robot.id}`}
               defaultValue={robot.notes}

@@ -120,6 +120,7 @@ export function CompactPage() {
         <button
           className={`titlebar-btn ${runMode ? 'active' : ''}`}
           title={runMode ? 'Run mode: current step ±2 (click for full list)' : 'Switch to run mode (current step ±2)'}
+          aria-label={runMode ? 'Run mode: current step ±2 (click for full list)' : 'Switch to run mode (current step ±2)'}
           onClick={toggleRunMode}
         >
           🏁
@@ -129,6 +130,7 @@ export function CompactPage() {
             <button
               className={`titlebar-btn pin-btn ${pinned ? 'active' : ''}`}
               title={pinned ? 'Unpin (allow other windows on top)' : 'Pin on top'}
+              aria-label={pinned ? 'Unpin (allow other windows on top)' : 'Pin on top'}
               onClick={async () => setPinned((await window.desktop!.togglePin()) ?? !pinned)}
             >
               📌
@@ -136,6 +138,7 @@ export function CompactPage() {
             <button
               className="titlebar-btn"
               title="Expand to full view"
+              aria-label="Expand to full view"
               onClick={async () => {
                 await window.desktop!.setExpanded(true);
                 navigate('/robots');

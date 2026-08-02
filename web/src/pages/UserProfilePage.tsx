@@ -98,7 +98,7 @@ export function UserProfilePage() {
 
       <div className="profile-header">
         {user.photo ? (
-          <img className="profile-photo" src={user.photo} alt="" referrerPolicy="no-referrer" />
+          <img className="profile-photo" src={user.photo} alt={`${user.displayName}'s avatar`} referrerPolicy="no-referrer" />
         ) : (
           <div className="profile-photo placeholder">{user.displayName.charAt(0).toUpperCase()}</div>
         )}

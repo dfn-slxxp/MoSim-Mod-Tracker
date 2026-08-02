@@ -11,7 +11,7 @@ export function AuthButton() {
     return (
       <div className="auth">
         <Link className="auth-me" to="/account" title="Account settings">
-          {user.photo && <img className="avatar" src={user.photo} alt="" referrerPolicy="no-referrer" />}
+          {user.photo && <img className="avatar" src={user.photo} alt={`${user.name}'s avatar`} referrerPolicy="no-referrer" />}
           <span className="auth-name">{user.name}</span>
         </Link>
         <button className="btn subtle" onClick={() => api.signOut()}>Sign out</button>

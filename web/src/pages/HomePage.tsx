@@ -20,7 +20,7 @@ function CommunityCard({ u }: { u: CommunityUser }) {
     <Link className="community-card" to={`/u/${u.uid}`}>
       <div className="community-top">
         {u.photo ? (
-          <img className="community-photo" src={u.photo} alt="" referrerPolicy="no-referrer" />
+          <img className="community-photo" src={u.photo} alt={`${u.displayName}'s avatar`} referrerPolicy="no-referrer" />
         ) : (
           <div className="community-photo placeholder">{u.displayName.charAt(0).toUpperCase()}</div>
         )}

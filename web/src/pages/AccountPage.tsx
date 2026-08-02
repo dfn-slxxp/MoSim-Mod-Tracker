@@ -56,7 +56,7 @@ export function AccountPage() {
       </div>
 
       <div className="account-identity">
-        {user.photo && <img className="account-photo" src={user.photo} alt="" referrerPolicy="no-referrer" />}
+        {user.photo && <img className="account-photo" src={user.photo} alt={`${user.name}'s avatar`} referrerPolicy="no-referrer" />}
         <div>
           <div className="account-email">{user.primaryEmail ?? user.email ?? user.name}</div>
           <div className="muted small">

@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-02T00:00:00Z",
+  "title": "Design System: MoSim Mod Tracker",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Terminal Green",
+        "canonical": "#3fb950",
+        "tonalRamp": ["#0f3316", "#1b5c27", "#278238", "#2fa042", "#3fb950", "#66c977", "#9adcaa", "#d7f3dc"]
+      },
+      "blue": {
+        "role": "secondary",
+        "displayName": "Signal Blue",
+        "canonical": "#58a6ff",
+        "tonalRamp": ["#0c2340", "#163f6e", "#205a97", "#3b7ec2", "#58a6ff", "#82beff", "#b3d8ff", "#e3f0ff"]
+      },
+      "gold": {
+        "role": "tertiary",
+        "displayName": "Circuit Gold",
+        "canonical": "#d4a72c",
+        "tonalRamp": ["#3a2c08", "#654b0e", "#8f6a15", "#b3871e", "#d4a72c", "#e2bf5c", "#eed48c", "#f8ecc4"]
+      },
+      "red": {
+        "role": "tertiary",
+        "displayName": "Alert Red",
+        "canonical": "#f85149",
+        "tonalRamp": ["#430f0d", "#711b17", "#9e2721", "#cc352c", "#f85149", "#fa7d76", "#fcaba6", "#fed9d6"]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Void",
+        "canonical": "#0b0e14",
+        "tonalRamp": ["#05060a", "#0b0e14", "#171c26", "#262d3b", "#3a4354", "#616b7d", "#a3aabb", "#e6e9ef"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#141a24",
+        "tonalRamp": ["#05060a", "#0b0e14", "#141a24", "#1a2130", "#263042", "#4a5468", "#8b95a7", "#e6e9ef"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page titles (h1). 700 weight, 28px — Rising Weight Rule target realized." },
+      "section": { "displayName": "Section", "purpose": "Section headers (h2). 700 weight, 20px." },
+      "title": { "displayName": "Title", "purpose": "Card/subsection headers (h3). 650 weight, 15px." },
+      "body": { "displayName": "Body", "purpose": "Running text, form inputs, table cells." },
+      "label": { "displayName": "Label", "purpose": "Pill text, small buttons, muted captions." },
+      "mono": { "displayName": "Mono", "purpose": "Raw script/code snippet previews only." }
+    },
+    "shadows": [
+      { "name": "ambient-card", "value": "0 1px 3px rgba(0,0,0,0.45)", "purpose": "Soft ambient card/panel depth. Real per theme/mode (default dark/light, cloud light); intentionally 'none' in cloud dark, which relies on its own gradient surfaces for separation instead." },
+      { "name": "focus-ring", "value": "0 0 0 3px var(--accent-dim)", "purpose": "Input/select focus glow, paired with a 2px keyboard-only outline on buttons and pressables." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Strong ease-out for UI entrances (dropdowns, modals)." },
+      { "name": "ease-in-out", "value": "cubic-bezier(0.77, 0, 0.175, 1)", "purpose": "On-screen movement and morphs." },
+      { "name": "dur-press", "value": "160ms", "purpose": "Button/pressable press-feedback scale (0.97)." },
+      { "name": "dur-fast", "value": "130ms", "purpose": "Hover and color transitions." },
+      { "name": "dur-menu", "value": "160ms", "purpose": "Dropdown/popover entrance." },
+      { "name": "dur-modal", "value": "220ms", "purpose": "Dialog/overlay entrance." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single affirmative-action button style (Add robot, Save, Create).",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Add robot</button>",
+      "css": ".ds-btn { border: 1px solid var(--border-solid, #263042); border-radius: 9px; padding: 7px 14px; font: 600 13px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -0.003em; cursor: pointer; transition: transform 160ms cubic-bezier(0.23,1,0.32,1), background 130ms ease, border-color 130ms ease; } .ds-btn:active { transform: scale(0.97); } .ds-btn-primary { background: #3fb950; border-color: color-mix(in srgb, #3fb950 74%, #ffffff); color: #ffffff; } .ds-btn-primary:hover { background: color-mix(in srgb, #3fb950 84%, #58a6ff); border-color: color-mix(in srgb, #3fb950 65%, #58a6ff); } .ds-btn-primary:focus-visible { outline: 2px solid #3fb950; outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Pill (Semi-functional)",
+      "kind": "chip",
+      "refersTo": "pill-status",
+      "description": "Full-radius status indicator; hue is fixed per status in the Status-Light Rule.",
+      "html": "<button class=\"ds-pill ds-pill-semi\">Semi-functional <span class=\"ds-pill-chev\">▾</span></button>",
+      "css": ".ds-pill { border: none; border-radius: 999px; padding: 4px 22px 4px 12px; position: relative; font: 600 12.5px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; } .ds-pill-chev { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; opacity: .8; } .ds-pill-semi { background: #3fb95026; color: #56d364; } .ds-pill-semi:focus-visible { outline: 2px solid #3fb950; outline-offset: 2px; }"
+    },
+    {
+      "name": "Split Card (signature)",
+      "kind": "card",
+      "refersTo": "card-panel",
+      "description": "The LiveSplit-style accordion step card with a three-state check control (unchecked / half / checked).",
+      "html": "<div class=\"ds-split\"><div class=\"ds-split-head\"><button class=\"ds-check ds-check-checked\">✓</button><span>Colliders</span></div></div>",
+      "css": ".ds-split { background: #141a24; border: 1px solid color-mix(in srgb, #3fb950 40%, #263042); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.45); } .ds-split-head { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #3fb95026; cursor: pointer; font: 400 14px 'IBM Plex Sans', system-ui, sans-serif; color: #e6e9ef; } .ds-check { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 9px; border: 1px solid #263042; background: #1a2130; color: #3fb950; font-weight: 700; display: grid; place-items: center; padding: 0; cursor: pointer; } .ds-check-checked { background: #238636; border-color: #2ea043; color: #fff; }"
+    },
+    {
+      "name": "Dropdown Trigger",
+      "kind": "input",
+      "refersTo": "select",
+      "description": "The custom portal-rendered Select trigger that replaces every native <select> in the app.",
+      "html": "<button class=\"ds-dd-trigger\">2025: Reefscape <span class=\"ds-dd-chev\">▾</span></button>",
+      "css": ".ds-dd-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: color-mix(in srgb, #3fb950 5%, #1a2130); border: 1px solid #263042; border-radius: 9px; padding: 6px 30px 6px 13px; font: 400 14px 'IBM Plex Sans', system-ui, sans-serif; color: #e6e9ef; cursor: pointer; transition: border-color 130ms ease; } .ds-dd-trigger:hover { border-color: #8b95a7; } .ds-dd-trigger:focus-visible { outline: 2px solid #3fb950; outline-offset: 2px; } .ds-dd-chev { font-size: 10px; color: #8b95a7; transition: transform 160ms cubic-bezier(0.23,1,0.32,1); }"
+    },
+    {
+      "name": "Progress Bar",
+      "kind": "custom",
+      "refersTo": "progress",
+      "description": "The gold-to-green gradient fill bar used for per-robot and per-step completion.",
+      "html": "<div class=\"ds-progress\"><div class=\"ds-progress-fill\" style=\"transform: scaleX(0.62)\"></div></div>",
+      "css": ".ds-progress { height: 8px; background: #1a2130; border-radius: 999px; overflow: hidden; border: 1px solid #263042; } .ds-progress-fill { height: 100%; width: 100%; transform-origin: left center; background: linear-gradient(90deg, #d4a72c, #3fb950); transition: transform 280ms cubic-bezier(0.23,1,0.32,1); }"
+    },
+    {
+      "name": "Nav Link",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Topbar navigation item with a distinct active state (not just a repeated hover).",
+      "html": "<a class=\"ds-nav-link ds-nav-link-active\" href=\"#\">Robots</a>",
+      "css": ".ds-nav-link { display: inline-block; padding: 6px 12px; border-radius: 9px; font: 400 14px 'IBM Plex Sans', system-ui, sans-serif; color: #8b95a7; text-decoration: none; transition: color 130ms ease, background 130ms ease, box-shadow 130ms ease; } .ds-nav-link:hover { color: #e6e9ef; background: #1a2130; } .ds-nav-link-active { color: #e6e9ef; background: #3fb95026; box-shadow: inset 0 0 0 1px color-mix(in srgb, #3fb950 32%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Shared Pit Board",
+    "overview": "MoSim Mod Tracker is a speedrun-style timer bolted onto a shared roster board: one person's private LiveSplit for stepping through a FRC robot mod, and everyone's public window into who's building what, so effort never collides. The interface reads like terminal telemetry — dense, dark, monospaced-adjacent, numbers that don't jitter — because the person using it daily is a builder tracking real progress, not a visitor being sold something. But the public-facing surfaces (the community directory, a shared robot card, a /u/:uid profile) are held to the same bar a stranger would judge on first click: no rough edges just because \"it's just for me.\"\n\nDensity comes first. Tables are tight, pills are compact, panels sit flush against thin borders instead of floating on shadow. Color is functional before it is decorative: the accent green marks primary action and \"in progress,\" pill hues are a status-light vocabulary (purple/orange/gold/green/blue) borrowed from pit-crew indicator lights, not a mood board. Nothing here chases warmth or playfulness; the personality is precision.\n\nThe system is mid-transition on two fronts, called out explicitly in their sections below: elevation is moving from flat-and-bordered toward a soft-depth model, and the heading scale is moving from body-matched to a more assertive size/weight jump. Treat both as the target, not yet the fully-realized state.",
+    "keyCharacteristics": [
+      "Terminal-precision palette: dark slate base, one green accent, status communicated through hue not decoration",
+      "Pill-shaped status/type indicators everywhere progress or category needs to be scanned at a glance",
+      "Flat, border-defined surfaces today; soft ambient depth is the near-term target",
+      "Every custom form control (Select, PillSelect, Dialog) replaces its native equivalent — no raw <select>, no native confirm()/alert()",
+      "Public and private surfaces share one visual language; there is no \"internal tool\" downgrade"
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Terminal Green is the only color used for affirmative action (primary buttons, checked state, active nav). It never doubles as a decorative highlight — if a green element appears, it means \"the primary action\" or \"confirmed progress,\" full stop.", "section": "colors" },
+      { "name": "The Status-Light Rule", "body": "Purple (planned) → orange (claimed) → gold (in-unity) → green (semi-functional/done) → blue (released) is a fixed, memorized hue sequence for status pills. A new status category must pick an unused hue from this family rather than reusing one.", "section": "colors" },
+      { "name": "The Rising Weight Rule", "body": "Headings carry a genuinely heavier, larger step than body text (h1 700/28px, h2 700/20px, h3 650/15px) so the hierarchy reads at a glance instead of by letter-spacing alone. Realized as of the last polish/enhance pass.", "section": "typography" },
+      { "name": "The Tabular Numbers Rule", "body": "Any number that updates in place (team #, %, step counts) gets font-variant-numeric: tabular-nums. No exceptions — jitter reads as a bug in a timer-style UI.", "section": "typography" },
+      { "name": "The Depth-On-Purpose Rule", "body": "Once soft depth is applied, it should mark real surface separation (a card floating over the page background), never a hover-only flourish. Borders remain the primary structural signal; shadow adds weight, it doesn't replace the border.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use font-variant-numeric: tabular-nums on every numeric readout that updates in place (team #, progress %, step counts).",
+      "Do route every confirm/alert through the Dialog component (confirmDialog/alertDialog) — never a native confirm()/alert().",
+      "Do respect prefers-reduced-motion by killing transform-based entrance/press animation while keeping color/opacity feedback.",
+      "Do hold public-facing surfaces (community directory, /u/:uid, /robot/:id embeds) to the same visual bar as the private app — there is no \"internal tool\" exemption."
+    ],
+    "donts": [
+      "Don't add a raw native <select> anywhere — always the portal-rendered Select/PillSelect component.",
+      "Don't introduce a new accent color for \"primary action\" — Terminal Green is the only affirmative-action color in the system.",
+      "Don't invent a new status hue outside the fixed purple → orange → gold → green → blue sequence without updating the Status-Light Rule deliberately."
+    ]
+  }
+}
