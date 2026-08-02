@@ -340,7 +340,7 @@ Add new seasons here (types.ts). Year extracted as `game.split(':')[0].trim()`.
 
 Triggered by `v*.*.*` tag push. Creates TWO releases per version:
 
-Latest workflow tag requested: `v1.5.3` (2026-07-20).
+Latest workflow tag requested: `v1.7.3` (2026-08-02).
 
 **`v1.0.0-bin` (prerelease, "internal")** — created by Job 1 (publish-tauri via
 tauri-action). Contains the raw app binaries (NSIS exe, DMGs, AppImage). Marked
