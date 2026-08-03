@@ -1577,6 +1577,22 @@ h3 {
   margin: 0;
 }
 
+.pack-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.pack-team-pill {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-solid);
+  color: var(--text);
+}
+
 .pack-carousel {
   display: flex;
   flex-direction: column;

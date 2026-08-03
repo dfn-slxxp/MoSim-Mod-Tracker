@@ -641,3 +641,83 @@ published (non-private) pack is listed at `/packs`, with a link out to MoSim's o
 modpack listing at the bottom. Owners can also credit co-authors by email — they're
 shown alongside the owner on both the listing cards and the individual pack page, and
 can be added or removed at any time from the modpack's management panel.
+
+## 2026-08-03 — External (untracked) robots + TBA team pills on modpack pages
+
+**User message (verbatim):** "a modpack should have the option for me to add robots
+made by other people that arent being tracked by the site. these robots should NOT be
+tracked by the site, only on the modpack page
+
+in addition, a section of the modpack page should have pills with info from each team
+included (teams with a/b/c/etc multiple robots should only have one pill) pulled from
+tba api"
+
+**Visible work performed:**
+
+1. `web/src/types.ts`: added `ExternalRobot {id, team, name?}` and
+   `Modpack.externalRobots?: ExternalRobot[]`; added `PublicPack.teams: {number,
+   name: string | null}[]`.
+2. `server/api.js`:
+   - Added owner-only `POST /modpacks/:id/external-robots` (team number regex-validated
+     `^\d+[a-z]?$`, optional name) and `DELETE /modpacks/:id/external-robots/:erId`,
+     mirroring the existing co-author route pair.
+   - Refactored the existing authed TBA proxy's inline caching logic into a shared
+     `async tbaLookup(num)` function (same `tbaCache` Map, 24h TTL) so it can be reused
+     from a public route without duplicating the cache.
+   - Added `baseTeamNum(team)` — a server-side port of the client's
+     `lib/tba.ts` `baseTeamNumber()` (strips a trailing rebuild-suffix letter, e.g.
+     "694a" -> "694").
+   - Rewrote `toPublicPack()` as `async`: it now collects every team on the pack
+     (tracked `Robot`s whose `modpackId` matches, plus `externalRobots`), dedupes by
+     base team number, and resolves each via `tbaLookup()` in parallel
+     (`Promise.all`), returning `{number, name}` (name null when TBA has no record or
+     `TBA_AUTH_KEY` isn't configured). `/packs` and `/packs/:slug` handlers became
+     `async` to await it.
+3. `web/src/store/backend.ts` / `http.ts`: added `addExternalRobot(id, team, name?)`
+   and `removeExternalRobot(id, externalId)` to the `Backend` interface and
+   `HTTPBackend`, following the existing `add/removeModpackAuthor` pattern (POST/DELETE
+   + `_refetch()`).
+4. `web/src/pages/ModpacksPage.tsx`: added a second credit-management block inside the
+   existing "🖼️ Add page" panel (next to co-authors) — chip list of credited external
+   robots (team + optional name, remove button) and a team-number + optional-name add
+   form, with its own saving/error state, reset alongside the co-author fields when the
+   panel opens.
+5. `web/src/pages/PackPage.tsx`: added a "Teams" pills section (`pack.teams`, one
+   `.pack-team-pill` per entry showing `number` and, if resolved, `— nickname`)
+   rendered between the page head and the media carousel.
+6. `web/src/styles.css`: added `.pack-teams` (flex-wrap row) and `.pack-team-pill`
+   (12px pill, same visual family as the existing `.pack-chip`/`.game-chip`).
+
+**Decisions:** External robots are stored as plain data on the `Modpack` record, never
+as `Robot` rows — satisfies "should NOT be tracked by the site." The external robot's
+optional `name` is owner-facing only (shown in the management panel, not on the public
+page) — the public page credits purely through team pills, a deliberate scope-narrowing
+choice matching exactly the two things asked for. TBA resolution for the public pills
+had to bypass `requireAuth` (the pack routes are public/no-auth) — done via a shared,
+cached `tbaLookup()` rather than a second unauthenticated proxy endpoint, so there's no
+new open-relay surface; it's bounded to the pack's own already-known team numbers, not
+attacker-supplied ones from an arbitrary route.
+
+**Verification:** `tsc --noEmit` and `npm run build` (tsc+vite) both passed clean in
+`web/`. `node --check server/api.js` passed. The design-quality hook flagged 54
+pre-existing findings in `styles.css` on this edit (gradient-text on the Instagram
+label, several ad hoc component font-sizes) — all were already-reviewed carryover from
+earlier sessions, not introduced by this change; the new `.pack-team-pill` 12px size
+follows the same established ad hoc sizing convention as `.pack-chip`/`.game-chip` in
+this file, so it was left as-is rather than forced onto a formal type ramp. Live
+verification wasn't possible: the owner's add/remove-robot flow is behind real Google
+OAuth, and no pack with credited external robots + resolvable TBA teams existed to
+browse in this sandbox — verified via code review and type-check only, consistent with
+this repo's established pattern for auth-gated flows here.
+
+**Files changed:** `web/src/types.ts`, `server/api.js`, `web/src/store/backend.ts`,
+`web/src/store/http.ts`, `web/src/pages/ModpacksPage.tsx`, `web/src/pages/PackPage.tsx`,
+`web/src/styles.css`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** On each modpack's "🖼️ Add page" management panel, owners can
+now credit robots made by other people (team number + optional name) without those
+robots ever becoming tracked entries in the site. The modpack's public page
+(`/packs/:slug`) shows a row of team pills — one per unique team across both the
+owner's tracked robots and these credited robots, with rebuild-suffix duplicates
+("694a"/"694b") collapsed into a single pill — each labeled with the team's real name
+pulled live from The Blue Alliance.

@@ -134,6 +134,18 @@ export interface ModpackAuthor {
   email: string;
 }
 
+/**
+ * A robot credited on a modpack's showcase page that the site does NOT track
+ * (no status/progress/steps) — e.g. someone else's mod bundled into the pack.
+ * Exists only as data on the modpack; never appears as a Robot record.
+ */
+export interface ExternalRobot {
+  id: string;
+  team: string;
+  /** Optional freeform note (robot name, what it does) shown in the owner's management panel. */
+  name?: string;
+}
+
 export interface Modpack {
   id: string;
   name: string;
@@ -151,6 +163,8 @@ export interface Modpack {
   media?: ModpackMedia[];
   /** Other credited authors, added by the owner. The owner is always an author and isn't listed here. */
   coAuthors?: ModpackAuthor[];
+  /** Untracked robots credited on the showcase page — see ExternalRobot. */
+  externalRobots?: ExternalRobot[];
 }
 
 /** Editable public profile shown in the community directory. */
@@ -243,6 +257,13 @@ export interface PublicPack {
   media: ModpackMedia[];
   /** Owner first, then co-authors. */
   authors: { uid: string; displayName: string }[];
+  /**
+   * One pill per unique base team number across every robot in the pack
+   * (tracked + external, rebuild suffixes like "694a"/"694b" collapsed to
+   * "694"), with the nickname resolved server-side via TBA. name is null
+   * when TBA has no record or the lookup isn't configured.
+   */
+  teams: { number: string; name: string | null }[];
 }
 
 /** Admin view of a user (GET /api/admin/users) — includes hidden flag. */

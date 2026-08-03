@@ -339,7 +339,11 @@ interface PublicPack {
   id: string; slug: string; name: string; game: string; description: string;
   media: ModpackMedia[];
   authors: { uid: string; displayName: string }[]; // owner first, then coAuthors
+  teams: { number: string; name: string | null }[]; // one per unique base team #, TBA-resolved
 }
+
+/** A robot credited on a modpack's page that the site does NOT track (no status/progress/steps). */
+interface ExternalRobot { id: string; team: string; name?: string; }
 
 interface CustomTheme {
   id: string;      // 'custom-*' prefix enforced on save
@@ -718,6 +722,24 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
 - Social embed: `GET /pack/:slug` (real path, mirrors `/robot/:id`/`/u/:uid`) renders
   a per-pack Open Graph card for public packs only, redirects humans to
   `/#/packs/:slug`.
+- **External (untracked) robots:** the owner can credit a robot made by someone else
+  that is NOT a `Robot` record in the site — no status/progress/steps, exists only as
+  data on the modpack. `POST/DELETE /modpacks/:id/external-robots` (owner-only, mirrors
+  the co-author routes), stored as `Modpack.externalRobots: {id, team, name?}[]`
+  (`server/api.js`). Managed from the same "🖼️ Add page" panel on `ModpacksPage.tsx`
+  (team number + optional freeform name; the name is owner-facing only, not shown
+  publicly).
+- **Team pills:** `PackPage.tsx` renders one pill per unique team credited on the pack
+  — combining tracked robots (`Robot.modpackId === this pack`) and `externalRobots` —
+  deduped by BASE team number so rebuild suffixes ("694a"/"694b"/"694c") collapse to
+  one "694" pill. `server/api.js` `baseTeamNum()` mirrors the client's
+  `lib/tba.ts` `baseTeamNumber()`. Each pill's nickname comes from a new shared
+  `tbaLookup(num)` helper (extracted from the existing authed `/tba/team/:number`
+  proxy so both share the same 24h in-memory cache); `toPublicPack()` is now `async`
+  and resolves every team in parallel via `Promise.all`. Pills show `null` name
+  (number only) when TBA has no record or `TBA_AUTH_KEY` isn't configured. This is
+  the only public route that calls TBA without `requireAuth` — safe because it's
+  read-only, cached, and bounded to the pack's own team list (not a general proxy).
 
 ## Pending / Known Issues
 
@@ -1056,6 +1078,33 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   **Files changed:** `web/src/lib/image.ts` (new), `web/src/components/ProfileForm.tsx`,
   `web/src/store/backend.ts`, `web/src/store/http.ts`, `web/src/pages/AccountPage.tsx`,
   `web/src/styles.css`, `server/api.js`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-03: Two more additions to modpack showcase pages, per explicit user
+  request: (1) crediting robots made by other people that the site does NOT track
+  (no status/progress/steps) — new `Modpack.externalRobots: {id, team, name?}[]`,
+  owner-only `POST/DELETE /modpacks/:id/external-robots` routes mirroring the
+  co-author pattern, and a management block in `ModpacksPage.tsx`'s "🖼️ Add page"
+  panel (team # + optional name, name shown only to the owner). (2) A "Teams" pills
+  section on the public `PackPage.tsx`, one pill per unique BASE team number across
+  both tracked and external robots (rebuild suffixes like "694a"/"694b" collapse to
+  one "694" pill via a new server-side `baseTeamNum()` mirroring the client's
+  `baseTeamNumber()`), each resolved via a new shared `tbaLookup()` helper extracted
+  from the existing authed TBA proxy (same 24h cache, now also called unauthenticated
+  from the public pack routes — safe since it's read-only/cached/bounded to the
+  pack's own teams). `toPublicPack()` and the `/packs`/`/packs/:slug` handlers became
+  `async` to await the `Promise.all` team resolution. New `.pack-teams`/
+  `.pack-team-pill` CSS (12px pill, matches the existing ad hoc `.pack-chip`/
+  `.game-chip` sizing convention — not on a documented type ramp, consistent with
+  established handling of this file's recurring design-hook font-size findings).
+  **Verified:** `tsc --noEmit` and `npm run build` (tsc+vite) both passed clean in
+  `web/`; `node --check server/api.js` passed. The owner-facing add/remove-robot flow
+  and the public pills rendering were not exercised live (owner flow is behind real
+  Google OAuth; no published pack with credited robots existed in this sandbox to
+  browse) — verified via code review and type-check only, consistent with this
+  repo's established pattern for auth-gated flows in this environment.
+  **Files changed:** `web/src/types.ts`, `server/api.js`, `web/src/store/backend.ts`,
+  `web/src/store/http.ts`, `web/src/pages/ModpacksPage.tsx`,
+  `web/src/pages/PackPage.tsx`, `web/src/styles.css`, `CLAUDE.md`,
+  `AI_ACTIVITY_LOG.md`.
 - 2026-08-03: Public modpack showcase pages, per user request (used `impeccable` for
   design as instructed). Private modpack management stays at `/modpacks`; new public
   pages: `/packs` (grid of every modpack with `hasPage && !private`, across all users)

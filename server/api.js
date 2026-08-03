@@ -723,32 +723,42 @@ const TBA_AUTH_KEY = process.env.TBA_AUTH_KEY;
 const tbaCache = new Map(); // team number -> { at, status, body }
 const TBA_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-router.get('/tba/team/:number', requireAuth, async (req, res) => {
-  if (!TBA_AUTH_KEY) return res.status(404).json({ error: 'TBA lookup not configured' });
-  const num = /^\d+$/.test(req.params.number) ? req.params.number : null;
-  if (!num) return res.status(400).json({ error: 'Invalid team number' });
-
+// Shared TBA lookup (cache + fetch), reused by the authed proxy route below
+// and by the public pack team-pills resolution.
+async function tbaLookup(num) {
+  if (!TBA_AUTH_KEY) return { status: 404, body: { error: 'TBA lookup not configured' } };
   const hit = tbaCache.get(num);
-  if (hit && Date.now() - hit.at < TBA_CACHE_TTL) {
-    return res.status(hit.status).json(hit.body);
-  }
+  if (hit && Date.now() - hit.at < TBA_CACHE_TTL) return hit;
   try {
     const r = await fetch(`https://www.thebluealliance.com/api/v3/team/frc${num}`, {
       headers: { 'X-TBA-Auth-Key': TBA_AUTH_KEY },
     });
     if (!r.ok) {
-      const body = { error: 'Team not found' };
-      tbaCache.set(num, { at: Date.now(), status: 404, body });
-      return res.status(404).json(body);
+      const result = { status: 404, body: { error: 'Team not found' } };
+      tbaCache.set(num, { at: Date.now(), ...result });
+      return result;
     }
     const t = await r.json();
-    const body = { nickname: t.nickname ?? null, name: t.name ?? null };
-    tbaCache.set(num, { at: Date.now(), status: 200, body });
-    res.json(body);
+    const result = { status: 200, body: { nickname: t.nickname ?? null, name: t.name ?? null } };
+    tbaCache.set(num, { at: Date.now(), ...result });
+    return result;
   } catch (e) {
-    res.status(502).json({ error: 'TBA request failed: ' + e.message });
+    return { status: 502, body: { error: 'TBA request failed: ' + e.message } };
   }
+}
+
+router.get('/tba/team/:number', requireAuth, async (req, res) => {
+  const num = /^\d+$/.test(req.params.number) ? req.params.number : null;
+  if (!num) return res.status(400).json({ error: 'Invalid team number' });
+  const { status, body } = await tbaLookup(num);
+  res.status(status).json(body);
 });
+
+// Base team number (strips a trailing rebuild-suffix letter, e.g. "694a" -> "694"),
+// matching the client's lib/tba.ts baseTeamNumber().
+function baseTeamNum(team) {
+  return (String(team ?? '').match(/^\d+/) ?? [null])[0];
+}
 
 // ── Bulk data (one request to initialise the whole app) ───────────────────────
 
@@ -913,16 +923,58 @@ router.delete('/modpacks/:id/authors/:uid', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Credit an untracked robot (made by someone else) on the modpack's public
+// page — team number only, never becomes a Robot record (owner only).
+router.post('/modpacks/:id/external-robots', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+
+  const team = String(req.body?.team ?? '').trim();
+  if (!/^\d+[a-z]?$/i.test(team)) return res.status(400).json({ error: 'Team number looks invalid' });
+  const name = String(req.body?.name ?? '').trim().slice(0, 60);
+
+  const modpack = JSON.parse(row.data);
+  const entry = { id: crypto.randomUUID(), team, ...(name ? { name } : {}) };
+  const externalRobots = [...(modpack.externalRobots ?? []), entry];
+  update('modpacks', uid, req.params.id, { externalRobots });
+  res.status(201).json(entry);
+});
+
+// Remove a credited untracked robot (owner only).
+router.delete('/modpacks/:id/external-robots/:erId', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const modpack = JSON.parse(row.data);
+  const externalRobots = (modpack.externalRobots ?? []).filter((e) => e.id !== req.params.erId);
+  update('modpacks', uid, req.params.id, { externalRobots });
+  res.json({ ok: true });
+});
+
 // ── Public modpack showcase (/packs) ──────────────────────────────────────────
 // Only modpacks the owner marked hasPage AND that aren't private. Public — no
 // auth required, mirrors the /community pattern.
 
-function toPublicPack(m, profilesByUid) {
+async function toPublicPack(m, profilesByUid) {
   const owner = {
     uid: m.uid,
     displayName: profilesByUid.get(m.uid)?.displayName ?? 'Modder',
   };
   const authors = [owner, ...(m.coAuthors ?? []).map((a) => ({ uid: a.uid, displayName: a.displayName }))];
+
+  const trackedTeams = allRobots()
+    .filter((r) => r.uid === m.uid && r.modpackId === m.id)
+    .map((r) => r.team);
+  const externalTeams = (m.externalRobots ?? []).map((e) => e.team);
+  const baseNums = [...new Set([...trackedTeams, ...externalTeams].map(baseTeamNum).filter(Boolean))];
+  const teams = await Promise.all(
+    baseNums.map(async (num) => {
+      const { status, body } = await tbaLookup(num);
+      return { number: num, name: status === 200 ? (body.nickname ?? body.name ?? null) : null };
+    })
+  );
+
   return {
     id: m.id,
     slug: m.slug,
@@ -931,23 +983,23 @@ function toPublicPack(m, profilesByUid) {
     description: m.description ?? '',
     media: m.media ?? [],
     authors,
+    teams,
   };
 }
 
-router.get('/packs', (_req, res) => {
+router.get('/packs', async (_req, res) => {
   const profilesByUid = new Map(allProfiles().map((p) => [p.uid, p]));
-  const packs = allModpacks()
-    .filter((m) => m.hasPage && !m.private && m.slug)
-    .map((m) => toPublicPack(m, profilesByUid))
+  const eligible = allModpacks().filter((m) => m.hasPage && !m.private && m.slug);
+  const packs = (await Promise.all(eligible.map((m) => toPublicPack(m, profilesByUid))))
     .sort((a, b) => a.name.localeCompare(b.name));
   res.json({ packs });
 });
 
-router.get('/packs/:slug', (req, res) => {
+router.get('/packs/:slug', async (req, res) => {
   const m = allModpacks().find((x) => x.hasPage && !x.private && x.slug === req.params.slug);
   if (!m) return res.status(404).json({ error: 'Not found' });
   const profilesByUid = new Map(allProfiles().map((p) => [p.uid, p]));
-  res.json(toPublicPack(m, profilesByUid));
+  res.json(await toPublicPack(m, profilesByUid));
 });
 
 // ── Repos ─────────────────────────────────────────────────────────────────────

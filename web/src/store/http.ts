@@ -9,6 +9,7 @@
 import type {
   AuthProvider,
   AuthProviderAvailability,
+  ExternalRobot,
   Modpack,
   ModpackAuthor,
   ModpackMedia,
@@ -229,6 +230,17 @@ export class HTTPBackend implements Backend {
 
   async removeModpackAuthor(id: string, uid: string): Promise<void> {
     await this._del(`/api/modpacks/${id}/authors/${encodeURIComponent(uid)}`);
+    await this._refetch();
+  }
+
+  async addExternalRobot(id: string, team: string, name?: string): Promise<ExternalRobot> {
+    const entry = await this._post(`/api/modpacks/${id}/external-robots`, { team, name }) as ExternalRobot;
+    await this._refetch();
+    return entry;
+  }
+
+  async removeExternalRobot(id: string, externalId: string): Promise<void> {
+    await this._del(`/api/modpacks/${id}/external-robots/${externalId}`);
     await this._refetch();
   }
 

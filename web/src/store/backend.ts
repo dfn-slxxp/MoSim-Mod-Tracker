@@ -7,6 +7,7 @@
 import type {
   AuthProvider,
   AuthProviderAvailability,
+  ExternalRobot,
   Modpack,
   ModpackAuthor,
   ModpackMedia,
@@ -63,6 +64,10 @@ export interface Backend {
   addModpackAuthor(id: string, email: string): Promise<ModpackAuthor>;
   /** Remove a credited co-author. */
   removeModpackAuthor(id: string, uid: string): Promise<void>;
+  /** Credit an untracked robot (made by someone else) on the modpack's public page — team number only, never becomes a Robot record. */
+  addExternalRobot(id: string, team: string, name?: string): Promise<ExternalRobot>;
+  /** Remove a credited untracked robot. */
+  removeExternalRobot(id: string, externalId: string): Promise<void>;
 
   addRepo(repo: NewRepo): Promise<string>;
   updateRepo(id: string, patch: Partial<Repo>): Promise<void>;

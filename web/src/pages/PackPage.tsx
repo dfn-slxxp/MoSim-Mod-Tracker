@@ -106,6 +106,17 @@ export function PackPage() {
         <span className="muted small">by {pack.authors.map((a) => a.displayName).join(', ')}</span>
       </div>
 
+      {pack.teams.length > 0 && (
+        <div className="pack-teams">
+          {pack.teams.map((t) => (
+            <span key={t.number} className="pack-team-pill">
+              {t.number}
+              {t.name ? ` — ${t.name}` : ''}
+            </span>
+          ))}
+        </div>
+      )}
+
       <Carousel media={pack.media} />
 
       {pack.description && (

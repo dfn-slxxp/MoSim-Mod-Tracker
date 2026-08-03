@@ -25,6 +25,10 @@ export function ModpacksPage() {
   const [authorEmail, setAuthorEmail] = useState('');
   const [authorError, setAuthorError] = useState<string | null>(null);
   const [savingAuthor, setSavingAuthor] = useState(false);
+  const [externalTeam, setExternalTeam] = useState('');
+  const [externalName, setExternalName] = useState('');
+  const [externalError, setExternalError] = useState<string | null>(null);
+  const [savingExternal, setSavingExternal] = useState(false);
 
   const togglePagePanel = (m: Modpack) => {
     if (pageOpenId === m.id) {
@@ -36,6 +40,9 @@ export function ModpacksPage() {
     setSlugError(null);
     setAuthorEmail('');
     setAuthorError(null);
+    setExternalTeam('');
+    setExternalName('');
+    setExternalError(null);
   };
 
   const publishPage = async (m: Modpack) => {
@@ -77,6 +84,29 @@ export function ModpacksPage() {
       await api.removeModpackAuthor(m.id, uid);
     } catch (err) {
       void alertDialog((err as Error).message, 'Could not remove author');
+    }
+  };
+
+  const addExternalRobot = async (m: Modpack) => {
+    if (!externalTeam.trim()) return;
+    setSavingExternal(true);
+    setExternalError(null);
+    try {
+      await api.addExternalRobot(m.id, externalTeam.trim(), externalName.trim() || undefined);
+      setExternalTeam('');
+      setExternalName('');
+    } catch (err) {
+      setExternalError((err as Error).message);
+    } finally {
+      setSavingExternal(false);
+    }
+  };
+
+  const removeExternalRobot = async (m: Modpack, erId: string) => {
+    try {
+      await api.removeExternalRobot(m.id, erId);
+    } catch (err) {
+      void alertDialog((err as Error).message, 'Could not remove robot');
     }
   };
 
@@ -375,6 +405,53 @@ export function ModpacksPage() {
                       </button>
                     </div>
                     {authorError && <p className="field-error">{authorError}</p>}
+                  </div>
+
+                  <div className="pack-authors">
+                    <span className="muted small">Other people's robots (not tracked by the site)</span>
+                    <div className="pack-authors-list">
+                      {(m.externalRobots ?? []).length === 0 && <span className="muted small">None yet</span>}
+                      {(m.externalRobots ?? []).map((e) => (
+                        <span key={e.id} className="pack-chip">
+                          {e.team}
+                          {e.name ? ` — ${e.name}` : ''}
+                          <button
+                            type="button"
+                            className="pack-author-remove"
+                            aria-label={`Remove team ${e.team}`}
+                            onClick={() => removeExternalRobot(m, e.id)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="pack-page-row">
+                      <input
+                        placeholder="Team #"
+                        value={externalTeam}
+                        onChange={(e) => {
+                          setExternalTeam(e.target.value);
+                          setExternalError(null);
+                        }}
+                        aria-label="Team number"
+                      />
+                      <input
+                        placeholder="Robot name (optional)"
+                        value={externalName}
+                        onChange={(e) => setExternalName(e.target.value)}
+                        aria-label="Robot name"
+                      />
+                      <button
+                        type="button"
+                        className="btn subtle"
+                        disabled={savingExternal || !externalTeam.trim()}
+                        onClick={() => addExternalRobot(m)}
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {externalError && <p className="field-error">{externalError}</p>}
                   </div>
                 </div>
               )}
