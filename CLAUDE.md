@@ -209,7 +209,20 @@ MoSim Mod Tracker/
 │       │   │                          → applySteps(). Users tab: UsersEditor
 │       │   │                          (GET /api/admin/users, visibility toggle).
 │       │   ├── PlannedPage.tsx   ← /planned (not in nav)
-│       │   ├── ModpacksPage.tsx  ← Game dropdown (GAMES), pill Private/Public toggle
+│       │   ├── ModpacksPage.tsx  ← Game dropdown (GAMES), pill Private/Public toggle,
+│       │   │                        editable in place. Per-row "🖼️ Add page"/"Page live"
+│       │   │                        panel: user-set slug (publish/update/unpublish),
+│       │   │                        media carousel upload/remove, co-author add
+│       │   │                        (by email)/remove — see "Modpack showcase pages"
+│       │   │                        below.
+│       │   ├── PacksPage.tsx     ← /packs (PUBLIC, no auth). Grid of every published
+│       │   │                        (hasPage + not private) modpack across all users,
+│       │   │                        via GET /api/packs. CTA at the bottom links to
+│       │   │                        https://mosimulator.com/modding.
+│       │   ├── PackPage.tsx      ← /packs/:slug (PUBLIC). Media carousel (image/video,
+│       │   │                        prev/next + dots) + description + "Download on
+│       │   │                        MoSim's website" button (same fixed URL), via
+│       │   │                        GET /api/packs/:slug.
 │       │   ├── ReposPage.tsx     ← Repo management + disk scan. Repo record has
 │       │   │                        NO local path (per-device, lib/repoPaths.ts,
 │       │   │                        localStorage). Scan autolinks detected folders
@@ -309,6 +322,24 @@ interface Robot {
 }
 
 interface UserInfo { uid; name; email; photo; admin?: boolean }
+
+interface Modpack {
+  id: string; name: string; game: string; description: string;
+  private: boolean; ownerUid: string | null; order: number; createdAt: number;
+  hasPage?: boolean;   // show a public showcase page at /packs/:slug
+  slug?: string;       // user-chosen URL segment, unique across all modpacks
+  media?: ModpackMedia[];    // carousel, in display order
+  coAuthors?: ModpackAuthor[]; // credited by the owner; owner is always an author, not listed here
+}
+interface ModpackMedia { id: string; type: 'image' | 'video'; url: string } // /uploads/modpacks/<id>/<uuid>.ext
+interface ModpackAuthor { uid: string; displayName: string; email: string } // snapshot at add-time
+
+/** GET /api/packs, /api/packs/:slug — public, only hasPage + non-private packs. */
+interface PublicPack {
+  id: string; slug: string; name: string; game: string; description: string;
+  media: ModpackMedia[];
+  authors: { uid: string; displayName: string }[]; // owner first, then coAuthors
+}
 
 interface CustomTheme {
   id: string;      // 'custom-*' prefix enforced on save
@@ -651,6 +682,43 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   matches. No server-side check was added (matches the existing pattern where e.g.
   team-number format also isn't server-validated; this is a single-owner-per-uid app).
 
+### Modpack showcase pages (/packs)
+- Public, no auth: `/packs` (grid of every modpack with `hasPage && !private`,
+  across all users) and `/packs/:slug` (individual page — media carousel, description,
+  fixed download CTA). Backed by `server/api.js` `GET /api/packs` / `GET
+  /api/packs/:slug` and `web/src/pages/PacksPage.tsx` / `PackPage.tsx`. Both the
+  page's download button and the `/packs` listing's "view modpacks by other people"
+  CTA link to one fixed URL: `https://mosimulator.com/modding` (not user-editable).
+- `slug` is USER-CHOSEN (not the internal uuid) — set from the "🖼️ Add page" panel on
+  each modpack row in `ModpacksPage.tsx`. Format-validated
+  (`/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/`) and checked for global uniqueness
+  server-side by `router.put('/modpacks/:id', requireAuth, validateModpackSlug)`,
+  registered BEFORE the generic `crud('modpacks')` mount so it can intercept and
+  `next()` through. Publishing sets `hasPage: true` + `slug`; unpublishing clears
+  `hasPage` (slug is kept so re-publishing pre-fills it).
+- Media is real file uploads (not pasted URLs): `multer` (`diskStorage`, uuid
+  filenames, image/video mimetype allowlist, 60MB limit — `server/api.js`
+  `mediaUpload`) to `UPLOADS_DIR` (env override; defaults to `server/uploads/`,
+  droplet path `/var/lib/mosim-tracker/uploads`), served statically at `/uploads/...`
+  (`server.js`). `POST /modpacks/:id/media` (owner-only) appends a `ModpackMedia`
+  entry; `DELETE /modpacks/:id/media/:mediaId` removes it and best-effort unlinks the
+  file. nginx `client_max_body_size 65m` (>= multer's 60MB cap) is written by
+  `server/manage.sh` `_write_nginx()`, which now also runs on every `cmd_deploy` (not
+  just `cmd_setup`) so existing droplets pick up nginx config changes on redeploy.
+- **Co-authors:** the owner can credit other signed-up users via email lookup
+  (`POST /modpacks/:id/authors {email}`, owner-only, resolves against `allProfiles()`,
+  rejects unknown emails/the owner's own email/already-added authors) and remove them
+  (`DELETE /modpacks/:id/authors/:uid`). Stored denormalized on the modpack as
+  `coAuthors: {uid,displayName,email}[]` (a snapshot taken at add-time — matches this
+  codebase's existing denormalization pattern, e.g. `Robot.modpackPrivate` — chosen so
+  the owner's own management UI doesn't need a new lookup endpoint; display names can
+  go stale if a co-author later renames). `toPublicPack()` (`server/api.js`) builds
+  `PublicPack.authors: {uid,displayName}[]` as `[owner, ...coAuthors]`; rendered as a
+  comma-joined byline on both `PacksPage.tsx` cards and `PackPage.tsx`.
+- Social embed: `GET /pack/:slug` (real path, mirrors `/robot/:id`/`/u/:uid`) renders
+  a per-pack Open Graph card for public packs only, redirects humans to
+  `/#/packs/:slug`.
+
 ## Pending / Known Issues
 
 - Server data migration note: none needed for settings table (CREATE IF NOT EXISTS).
@@ -988,3 +1056,37 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   **Files changed:** `web/src/lib/image.ts` (new), `web/src/components/ProfileForm.tsx`,
   `web/src/store/backend.ts`, `web/src/store/http.ts`, `web/src/pages/AccountPage.tsx`,
   `web/src/styles.css`, `server/api.js`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-03: Public modpack showcase pages, per user request (used `impeccable` for
+  design as instructed). Private modpack management stays at `/modpacks`; new public
+  pages: `/packs` (grid of every modpack with `hasPage && !private`, across all users)
+  and `/packs/:slug` (media carousel + description + fixed "Download on MoSim's
+  website" button). Both that button and the `/packs` listing's "view modpacks by
+  other people" CTA link to one fixed URL, `https://mosimulator.com/modding` (not
+  user-editable, per explicit instruction). `slug` is a USER-CHOSEN string (corrected
+  mid-session from an initial `/:id` design — "it shouldn't be /:id it should be a
+  string that i set"), format+uniqueness validated server-side, set from a "🖼️ Add
+  page" panel on each `ModpacksPage.tsx` row. Media is real file uploads via `multer`
+  (60MB cap) to a new `/uploads` mount — fixed a real deploy gap along the way: nginx's
+  default 1MB `client_max_body_size` would've silently rejected those uploads, so
+  `server/manage.sh` now writes `client_max_body_size 65m` and re-applies nginx config
+  on every `cmd_deploy` (previously write-once at `cmd_setup`), so the fix reaches the
+  already-live droplet. Mid-session addition: co-authors — the owner can credit other
+  signed-up users by email (`POST/DELETE /modpacks/:id/authors`), stored denormalized
+  as `Modpack.coAuthors`, surfaced via `PublicPack.authors` (replaced the earlier
+  single `ownerDisplayName` field) as a comma-joined byline on both public pages. Full
+  details in the new "Modpack showcase pages (/packs)" section above.
+  **Verified:** `npm run build` (tsc+vite) passed clean in `web/`; `node --check
+  server/api.js`/`db.js` passed. The design-hook's one finding (`gradient-text` on the
+  pre-existing Instagram brand label, line-shifted by the CSS insertion) was reviewed
+  and left unchanged as the same already-documented false positive from earlier
+  sessions. `/packs` and `/packs/:slug` are public and were not live-browser-tested
+  beyond a build check (no owner account with published packs in this sandbox); the
+  authoring flow (`/modpacks` panel: publish/unpublish, media upload, co-author
+  add/remove) is behind real Google OAuth and wasn't exercised live either — verified
+  via code review and type-check only, consistent with this repo's established
+  pattern for auth-gated flows.
+  **Files changed:** `web/src/types.ts`, `web/src/store/backend.ts`,
+  `web/src/store/http.ts`, `web/src/pages/ModpacksPage.tsx`,
+  `web/src/pages/PacksPage.tsx` (new), `web/src/pages/PackPage.tsx` (new),
+  `web/src/App.tsx`, `web/src/styles.css`, `server/api.js`, `server/manage.sh`,
+  `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.

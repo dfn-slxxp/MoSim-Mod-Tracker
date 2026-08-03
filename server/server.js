@@ -14,10 +14,14 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
-const { getProfile, allRobots, getSetting } = require('./db');
+const { getProfile, allRobots, allModpacks, getSetting } = require('./db');
 
 const PORT = process.env.PORT || 8787;
 const SITE = process.env.PUBLIC_ORIGIN || 'https://mods.sebastianw.tech';
+// Uploaded modpack showcase media (images/videos). Outside the repo tree in
+// production, same pattern as DB_PATH — see server/manage.sh.
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // ── Social embeds (Open Graph) ────────────────────────────────────────────────
 // Crawlers (Discordbot, etc.) don't run JS, so per-page previews must be in the
@@ -119,6 +123,10 @@ app.use(express.json({ limit: '600kb' }));
 // served as a file-not-found 404 fallback.
 app.use('/api', require('./api'));
 
+// Uploaded modpack showcase media — publicly readable (same trust model as
+// the rest of the /packs showcase: unguessable-enough paths, no secrets).
+app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d' }));
+
 // Per-user share page (real path, so crawlers get a custom embed). Uses only
 // PUBLIC data — the public robot COUNT, never robot details — so private robots
 // never leak. Users with no public mods (or hidden) get the generic embed.
@@ -183,6 +191,37 @@ app.get('/robot/:id', (req, res) => {
   }
 
   const redirect = `<script>location.replace('/#/robot/' + ${JSON.stringify(id)});</script>`;
+  const html = renderIndex(og).replace('</head>', `${redirect}</head>`);
+  res.set('Content-Type', 'text/html; charset=utf-8').send(html);
+});
+
+// Per-modpack showcase share page (real path, so crawlers get a custom
+// embed). Only packs with hasPage AND not private are public; everything
+// else falls back to the generic embed. Humans are bounced to the SPA.
+app.get('/pack/:slug', (req, res) => {
+  const slug = req.params.slug;
+  const pack = allModpacks().find((m) => m.hasPage && !m.private && m.slug === slug);
+
+  let og;
+  if (pack) {
+    const owner = getProfile(pack.uid);
+    const firstImage = (pack.media || []).find((m) => m.type === 'image');
+    og = {
+      title: `${pack.name} · MoSim Mod Tracker`,
+      description: (pack.description || `A ${pack.game} modpack for MoSim.`).slice(0, 300),
+      image: firstImage ? `${SITE}${firstImage.url}` : (owner && !owner.hidden && owner.photo) || `${SITE}/favicon.png`,
+      url: `${SITE}/pack/${encodeURIComponent(slug)}`,
+    };
+  } else {
+    og = {
+      title: 'MoSim Mod Tracker',
+      description: 'Bring real FRC robots into MoSim and track every build from idea to release.',
+      image: `${SITE}/favicon.png`,
+      url: `${SITE}/`,
+    };
+  }
+
+  const redirect = `<script>location.replace('/#/packs/' + ${JSON.stringify(slug)});</script>`;
   const html = renderIndex(og).replace('</head>', `${redirect}</head>`);
   res.set('Content-Type', 'text/html; charset=utf-8').send(html);
 });

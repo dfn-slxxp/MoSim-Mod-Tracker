@@ -36,6 +36,9 @@ INSTALL_DIR="/apps/mosim-tracker-server"
 # directory mixup can ever touch user data. Backed up on every deploy.
 DATA_DIR="/var/lib/mosim-tracker"
 
+# Uploaded modpack showcase media (images/videos) — also outside the repo tree.
+UPLOADS_DIR="/var/lib/mosim-tracker/uploads"
+
 # Internal port the Node server listens on (nginx proxies to this)
 SERVICE_PORT="8787"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -160,6 +163,11 @@ cmd_deploy() {
     _write_env
   fi
 
+  # Idempotent re-apply so nginx config changes (e.g. upload size limits) reach
+  # existing droplets on redeploy, not just fresh setup.
+  _write_nginx
+  nginx -t && systemctl reload nginx
+
   hr
   log "Installing/updating npm dependencies"
   hr
@@ -211,6 +219,7 @@ cmd_status() {
     || du -sh "$INSTALL_DIR/server/data.db" 2>/dev/null \
     || echo "  data.db not found yet"
   ls -1t "$DATA_DIR/backups"/data-*.db 2>/dev/null | head -3 | sed 's/^/  backup: /' || true
+  du -sh "$UPLOADS_DIR" 2>/dev/null || echo "  uploads dir not found yet"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -219,6 +228,7 @@ cmd_status() {
 # One-time move of data.db out of the repo tree + point .env at it.
 _migrate_data() {
   mkdir -p "$DATA_DIR/backups"
+  mkdir -p "$UPLOADS_DIR"
   if [[ -f "$INSTALL_DIR/server/data.db" && ! -f "$DATA_DIR/data.db" ]]; then
     log "Moving database out of the repo tree → $DATA_DIR"
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
@@ -229,6 +239,11 @@ _migrate_data() {
   # Ensure the server reads the external DB (db.js honors DB_PATH)
   if [[ -f "$INSTALL_DIR/server/.env" ]] && ! grep -q '^DB_PATH=' "$INSTALL_DIR/server/.env"; then
     echo "DB_PATH=$DATA_DIR/data.db" >> "$INSTALL_DIR/server/.env"
+  fi
+  # Ensure the server writes uploaded modpack media outside the repo tree
+  # (server.js honors UPLOADS_DIR)
+  if [[ -f "$INSTALL_DIR/server/.env" ]] && ! grep -q '^UPLOADS_DIR=' "$INSTALL_DIR/server/.env"; then
+    echo "UPLOADS_DIR=$UPLOADS_DIR" >> "$INSTALL_DIR/server/.env"
   fi
   chown -R www-data:www-data "$DATA_DIR"
 }
@@ -301,6 +316,7 @@ JWT_SECRET=$jwt_secret
 NODE_ENV=production
 PORT=$SERVICE_PORT
 DB_PATH=$DATA_DIR/data.db
+UPLOADS_DIR=$UPLOADS_DIR
 EOF
   chmod 600 "$INSTALL_DIR/server/.env"
   chown www-data:www-data "$INSTALL_DIR/server/.env"
@@ -332,6 +348,9 @@ _write_nginx() {
 server {
     listen 80;
     server_name $DOMAIN;
+
+    # Modpack showcase media uploads (multer cap is 60MB) — nginx defaults to 1MB.
+    client_max_body_size 65m;
 
     location / {
         proxy_pass         http://127.0.0.1:$SERVICE_PORT;

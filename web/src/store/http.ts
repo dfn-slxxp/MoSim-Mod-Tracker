@@ -10,6 +10,8 @@ import type {
   AuthProvider,
   AuthProviderAvailability,
   Modpack,
+  ModpackAuthor,
+  ModpackMedia,
   NewModpack,
   NewRepo,
   NewRobot,
@@ -63,6 +65,19 @@ export class HTTPBackend implements Backend {
   private _post(url: string, body?: unknown) { return this._req('POST', url, body); }
   private _put(url: string, body: unknown)   { return this._req('PUT', url, body); }
   private _del(url: string)               { return this._req('DELETE', url); }
+
+  /** POST multipart/form-data. No Content-Type header — the browser sets the boundary. */
+  private async _upload(url: string, file: File): Promise<unknown> {
+    const fullUrl = this._serverUrl ? `${this._serverUrl}${url}` : url;
+    const headers: Record<string, string> = {};
+    if (this._token) headers['Authorization'] = `Bearer ${this._token}`;
+    const form = new FormData();
+    form.append('file', file);
+
+    const res = await fetch(fullUrl, { method: 'POST', credentials: 'include', headers, body: form });
+    if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+    return res.json();
+  }
 
   private async _refetch(): Promise<void> {
     const data = await this._get('/api/data') as DataPayload | null;
@@ -192,6 +207,28 @@ export class HTTPBackend implements Backend {
 
   async setRobotModpack(robotId: string, modpackId: string | null): Promise<void> {
     await this._post(`/api/robots/${robotId}/modpack`, { modpackId });
+    await this._refetch();
+  }
+
+  async uploadModpackMedia(id: string, file: File): Promise<ModpackMedia> {
+    const item = await this._upload(`/api/modpacks/${id}/media`, file) as ModpackMedia;
+    await this._refetch();
+    return item;
+  }
+
+  async deleteModpackMedia(id: string, mediaId: string): Promise<void> {
+    await this._del(`/api/modpacks/${id}/media/${mediaId}`);
+    await this._refetch();
+  }
+
+  async addModpackAuthor(id: string, email: string): Promise<ModpackAuthor> {
+    const author = await this._post(`/api/modpacks/${id}/authors`, { email }) as ModpackAuthor;
+    await this._refetch();
+    return author;
+  }
+
+  async removeModpackAuthor(id: string, uid: string): Promise<void> {
+    await this._del(`/api/modpacks/${id}/authors/${encodeURIComponent(uid)}`);
     await this._refetch();
   }
 

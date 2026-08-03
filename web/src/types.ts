@@ -119,6 +119,21 @@ export interface ScriptDoc {
   createdAt: number;
 }
 
+/** One image/video attached to a modpack's public showcase page carousel. */
+export interface ModpackMedia {
+  id: string;
+  type: 'image' | 'video';
+  /** Path under /uploads, e.g. /uploads/modpacks/<id>/<uuid>.jpg */
+  url: string;
+}
+
+/** An additional credited author on a modpack, added by the owner via email. */
+export interface ModpackAuthor {
+  uid: string;
+  displayName: string;
+  email: string;
+}
+
 export interface Modpack {
   id: string;
   name: string;
@@ -128,6 +143,14 @@ export interface Modpack {
   ownerUid: string | null;
   order: number;
   createdAt: number;
+  /** Show a public showcase page for this modpack at /packs/:slug. */
+  hasPage?: boolean;
+  /** User-chosen URL segment for the showcase page. Required when hasPage is true, unique across all modpacks. */
+  slug?: string;
+  /** Carousel media for the showcase page, in display order. */
+  media?: ModpackMedia[];
+  /** Other credited authors, added by the owner. The owner is always an author and isn't listed here. */
+  coAuthors?: ModpackAuthor[];
 }
 
 /** Editable public profile shown in the community directory. */
@@ -208,6 +231,18 @@ export interface PublicProfile {
     discord: string;
   };
   robots: CommunityRobot[];
+}
+
+/** A modpack showcase card (GET /api/packs) — public, only packs with hasPage. */
+export interface PublicPack {
+  id: string;
+  slug: string;
+  name: string;
+  game: string;
+  description: string;
+  media: ModpackMedia[];
+  /** Owner first, then co-authors. */
+  authors: { uid: string; displayName: string }[];
 }
 
 /** Admin view of a user (GET /api/admin/users) — includes hidden flag. */

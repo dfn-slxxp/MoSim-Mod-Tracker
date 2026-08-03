@@ -2,11 +2,37 @@
 const { Router } = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const {
   db, getAll, getById, insert, update, remove, getSetting, setSetting,
-  getProfile, setProfile, allProfiles, allRobots,
+  getProfile, setProfile, allProfiles, allRobots, allModpacks,
   resolveUid, linkAccount, linkedAccounts, unlinkAccount, mergeAccounts,
 } = require('./db');
+
+// Uploaded modpack showcase media — same directory server.js serves at /uploads.
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+
+const mediaUpload = multer({
+  storage: multer.diskStorage({
+    destination(req, _file, cb) {
+      const dir = path.join(UPLOADS_DIR, 'modpacks', req.params.id);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename(_req, file, cb) {
+      const ext = (path.extname(file.originalname) || '').toLowerCase().replace(/[^a-z0-9.]/g, '');
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 60 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    if (/^image\//.test(file.mimetype) || /^video\//.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only image or video files are allowed'));
+  },
+});
 
 /** First token of a full name, used as the default display name. */
 function firstName(name) {
@@ -758,6 +784,35 @@ router.post('/robots/:id/modpack', requireAuth, (req, res) => {
 
 // ── Modpacks ──────────────────────────────────────────────────────────────────
 
+// A modpack's showcase page URL (/packs/:slug) is a user-chosen string, not the
+// record's UUID. Validate format + global uniqueness before the generic CRUD
+// PUT below applies the patch. Registered first so it runs, then falls through
+// (via next()) to the crud router's own PUT /:id for the same route.
+function validateModpackSlug(req, res, next) {
+  const patch = req.body ?? {};
+  if (!('slug' in patch) && !('hasPage' in patch)) return next();
+
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const existing = JSON.parse(row.data);
+  const nextSlug = 'slug' in patch ? String(patch.slug ?? '').trim().toLowerCase() : (existing.slug ?? '');
+  const nextHasPage = 'hasPage' in patch ? !!patch.hasPage : !!existing.hasPage;
+
+  if (nextHasPage) {
+    if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/.test(nextSlug)) {
+      return res.status(400).json({ error: 'Page URL must be 3-40 lowercase letters, numbers, or hyphens.' });
+    }
+    const clash = allModpacks().find((m) => m.slug === nextSlug && m.id !== req.params.id);
+    if (clash) {
+      return res.status(400).json({ error: 'That page URL is already taken — choose another.' });
+    }
+  }
+  if ('slug' in patch) req.body.slug = nextSlug;
+  next();
+}
+router.put('/modpacks/:id', requireAuth, validateModpackSlug);
+
 router.use('/modpacks', crud('modpacks', {
   onDelete(uid, modpackId) {
     const rows = db.prepare('SELECT id, data FROM robots WHERE uid = ?').all(uid);
@@ -784,6 +839,115 @@ router.post('/modpacks/:id/privacy', requireAuth, (req, res) => {
   } catch (e) {
     res.status(e.status ?? 500).json({ error: e.message });
   }
+});
+
+// Add one image/video to a modpack's showcase carousel (multipart upload).
+router.post('/modpacks/:id/media', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  mediaUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const item = {
+      id: crypto.randomUUID(),
+      type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
+      url: `/uploads/modpacks/${req.params.id}/${req.file.filename}`,
+    };
+    const modpack = JSON.parse(row.data);
+    const media = [...(modpack.media ?? []), item];
+    update('modpacks', uid, req.params.id, { media });
+    res.status(201).json(item);
+  });
+});
+
+// Remove one carousel item.
+router.delete('/modpacks/:id/media/:mediaId', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const modpack = JSON.parse(row.data);
+  const item = (modpack.media ?? []).find((m) => m.id === req.params.mediaId);
+  const media = (modpack.media ?? []).filter((m) => m.id !== req.params.mediaId);
+  update('modpacks', uid, req.params.id, { media });
+  if (item) {
+    const filePath = path.join(UPLOADS_DIR, item.url.replace(/^\/uploads\//, ''));
+    fs.unlink(filePath, () => {}); // best-effort — a stray file isn't worth failing the request over
+  }
+  res.json({ ok: true });
+});
+
+// Credit another user on the modpack by email (owner only). Co-author info is
+// stored denormalized on the modpack itself (uid/displayName/email snapshot)
+// so the owner's own modpack list can show names without an extra lookup.
+router.post('/modpacks/:id/authors', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const found = allProfiles().find((p) => (p.email ?? '').toLowerCase() === email);
+  if (!found) return res.status(404).json({ error: 'No user with that email has signed in yet' });
+  if (found.uid === uid) return res.status(400).json({ error: 'You are already the owner' });
+
+  const modpack = JSON.parse(row.data);
+  const coAuthors = modpack.coAuthors ?? [];
+  if (coAuthors.some((a) => a.uid === found.uid)) {
+    return res.status(400).json({ error: 'Already added as an author' });
+  }
+  const author = { uid: found.uid, displayName: found.displayName || 'Modder', email };
+  update('modpacks', uid, req.params.id, { coAuthors: [...coAuthors, author] });
+  res.status(201).json(author);
+});
+
+// Remove a credited co-author (owner only).
+router.delete('/modpacks/:id/authors/:uid', requireAuth, (req, res) => {
+  const uid = req.user.uid;
+  const row = db.prepare('SELECT data FROM modpacks WHERE id = ? AND uid = ?').get(req.params.id, uid);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const modpack = JSON.parse(row.data);
+  const coAuthors = (modpack.coAuthors ?? []).filter((a) => a.uid !== req.params.uid);
+  update('modpacks', uid, req.params.id, { coAuthors });
+  res.json({ ok: true });
+});
+
+// ── Public modpack showcase (/packs) ──────────────────────────────────────────
+// Only modpacks the owner marked hasPage AND that aren't private. Public — no
+// auth required, mirrors the /community pattern.
+
+function toPublicPack(m, profilesByUid) {
+  const owner = {
+    uid: m.uid,
+    displayName: profilesByUid.get(m.uid)?.displayName ?? 'Modder',
+  };
+  const authors = [owner, ...(m.coAuthors ?? []).map((a) => ({ uid: a.uid, displayName: a.displayName }))];
+  return {
+    id: m.id,
+    slug: m.slug,
+    name: m.name,
+    game: m.game,
+    description: m.description ?? '',
+    media: m.media ?? [],
+    authors,
+  };
+}
+
+router.get('/packs', (_req, res) => {
+  const profilesByUid = new Map(allProfiles().map((p) => [p.uid, p]));
+  const packs = allModpacks()
+    .filter((m) => m.hasPage && !m.private && m.slug)
+    .map((m) => toPublicPack(m, profilesByUid))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ packs });
+});
+
+router.get('/packs/:slug', (req, res) => {
+  const m = allModpacks().find((x) => x.hasPage && !x.private && x.slug === req.params.slug);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  const profilesByUid = new Map(allProfiles().map((p) => [p.uid, p]));
+  res.json(toPublicPack(m, profilesByUid));
 });
 
 // ── Repos ─────────────────────────────────────────────────────────────────────

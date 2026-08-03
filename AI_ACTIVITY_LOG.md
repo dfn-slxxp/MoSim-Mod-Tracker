@@ -566,3 +566,78 @@ users can now click their avatar or an "Upload photo" button to pick an image fi
 see an instant cropped preview, and save it as their profile photo (shown in the
 account identity block, the community directory, and public robot/profile embeds) —
 or hit "Remove" to revert to whatever photo their sign-in provider supplies.
+
+## 2026-08-03 — Public modpack showcase pages (/packs) + co-authors
+
+**User messages (this feature, across the session):** "i want an option to have a
+separate webpage for each modpack. this page should have a carousel of videos and/or
+images at the top right under the modpack name, then under that space for a paragraph
+or two of text and a 'download on mosim's website' button. all the modpacks with pages
+should be visible on a /modpacks page that only shows modpacks with pages. at the
+bottom have a 'view modpacks by other people on mosims website' button. use impeccable
+to design" — then, after routing/media/CTA decisions were made — "it shouldn't be /:id
+it should be a string that i set" (user-chosen slugs, not internal ids) — then "each
+pack should have an author but the author of the pack can add other authors".
+
+**Work and decisions:** Private modpack management stays at `/modpacks` (unchanged,
+behind sign-in); a new PUBLIC showcase went at `/packs` (grid of cards) with individual
+pages at `/packs/:slug` (SPA) — `slug` is a user-chosen string per modpack (format
+`/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/`, globally unique), not the internal uuid, set
+from a "🖼️ Add page" panel on each modpack row in `ModpacksPage.tsx`. Media is real file
+uploads (not pasted URLs) via `multer` (diskStorage, uuid filenames, image/video
+mimetype allowlist, 60MB cap) to a new `/uploads` mount, server-tracked as
+`Modpack.media: ModpackMedia[]`. The download button and the "view modpacks by other
+people" button both link to one fixed URL, `https://mosimulator.com/modding`. A new
+server route `GET /pack/:slug` (real path, mirrors the existing `/robot/:id`/`/u/:uid`
+pattern) renders a per-pack Open Graph embed for public pack pages.
+
+Co-authors (added mid-session): the modpack owner can credit other signed-up users as
+co-authors via email lookup against the `profiles` table (`POST
+/modpacks/:id/authors`, owner-only, dedupes, 400s if the email doesn't match a known
+user or is already the owner/an existing co-author) and remove them (`DELETE
+/modpacks/:id/authors/:uid`). Stored denormalized on the modpack as `coAuthors:
+{uid,displayName,email}[]` (snapshot at add-time, consistent with this codebase's
+existing denormalization pattern e.g. `Robot.modpackPrivate`) rather than requiring a
+live join — trades eventual display-name staleness for not needing a new public lookup
+endpoint. `PublicPack.ownerDisplayName: string` was replaced with `authors:
+{uid,displayName}[]` (owner first, then co-authors), consumed by both `PacksPage.tsx`
+and `PackPage.tsx` as a comma-joined byline. Added a co-author add/remove UI (email
+input + chip list with a remove button per co-author) inside `ModpacksPage.tsx`'s
+existing page-management panel.
+
+Also fixed a real deploy gap found along the way: multer's 60MB upload cap would be
+silently rejected by nginx's default 1MB `client_max_body_size`. Added the directive
+to `server/manage.sh`'s generated nginx config and made `cmd_deploy()` re-apply nginx
+config on every deploy (previously it was write-once at `cmd_setup` time only), so
+already-live droplets pick up the fix without a manual step.
+
+Used the `impeccable` skill for the public pages' visual design: `.pack-grid`/
+`.pack-card` (staggered fade-up entrance matching `.community-card`), a `.pack-carousel`
+component (prev/next nav, dot indicators, image/video support), and page CSS
+(`.pack-page-head`, `.pack-page-desc`, `.pack-page-download`), following the project's
+existing CSS-variable token system.
+
+**Verification:** `npm run build` (tsc+vite) passed clean in `web/` after all changes,
+including the co-author addition (fixed two stale `PublicPack.ownerDisplayName`
+references in `PacksPage.tsx`/`PackPage.tsx` that the field rename broke). `node
+--check server/api.js` and `server/db.js` passed. The design-quality hook's one finding
+(`gradient-text` on the pre-existing Instagram brand label, shifted to a new line
+number by the CSS insertion) was reviewed and left unchanged — it's the same
+already-documented false positive from earlier sessions, not something this change
+introduced. `/packs` and `/packs/:slug` are public (no auth), but live interactive
+verification (upload flow, slug publish, co-author add/remove) needs a signed-in owner
+account and wasn't exercised in this sandbox — verified via build/type-check and code
+review, consistent with this repo's established pattern for auth-gated flows.
+
+**Files changed:** `web/src/types.ts`, `web/src/store/backend.ts`,
+`web/src/store/http.ts`, `web/src/pages/ModpacksPage.tsx`, `web/src/pages/PacksPage.tsx`
+(new), `web/src/pages/PackPage.tsx` (new), `web/src/App.tsx`, `web/src/styles.css`,
+`server/api.js`, `server/manage.sh`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Modpack owners can publish a public showcase page for any
+modpack at a URL they choose (`/packs/their-slug`), with an uploaded image/video
+carousel, a description, and a download button linking to MoSim's website. Every
+published (non-private) pack is listed at `/packs`, with a link out to MoSim's own
+modpack listing at the bottom. Owners can also credit co-authors by email — they're
+shown alongside the owner on both the listing cards and the individual pack page, and
+can be added or removed at any time from the modpack's management panel.

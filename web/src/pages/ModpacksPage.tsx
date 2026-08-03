@@ -1,9 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
 import { Select } from '../components/Select';
 import { useStore } from '../store/StoreContext';
-import { GAMES } from '../types';
+import { GAMES, Modpack } from '../types';
 
 export function ModpacksPage() {
   const { modpacks, robots, api, canEdit } = useStore();
@@ -16,6 +16,83 @@ export function ModpacksPage() {
   const [editName, setEditName] = useState('');
   const [editGame, setEditGame] = useState<string>(GAMES[0]);
   const [editDescription, setEditDescription] = useState('');
+
+  const [pageOpenId, setPageOpenId] = useState<string | null>(null);
+  const [slugInput, setSlugInput] = useState('');
+  const [slugError, setSlugError] = useState<string | null>(null);
+  const [savingSlug, setSavingSlug] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [authorEmail, setAuthorEmail] = useState('');
+  const [authorError, setAuthorError] = useState<string | null>(null);
+  const [savingAuthor, setSavingAuthor] = useState(false);
+
+  const togglePagePanel = (m: Modpack) => {
+    if (pageOpenId === m.id) {
+      setPageOpenId(null);
+      return;
+    }
+    setPageOpenId(m.id);
+    setSlugInput(m.slug ?? '');
+    setSlugError(null);
+    setAuthorEmail('');
+    setAuthorError(null);
+  };
+
+  const publishPage = async (m: Modpack) => {
+    setSavingSlug(true);
+    setSlugError(null);
+    try {
+      await api.updateModpack(m.id, { slug: slugInput.trim().toLowerCase(), hasPage: true });
+    } catch (err) {
+      setSlugError((err as Error).message);
+    } finally {
+      setSavingSlug(false);
+    }
+  };
+
+  const unpublishPage = async (m: Modpack) => {
+    try {
+      await api.updateModpack(m.id, { hasPage: false });
+    } catch (err) {
+      void alertDialog((err as Error).message, 'Could not unpublish page');
+    }
+  };
+
+  const addAuthor = async (m: Modpack) => {
+    if (!authorEmail.trim()) return;
+    setSavingAuthor(true);
+    setAuthorError(null);
+    try {
+      await api.addModpackAuthor(m.id, authorEmail.trim());
+      setAuthorEmail('');
+    } catch (err) {
+      setAuthorError((err as Error).message);
+    } finally {
+      setSavingAuthor(false);
+    }
+  };
+
+  const removeAuthor = async (m: Modpack, uid: string) => {
+    try {
+      await api.removeModpackAuthor(m.id, uid);
+    } catch (err) {
+      void alertDialog((err as Error).message, 'Could not remove author');
+    }
+  };
+
+  const handleUpload = async (m: Modpack, e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingId(m.id);
+    try {
+      await api.uploadModpackMedia(m.id, file);
+    } catch (err) {
+      void alertDialog((err as Error).message, 'Could not upload media');
+    } finally {
+      setUploadingId(null);
+    }
+  };
 
   const startEdit = (m: (typeof modpacks)[number]) => {
     setEditingId(m.id);
@@ -87,8 +164,9 @@ export function ModpacksPage() {
         <form className="add-form" onSubmit={submit}>
           <input placeholder="Pack name" value={name} onChange={(e) => setName(e.target.value)} required />
           <Select value={game} options={GAMES.map((g) => ({ value: g, label: g }))} onChange={setGame} />
-          <input
+          <textarea
             placeholder="Description (optional)"
+            rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -125,8 +203,9 @@ export function ModpacksPage() {
                     required
                   />
                   <Select value={editGame} options={GAMES.map((g) => ({ value: g, label: g }))} onChange={setEditGame} />
-                  <input
+                  <textarea
                     placeholder="Description (optional)"
+                    rows={2}
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                   />
@@ -170,6 +249,13 @@ export function ModpacksPage() {
                     {m.private ? '🔒 Private' : '🌐 Public'}
                   </button>
                   <button
+                    type="button"
+                    className={`toggle-btn ${m.hasPage ? 'on' : ''}`}
+                    onClick={() => togglePagePanel(m)}
+                  >
+                    {m.hasPage ? '🖼️ Page live' : '🖼️ Add page'}
+                  </button>
+                  <button
                     className="btn danger subtle"
                     onClick={async () => {
                       if (
@@ -184,6 +270,112 @@ export function ModpacksPage() {
                   >
                     Delete
                   </button>
+                </div>
+              )}
+              {canEdit && pageOpenId === m.id && (
+                <div className="pack-page-panel">
+                  <div className="pack-page-row">
+                    <span className="pack-page-prefix">/packs/</span>
+                    <input
+                      className="pack-page-slug"
+                      placeholder="my-modpack"
+                      value={slugInput}
+                      onChange={(e) => {
+                        setSlugInput(e.target.value);
+                        setSlugError(null);
+                      }}
+                      aria-label="Public page URL"
+                    />
+                    <button
+                      type="button"
+                      className="btn primary"
+                      disabled={savingSlug || !slugInput.trim()}
+                      onClick={() => publishPage(m)}
+                    >
+                      {m.hasPage ? 'Update' : 'Publish'}
+                    </button>
+                    {m.hasPage && (
+                      <button type="button" className="btn subtle" onClick={() => unpublishPage(m)}>
+                        Unpublish
+                      </button>
+                    )}
+                  </div>
+                  {slugError && <p className="field-error">{slugError}</p>}
+                  {m.hasPage && m.slug && (
+                    <Link to={`/packs/${m.slug}`} className="pack-page-view link" target="_blank" rel="noreferrer">
+                      View live page →
+                    </Link>
+                  )}
+
+                  <div className="pack-media-list">
+                    {(m.media ?? []).map((item) => (
+                      <div key={item.id} className="pack-media-thumb">
+                        {item.type === 'video' ? (
+                          <video src={item.url} muted />
+                        ) : (
+                          <img src={item.url} alt="" />
+                        )}
+                        <button
+                          type="button"
+                          className="pack-media-remove"
+                          aria-label="Remove media"
+                          onClick={() => api.deleteModpackMedia(m.id, item.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <label className="pack-media-add">
+                      {uploadingId === m.id ? 'Uploading…' : '+ Add media'}
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        hidden
+                        disabled={uploadingId === m.id}
+                        onChange={(e) => handleUpload(m, e)}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="pack-authors">
+                    <span className="muted small">Co-authors</span>
+                    <div className="pack-authors-list">
+                      {(m.coAuthors ?? []).length === 0 && <span className="muted small">None yet</span>}
+                      {(m.coAuthors ?? []).map((a) => (
+                        <span key={a.uid} className="pack-chip">
+                          {a.displayName}
+                          <button
+                            type="button"
+                            className="pack-author-remove"
+                            aria-label={`Remove ${a.displayName} as author`}
+                            onClick={() => removeAuthor(m, a.uid)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="pack-page-row">
+                      <input
+                        placeholder="Add author by email"
+                        value={authorEmail}
+                        onChange={(e) => {
+                          setAuthorEmail(e.target.value);
+                          setAuthorError(null);
+                        }}
+                        aria-label="Co-author email"
+                      />
+                      <button
+                        type="button"
+                        className="btn subtle"
+                        disabled={savingAuthor || !authorEmail.trim()}
+                        onClick={() => addAuthor(m)}
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {authorError && <p className="field-error">{authorError}</p>}
+                  </div>
                 </div>
               )}
             </div>

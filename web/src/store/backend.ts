@@ -8,6 +8,8 @@ import type {
   AuthProvider,
   AuthProviderAvailability,
   Modpack,
+  ModpackAuthor,
+  ModpackMedia,
   NewModpack,
   NewRepo,
   NewRobot,
@@ -53,6 +55,14 @@ export interface Backend {
   deleteModpack(id: string): Promise<void>;
   /** Move a robot into a modpack (or null), keeping modpackPrivate in sync. */
   setRobotModpack(robotId: string, modpackId: string | null): Promise<void>;
+  /** Upload one image/video to a modpack's showcase carousel. */
+  uploadModpackMedia(id: string, file: File): Promise<ModpackMedia>;
+  /** Remove one carousel item from a modpack's showcase. */
+  deleteModpackMedia(id: string, mediaId: string): Promise<void>;
+  /** Credit another signed-up user as a co-author, by email. */
+  addModpackAuthor(id: string, email: string): Promise<ModpackAuthor>;
+  /** Remove a credited co-author. */
+  removeModpackAuthor(id: string, uid: string): Promise<void>;
 
   addRepo(repo: NewRepo): Promise<string>;
   updateRepo(id: string, patch: Partial<Repo>): Promise<void>;

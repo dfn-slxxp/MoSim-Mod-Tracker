@@ -12,6 +12,8 @@ import { AccountPage } from './pages/AccountPage';
 import { CompactPage } from './pages/CompactPage';
 import { HomePage } from './pages/HomePage';
 import { ModpacksPage } from './pages/ModpacksPage';
+import { PackPage } from './pages/PackPage';
+import { PacksPage } from './pages/PacksPage';
 import { PlannedPage } from './pages/PlannedPage';
 import { ReposPage } from './pages/ReposPage';
 import { RobotDetailPage } from './pages/RobotDetailPage';
@@ -242,6 +244,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/home">Home</NavLink>
           <NavLink to="/robots">Robots</NavLink>
           <NavLink to="/modpacks">Modpacks</NavLink>
+          <NavLink to="/packs">Showcase</NavLink>
           <NavLink to="/repos">Repos</NavLink>
           <NavLink to="/scripts">Scripts</NavLink>
           {!isDesktop && <NavLink to="/compact">Compact</NavLink>}
@@ -276,6 +279,8 @@ export default function App() {
               <Route path="/" element={<Navigate to={isDesktop ? '/robots' : '/home'} replace />} />
               <Route path="/home" element={<HomePage />} />
               <Route path="/u/:uid" element={<UserProfilePage />} />
+              <Route path="/packs" element={<PacksPage />} />
+              <Route path="/packs/:slug" element={<PackPage />} />
               <Route path="/robots" element={<RequireAuth><RobotsPage /></RequireAuth>} />
               <Route path="/robot/:id" element={<RequireAuth><RobotDetailPage /></RequireAuth>} />
               <Route path="/planned" element={<RequireAuth><PlannedPage /></RequireAuth>} />

@@ -135,6 +135,12 @@ function allRobots() {
     .map((r) => ({ uid: r.uid, ...JSON.parse(r.data) }));
 }
 
+/** Every modpack row across all users (for the public /packs showcase). */
+function allModpacks() {
+  return db.prepare('SELECT uid, data FROM modpacks').all()
+    .map((r) => ({ uid: r.uid, ...JSON.parse(r.data) }));
+}
+
 // ── Account linking ───────────────────────────────────────────────────────────
 
 /** Resolve a Google sub to its primary account uid (itself if unlinked). */
@@ -205,6 +211,6 @@ function setSetting(key, value) {
 
 module.exports = {
   db, getAll, getById, insert, update, remove, getSetting, setSetting,
-  getProfile, setProfile, allProfiles, allRobots,
+  getProfile, setProfile, allProfiles, allRobots, allModpacks,
   resolveUid, linkAccount, linkedAccounts, unlinkAccount, mergeAccounts,
 };
