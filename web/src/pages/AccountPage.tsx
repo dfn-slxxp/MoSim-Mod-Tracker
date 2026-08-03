@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
-// Account page (/account) — edit your public profile, see how the community
-// directory sees you, and link additional sign-in accounts (Google, GitHub,
-// Discord). Sign-in identity (email, photo) is read-only.
+// Account page (/account) — edit your public profile (including photo), see
+// how the community directory sees you, and link additional sign-in accounts
+// (Google, GitHub, Discord). Sign-in email is read-only.
 // ---------------------------------------------------------------------------
 import { useEffect } from 'react';
 import { useDialog } from '../components/Dialog';

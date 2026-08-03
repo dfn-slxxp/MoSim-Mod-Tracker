@@ -425,7 +425,14 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   email/photo, never clobbers user-edited displayName/instagram/discord).
 - `/api/me` includes `profile: {displayName, instagram, discord, completed}`.
 - PUT /api/profile sets those + completed=true (display name required; Instagram
-  stored as bare handle — @/URL stripped server-side).
+  stored as bare handle — @/URL stripped server-side). Also accepts an optional
+  `photo` field: omit to leave the stored photo untouched, `null`/`''` to reset it to
+  the live sign-in-provider photo, or a `data:image/(png|jpeg|webp);base64,...`
+  string (<=400,000 chars) to store a custom one; anything else 400s. Custom photos
+  are uploaded from `web/src/components/ProfileForm.tsx` (Account page + first-time
+  ProfileSetup modal), resized/cropped to a 256x256 JPEG data URI client-side by
+  `web/src/lib/image.ts` `resizeImageFile()` before sending, so payloads stay well
+  under the server's 600kb JSON body cap.
 - GET /api/community (PUBLIC): users with >=1 PUBLIC robot (!private &&
   !modpackPrivate) who aren't admin-hidden, with robotCount + games.
 - Frontend: HomePage is public (RequireAuth wraps only the app pages). Web `/`
@@ -963,3 +970,21 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   verified via computed styles instead of pixels.
   **Files changed:** `web/src/styles.css`, `DESIGN.md`, `.impeccable/design.json`,
   `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-03: Added an in-app way to change the profile photo, which previously came
+  only from the OAuth provider with no override UI (server already supported an
+  override via `profiles.photo`, just nothing wrote to it). New photo picker in the
+  shared `ProfileForm.tsx` (Account page + first-time ProfileSetup modal): click the
+  avatar or "Upload photo" to pick a file, new `web/src/lib/image.ts`
+  `resizeImageFile()` crops/downsamples it to a 256x256 JPEG data URI client-side for
+  preview + upload, "Remove" clears back to the sign-in provider's photo. `PUT
+  /api/profile` (`server/api.js`) gained an optional `photo` field: omitted = no
+  change, `null`/`''` = reset to `req.user.photo`, a `data:image/(png|jpeg|webp);
+  base64,...` string under 400,000 chars = stored, else 400. `Backend`/`HTTPBackend`
+  `updateProfile()` signatures updated to match. **Verified:** `npm run build`
+  (tsc+vite) passed in `web/`; `node --check server/api.js` passed; dev server loaded
+  in the browser preview with no console errors. `/account` and ProfileSetup are both
+  behind `RequireAuth` (real Google OAuth), so the live upload/preview/remove/save
+  flow wasn't exercised in this sandbox — verified via code review + type-check only.
+  **Files changed:** `web/src/lib/image.ts` (new), `web/src/components/ProfileForm.tsx`,
+  `web/src/store/backend.ts`, `web/src/store/http.ts`, `web/src/pages/AccountPage.tsx`,
+  `web/src/styles.css`, `server/api.js`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.

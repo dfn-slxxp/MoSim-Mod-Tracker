@@ -2114,6 +2114,46 @@ h3 {
   flex: 1;
 }
 
+.profile-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-photo-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  padding: 0;
+  border: 1px solid var(--border-solid);
+  background: var(--panel-2);
+  overflow: hidden;
+  flex: none;
+  cursor: pointer;
+}
+
+.profile-photo-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.profile-photo-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .profile-setup-card {
   width: min(420px, calc(100vw - 40px));
 }

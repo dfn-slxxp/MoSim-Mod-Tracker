@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// Shared profile editor: display name + Instagram/Discord handles. Used both
-// on the Account page and in the first-time setup modal (ProfileSetup).
+// Shared profile editor: photo + display name + Instagram/Discord handles.
+// Used both on the Account page and in the first-time setup modal (ProfileSetup).
 // ---------------------------------------------------------------------------
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from '../store/StoreContext';
 import { useDialog } from './Dialog';
+import { resizeImageFile } from '../lib/image';
 
 export function ProfileForm({
   onSaved,
@@ -18,10 +19,30 @@ export function ProfileForm({
   const [displayName, setDisplayName] = useState(user?.profile?.displayName || user?.name || '');
   const [instagram, setInstagram] = useState(user?.profile?.instagram ?? '');
   const [discord, setDiscord] = useState(user?.profile?.discord ?? '');
+  // undefined = unchanged, null = explicit reset to sign-in photo, string = new upload
+  const [photo, setPhoto] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const cleanInstagram = (v: string) =>
     v.trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/\/.*$/, '');
+
+  const pickPhoto = () => fileInput.current?.click();
+
+  const onPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      void alertDialog('Please choose an image file.', 'Not an image');
+      return;
+    }
+    try {
+      setPhoto(await resizeImageFile(file));
+    } catch (err) {
+      void alertDialog((err as Error).message, 'Could not use that image');
+    }
+  };
 
   const save = async () => {
     if (!displayName.trim()) {
@@ -34,7 +55,9 @@ export function ProfileForm({
         displayName: displayName.trim(),
         instagram: cleanInstagram(instagram),
         discord: discord.trim().replace(/^@/, ''),
+        ...(photo !== undefined ? { photo } : {}),
       });
+      setPhoto(undefined);
       onSaved?.();
     } catch (e) {
       void alertDialog((e as Error).message, 'Could not save profile');
@@ -44,9 +67,40 @@ export function ProfileForm({
   };
 
   const igHandle = cleanInstagram(instagram);
+  const shownPhoto = photo !== undefined ? photo : user?.photo ?? null;
 
   return (
     <div className="profile-form">
+      <div className="profile-field">
+        <span className="profile-label">Photo</span>
+        <div className="profile-photo-row">
+          <button type="button" className="profile-photo-btn" onClick={pickPhoto} title="Change photo">
+            {shownPhoto ? (
+              <img src={shownPhoto} alt="Your avatar" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="profile-photo-placeholder">+</span>
+            )}
+          </button>
+          <div className="profile-photo-actions">
+            <button type="button" className="btn subtle" onClick={pickPhoto}>
+              Upload photo
+            </button>
+            {shownPhoto && (
+              <button type="button" className="btn subtle" onClick={() => setPhoto(null)}>
+                Remove
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={onPhotoSelected}
+          />
+        </div>
+      </div>
+
       <label className="profile-field">
         <span className="profile-label">Display name</span>
         <input

@@ -64,8 +64,14 @@ export interface Backend {
   updateScript(id: string, patch: Partial<ScriptDoc>): Promise<void>;
   deleteScript(id: string): Promise<void>;
 
-  /** Save the signed-in user's public profile (display name + handles). */
-  updateProfile(patch: { displayName: string; instagram: string; discord: string }): Promise<void>;
+  /** Save the signed-in user's public profile (display name + handles + photo). */
+  updateProfile(patch: {
+    displayName: string;
+    instagram: string;
+    discord: string;
+    /** Omit to leave unchanged, null to reset to the sign-in provider's photo, or a data: URI to set a custom one. */
+    photo?: string | null;
+  }): Promise<void>;
   /** Re-fetch the current user (name, profile, linked accounts). */
   refreshUser(): Promise<void>;
   /** Begin linking another account (any provider) to this one. */

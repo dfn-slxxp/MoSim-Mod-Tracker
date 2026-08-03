@@ -527,13 +527,27 @@ router.put('/profile', requireAuth, (req, res) => {
   const discord = String(req.body?.discord ?? '').trim().replace(/^@/, '').slice(0, 40);
   if (!displayName) return res.status(400).json({ error: 'Display name is required' });
 
+  let photo = existing.photo ?? req.user.photo ?? null;
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'photo')) {
+    const p = req.body.photo;
+    if (p === null || p === '') {
+      // Reset to the sign-in provider's photo (no custom upload).
+      photo = req.user.photo ?? null;
+    } else if (typeof p === 'string' && /^data:image\/(png|jpe?g|webp);base64,/.test(p)) {
+      if (p.length > 400000) return res.status(400).json({ error: 'Photo is too large' });
+      photo = p;
+    } else {
+      return res.status(400).json({ error: 'Invalid photo' });
+    }
+  }
+
   setProfile(uid, {
     ...existing,
     displayName,
     instagram,
     discord,
     email: existing.email ?? req.user.email,
-    photo: existing.photo ?? req.user.photo ?? null,
+    photo,
     completed: true,
     hidden: existing.hidden ?? false,
     createdAt: existing.createdAt ?? Date.now(),

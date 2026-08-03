@@ -526,3 +526,43 @@ handoff/activity-log updates to `main`, then push it to `origin`.
 **User-facing outcome:** Page titles, section headers, and card/subsection headers now render at the size/weight DESIGN.md had already committed to as the app's intended hierarchy, instead of relying on the browser's default heading styles for part of that scale.
 
 **User-facing outcome:** Modpacks can now be edited in place (name, game/year, description) from the Modpacks page. A modpack's game/year is enforced everywhere a robot is attached to one: the modpack picker on both the add-robot form and the robot detail page only offers packs matching the robot's own game, and changing a robot's (or a modpack's) game automatically detaches any now-mismatched pack, with a confirmation when that would affect existing members.
+
+## 2026-08-03 — Add a way to change profile photo
+
+**User message:** "Add a way to change pfp"
+
+**Work and decisions:** Profile photo previously only ever came from the OAuth
+provider (Google/GitHub/Discord `photo` field, upserted into the `profiles` table on
+primary sign-in) with no in-app override UI, even though `profiles.photo` and
+`GET /api/me`'s `photo: profile?.photo ?? photo` already supported a stored override
+transparently. Added a photo picker to the shared `ProfileForm.tsx` (used on both the
+Account page and the first-time ProfileSetup modal): clicking the avatar or "Upload
+photo" opens a file picker; a new `web/src/lib/image.ts` `resizeImageFile()` crops to
+a centered square, downsamples to 256x256, and re-encodes as a JPEG data URI
+client-side (keeps payloads small and clear of the server's 600kb JSON body cap) for
+instant preview; a "Remove" button clears the override back to the sign-in provider's
+photo. `PUT /api/profile` (`server/api.js`) now accepts an optional `photo` field:
+`null`/`''` resets to `req.user.photo` (the live provider photo), a `data:image/
+(png|jpeg|webp);base64,...` string under 400,000 chars is stored, anything else is
+rejected with 400. Omitting `photo` from the request (the existing behavior for plain
+name/handle edits) leaves the stored photo untouched. Updated the
+`Backend.updateProfile`/`HTTPBackend.updateProfile` TS signatures to add the optional
+`photo` field, and refreshed a stale `AccountPage.tsx` header comment that had called
+photo read-only.
+
+**Verification:** `npm run build` (tsc+vite) passed clean in `web/`; `node --check
+server/api.js` passed. Loaded the dev server in the browser preview — no console
+errors on load. `/account` and the ProfileSetup modal are both behind `RequireAuth`
+(real Google OAuth), so the actual upload/preview/remove/save round trip could not be
+exercised live in this sandbox — verified via code review and type-check only,
+consistent with this repo's established pattern for auth-gated pages.
+
+**Files changed:** `web/src/lib/image.ts` (new), `web/src/components/ProfileForm.tsx`,
+`web/src/store/backend.ts`, `web/src/store/http.ts`, `web/src/pages/AccountPage.tsx`,
+`web/src/styles.css`, `server/api.js`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** On the Account page (and during first-time profile setup),
+users can now click their avatar or an "Upload photo" button to pick an image file,
+see an instant cropped preview, and save it as their profile photo (shown in the
+account identity block, the community directory, and public robot/profile embeds) —
+or hit "Remove" to revert to whatever photo their sign-in provider supplies.
