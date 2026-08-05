@@ -344,7 +344,52 @@ EOF
 }
 
 _write_nginx() {
-  cat > "/etc/nginx/sites-available/$SERVICE_NAME" << EOF
+  local conf="/etc/nginx/sites-available/$SERVICE_NAME"
+  local cert_dir="/etc/letsencrypt/live/$DOMAIN"
+
+  # Idempotent across every deploy, not just first-time setup: if a cert already
+  # exists (from a prior certbot run), write the full HTTPS block ourselves
+  # instead of relying on certbot's one-time in-place edit — otherwise every
+  # subsequent deploy overwrites this file with an HTTP-only config and quietly
+  # kills HTTPS (this happened in production on 2026-08-05).
+  if [[ -f "$cert_dir/fullchain.pem" && -f "$cert_dir/privkey.pem" ]]; then
+    local ssl_extra=""
+    [[ -f /etc/letsencrypt/options-ssl-nginx.conf ]] && ssl_extra+=$'    include /etc/letsencrypt/options-ssl-nginx.conf;\n'
+    [[ -f /etc/letsencrypt/ssl-dhparams.pem ]] && ssl_extra+=$'    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;\n'
+
+    cat > "$conf" << EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    location / { return 301 https://\$host\$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name $DOMAIN;
+
+    ssl_certificate $cert_dir/fullchain.pem;
+    ssl_certificate_key $cert_dir/privkey.pem;
+$ssl_extra
+    # Modpack showcase media uploads (multer cap is 60MB) — nginx defaults to 1MB.
+    client_max_body_size 65m;
+
+    location / {
+        proxy_pass         http://127.0.0.1:$SERVICE_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+  else
+    # No cert yet (fresh droplet, pre-certbot) — HTTP only. cmd_setup runs
+    # certbot --nginx right after this, which patches the file to add HTTPS;
+    # the next deploy's call to _write_nginx will then take the branch above.
+    cat > "$conf" << EOF
 server {
     listen 80;
     server_name $DOMAIN;
@@ -362,8 +407,10 @@ server {
     }
 }
 EOF
+  fi
+
   if [[ ! -L "/etc/nginx/sites-enabled/$SERVICE_NAME" ]]; then
-    ln -s "/etc/nginx/sites-available/$SERVICE_NAME" "/etc/nginx/sites-enabled/$SERVICE_NAME"
+    ln -s "$conf" "/etc/nginx/sites-enabled/$SERVICE_NAME"
   fi
 }
 
