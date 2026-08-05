@@ -721,3 +721,39 @@ robots ever becoming tracked entries in the site. The modpack's public page
 owner's tracked robots and these credited robots, with rebuild-suffix duplicates
 ("694a"/"694b") collapsed into a single pill — each labeled with the team's real name
 pulled live from The Blue Alliance.
+
+## 2026-08-05 — Production HTTPS outage: manage.sh clobbering nginx SSL block
+
+**User message:** Shared a screenshot of `mods.sebastianw.tech` showing
+`ERR_CONNECTION_REFUSED` in the browser, alongside a terminal showing a deploy that had
+just completed successfully ("Deploy complete — https://mods.sebastianw.tech is live").
+Asked how to investigate; chose "SSH in and check status" when offered options (my own
+SSH access from this environment had no key authorized on the droplet, so the user ran
+each diagnostic command themselves and pasted output back).
+
+**Work and decisions:** Walked the diagnosis interactively: `systemctl status
+mosim-tracker`/`nginx` showed both services running and nginx listening on port 80 —
+but nothing on 443. `nginx -T` and `certbot certificates` showed a valid, non-expired
+cert existed but wasn't wired into any active server block. `sites-available/mosim-tracker`
+turned out to be HTTP-only, rewritten at the exact deploy timestamp. Root cause: `server/
+manage.sh`'s `_write_nginx()` (made to run on every `cmd_deploy`, not just `cmd_setup`,
+as of the 2026-08-03 upload-size-cap session) unconditionally overwrites the nginx site
+file with an HTTP-only template. It only ever worked because `cmd_setup` runs `certbot
+--nginx` right after the first call, which patches the file in place to add HTTPS — but
+every subsequent `deploy` since 08-03 silently re-overwrote that patch, and this deploy
+finally triggered the outage. Fixed `_write_nginx()` (server/manage.sh) to check for an
+existing cert at `/etc/letsencrypt/live/$DOMAIN` and, when present, write the full HTTPS
+block itself (80→443 redirect + `ssl_certificate`/`ssl_certificate_key` + certbot's
+`options-ssl-nginx.conf`/`ssl-dhparams.pem` if present) on every call, so redeploys are
+now idempotent instead of depending on certbot's one-time edit surviving forever.
+
+**Verification:** `bash -n server/manage.sh` passed. Committed and pushed to `main`
+(`1f0a034`) after explicit user confirmation. Gave the user the fix-forward command
+(`git pull && bash server/manage.sh deploy` on the droplet) plus a verification command
+(`ss -tlnp` + `curl -sI https://...`). User ran it and confirmed "all good" — site is
+back up over HTTPS.
+
+**Files changed:** `server/manage.sh`, `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+
+**User-facing outcome:** Production HTTPS outage on `mods.sebastianw.tech` diagnosed and
+resolved; root cause fixed in the repo so future deploys won't repeat it.

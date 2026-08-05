@@ -709,6 +709,10 @@ Upload steps use `shell: bash` (Windows runners default to PowerShell; `$TAG` mu
   file. nginx `client_max_body_size 65m` (>= multer's 60MB cap) is written by
   `server/manage.sh` `_write_nginx()`, which now also runs on every `cmd_deploy` (not
   just `cmd_setup`) so existing droplets pick up nginx config changes on redeploy.
+  `_write_nginx()` is idempotent w.r.t. HTTPS (see 2026-08-05 session note below) — it
+  detects an existing cert at `/etc/letsencrypt/live/$DOMAIN` and writes the full
+  80→443-redirect + SSL server block itself on every call, rather than relying on
+  certbot's one-time in-place edit.
 - **Co-authors:** the owner can credit other signed-up users via email lookup
   (`POST /modpacks/:id/authors {email}`, owner-only, resolves against `allProfiles()`,
   rejects unknown emails/the owner's own email/already-added authors) and remove them
@@ -1139,3 +1143,20 @@ git tag -d v1.0.0; git push origin :refs/tags/v1.0.0; git tag v1.0.0; git push o
   `web/src/pages/PacksPage.tsx` (new), `web/src/pages/PackPage.tsx` (new),
   `web/src/App.tsx`, `web/src/styles.css`, `server/api.js`, `server/manage.sh`,
   `CLAUDE.md`, `AI_ACTIVITY_LOG.md`.
+- 2026-08-05: Production HTTPS outage on `mods.sebastianw.tech` (browser showed
+  `ERR_CONNECTION_REFUSED`) diagnosed via user-run SSH commands (this environment has
+  no SSH key on the droplet). Root cause: `server/manage.sh` `_write_nginx()`, made to
+  run on every `cmd_deploy` in the 2026-08-03 session (for the upload-size cap), was
+  unconditionally overwriting `sites-available/mosim-tracker` with an HTTP-only
+  template — silently deleting certbot's SSL server block on every redeploy since
+  08-03. It had only ever appeared to work because `cmd_setup` runs `certbot --nginx`
+  once, right after the first `_write_nginx()` call, patching the file in place; every
+  `deploy` since then quietly undid that patch. Fixed `_write_nginx()` to detect an
+  existing cert at `/etc/letsencrypt/live/$DOMAIN` and, when present, write the
+  complete HTTPS block itself (80→443 redirect + `ssl_certificate`/
+  `ssl_certificate_key` + certbot's `options-ssl-nginx.conf`/`ssl-dhparams.pem` when
+  those files exist) on every call, making redeploys idempotent instead of dependent
+  on certbot's one-time edit surviving forever. **Verified:** `bash -n server/
+  manage.sh` passed; user pulled + redeployed on the droplet and confirmed the site is
+  back up over HTTPS ("all good"). **Files changed:** `server/manage.sh`, `CLAUDE.md`,
+  `AI_ACTIVITY_LOG.md`.
